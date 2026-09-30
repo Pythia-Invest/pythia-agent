@@ -12,7 +12,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
-from pythia_identity_fixture import device, lifecycle, page, store, subject as subjects  # noqa: E402
+from pythia_identity_fixture import build_questions, conflicts, device, ingest, lifecycle, page, store  # noqa: E402
+from pythia_identity_fixture import subject as subjects  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 # The columns that name a subject in each reference table: what a release re-keys.
@@ -104,16 +105,28 @@ class World:
         subject = self.subject(subject_id)
         return {section["section"]: section for section in page.compose(subject, plugins, **self.lookups(subject))}
 
+    def ingest(self, info: page.PluginInfo, *claims: dict, scope: str | None = None, complete: bool = False,
+               seen=()) -> dict:
+        """What core does with a page of the plugin's catalogue (`scope`), or with a resolve answer without one."""
+        batch = identity.batch_from_json({
+            "plugin": info.manifest.plugin, "provider": info.manifest.provider,
+            "adapter_version": PROVENANCE["adapter_version"], "origin": "catalogue" if scope else "resolve",
+            "scope": scope, "complete": complete, "claims": list(claims)})
+        return ingest.ingest(self.identity, self.ref, info, batch, plugins=self.plugins, now=NOW, seen=seen)
+
+    def touch(self, subject_id: str) -> int:
+        """What `queue_ops.surface` does when the investor opens a subject: queue the conflicts its page raises."""
+        raised = conflicts.raised(self.ref, self.identity, [subject_id], self.plugins)
+        return build_questions.import_build(self.identity, raised, NOW)
+
     def resolve(self, info: page.PluginInfo, subject_id: str, *records: dict):
-        """What identity-resolve does with one plugin's answer: keep its claims, then store the binding or the queue
-        item the authority rule decides at the records' level. Returns (binding, queue item)."""
+        """What identity-resolve does with one plugin's answer: store its records through ingest, then store the binding
+        or the queue item the authority rule decides at the records' level. Returns (binding, queue item)."""
         subject = self.subject(subject_id)
         batch = identity.batch_from_json({"plugin": info.manifest.plugin, "provider": info.manifest.provider,
                                           "adapter_version": PROVENANCE["adapter_version"], "origin": "resolve",
                                           "claims": list(records)})
-        identity.check_batch(batch, info.manifest)
-        for claim in identity.batch_to_json(batch)["claims"]:
-            self.identity.put_claim(batch.plugin, batch.provider, claim)
+        ingest.ingest(self.identity, self.ref, info, batch, plugins=self.plugins, now=NOW)
         binding, item, _ = page.apply_resolve(batch, info, identity.Level(records[0]["level"]), subject,
                                               page.resolve_input(info, subject), now=NOW, as_of=AS_OF,
                                               bound_to=self.identity.bound_subject)

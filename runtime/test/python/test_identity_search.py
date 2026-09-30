@@ -1,6 +1,8 @@
 """Core's local search over a hand-written reference: search groups, their lead lines and the page's listings."""
 import contextlib
 import sqlite3
+import types
+import unittest.mock
 from pathlib import Path
 
 from test_identity_page import ASML, BTC, Fixture
@@ -119,14 +121,17 @@ class SearchTest(Fixture):
         from test_identity_queue import load_core
         load_core()
         from pythia_core_queue_fixture import identity_ops
+        ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.path).parent / "core")
+        self.addCleanup(lambda: ops.store.db.close())
+        self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: []))
         shell = "security:isin:GB00BP6MXD84"
         self.assertEqual(page.load_subject(self.ref, shell)["listing"]["id"], SHELL_OTC)  # id order alone: OTC
-        default = identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, shell))
+        default = ops._default_listing(Path(self.path), page.load_subject(self.ref, shell))
         self.assertEqual(default, SHELL)
         self.assertEqual(page.load_subject(self.ref, shell, default)["view"]["subject"]["listing"], SHELL)
         # A line of another security is not the security's to price through.
         self.assertEqual(page.load_subject(self.ref, shell, SHEL)["listing"]["id"], SHELL_OTC)
-        self.assertIsNone(identity_ops.Identity._default_listing(Path(self.path), page.load_subject(self.ref, SHELL)))
+        self.assertIsNone(ops._default_listing(Path(self.path), page.load_subject(self.ref, SHELL)))
 
     def test_only_a_fold_relation_folds_a_receipt_and_the_issuer_still_groups_it(self):
         with sqlite3.connect(self.path) as db:

@@ -354,6 +354,14 @@ version 1):
   relation claim may name the plugin's own declared references
   ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
   "contract version 2").
+- A bulk `catalogue` operation takes `{"scope", "cursor"}` and answers
+  `{"data": <ClaimBatch>, "next_cursor"}`, the last page of a scope `complete`
+  with no cursor. Core reads it only when the user asks (`identity-sync`),
+  scope by scope in the order the contract lists them, so a scope may name
+  what an earlier one introduced. Core joins or introduces every record, and a
+  record with no native reference (a token named only by CAIP-19) is kept by
+  its identifiers ([ADR 0038](../decisions/0038-plugin-addressing-contract.md),
+  amendment "core dispatches catalogue and resolve").
 - A `resolve` answer's records mark each identifier's `role`: `self` names the
   record itself, `underlying` its underlying and `unqualified` a value the
   source cannot place. On a crypto asset record, `self` on a CAIP-19 claims

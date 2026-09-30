@@ -356,3 +356,52 @@ Rejected alternatives:
   ID, which A3 rules out.
 - **Refusing a batch whose record the plugin may not introduce.** One such
   record would hide the plugin's valid evidence; it stays an unmatched claim.
+
+## Amendment (2026-09-30): core dispatches catalogue and resolve
+
+**Status: accepted and implemented** (roadmap stage 0). Plugins return claim
+batches from the operations core dispatches; core places every record through
+one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
+
+- **The catalogue operation is core's to call.** A bulk catalogue's
+  `catalogue.operation` takes `{"scope", "cursor"}` (no cursor for the first
+  page) and answers `{"data": <ClaimBatch>, "next_cursor"}`: a page of that
+  scope, whose last page sets `complete` and no cursor. The adapter maps it
+  like any other operation.
+- **`identity-sync {plugin}`** reads one plugin's catalogue when asked, with no
+  scheduler: each declared scope in the order the contract lists them, page by
+  page, within a page and time bound (then `partial`). A scope may name what an
+  earlier one introduced (a DeFi source's pools name the protocols its
+  `protocols` scope lists first), so the order is the plugin's to declare. It
+  answers the counts: joined, introduced, conflicts, unmatched, rejected and
+  not seen, with the pages read.
+- **`identity-lookup {plugin, query}`** is the "Look up in X" backend: the
+  query's identifier (ISIN, FIGI, LEI or CIK, as search classifies it) is sent
+  once to the plugin's resolve under a scheme it accepts (a FIGI under the
+  first FIGI scheme it takes), and every record it answers is ingested. It
+  answers the counts and the subjects placed.
+- **`identity-resolve`** stores its answer through the same ingest before
+  deciding its binding.
+- Only an enabled, configured plugin is called. Sync and lookup are Desk
+  operations; the agent's tool list is at its size budget, so they are not
+  model tools.
+
+Superseded: "`catalogue.operation` names the plugin's own catalogue operation,
+which the plugin's sync runs and core does not dispatch, so the adapter does
+not map it" (contract version 1).
+
+Consequences:
+
+- CoinGecko's and CoinMarketCap's catalogue tools still answer an older row
+  format and declare no operation, so `identity-sync` says it cannot read them
+  until they return claim batches.
+- A record whose plugin gave no native reference is kept by a digest of its
+  identifiers, so a token named only by CAIP-19 still joins or is introduced.
+
+Rejected alternatives:
+
+- **A static catalogue file per plugin:** a second mechanism, and pools and
+  lookups change daily or on demand.
+- **A plugin-side emitter that finds core:** couples plugins to the harness's
+  plugin table, which stage 0 removes.
+- **Syncing on enable, or on a schedule:** a provider call nobody asked for.

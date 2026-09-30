@@ -71,7 +71,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
         if item["state"] != "open" and item["settled"] else None,
         "evidence": _evidence(ref, item["evidence_ids"]),
-        "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")]}
+        "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")
+                              if relation != "none" or not (built and build_questions.itself(item))]}
 
 
 def listing(store: IdentityStore, ref: sqlite3.Connection, *, subject_id: str | None, kind: str | None,

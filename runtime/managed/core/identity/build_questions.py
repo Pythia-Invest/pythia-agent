@@ -27,8 +27,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable
 
+from . import device, reference_package
 from . import evidence as weighing
-from . import reference_package
 from .claims import IdentifierValue
 from .resolution import QueueItem
 from .schemes import SCHEME_LEVEL, Level, subject_id, subject_kind, subject_level
@@ -74,6 +74,9 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
         relation = VerdictRelation.SAME_ISSUER
     fact = f"its {scheme}" if own else "which security this depositary receipt represents" \
         if relation is not VerdictRelation.SAME_ISSUER else "which company this is" if issuer else "who issued this security"
+    if itself(item):
+        return ("The installed reference data now gives this company its own LEI or CIK, which rules out the company "
+                "you matched it to. Your match stays applied until you answer that it is its own company.", relation)
     text = {
         "identifier": (f"Which {scheme} is this? " if own and not issuer else
                        "Which company is this? " if issuer else "Who issued this security? ")
@@ -138,6 +141,13 @@ def reopen(store, item_id: str, now: str, path: Path | None) -> bool:
     return True
 
 
+def itself(item: dict) -> bool:
+    """A question whether a company the user matched to another is its own, raised because the installed release now
+    gives it identifiers of its own (`conflicts`). Those identifiers refuse the user's earlier answer and "none" alike,
+    so its only candidate is the company itself, and "none" is not offered (`queue.summary`)."""
+    return item["reason"] == "binding" and list(item.get("candidate_ids") or ()) == list(item["subject_ids"][:1])
+
+
 def own_identifier(item: dict) -> Level | None:
     """The level of a question about which value of the subject's own identifier holds, whose candidates are the
     subjects those values name (`conflicts`), else None."""
@@ -159,13 +169,16 @@ def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
             if scheme in trusted and SCHEME_LEVEL[scheme] is Level.ISSUER] if subject else []
 
 
-def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None, store) -> dict[str, Any] | None:
-    """The reference subject (`subject.load_subject`) with the user's answers about its listing, security or issuer
-    applied. An answer stays applied where the installed release, at confirm level, states another value for the
-    same fact; `contradicted` lists those for `conflicts` to ask about."""
+def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None, store,
+                 plugins: Iterable = ()) -> dict[str, Any] | None:
+    """The reference subject (`subject.load_subject`) with the device's evidence about it, at the `plugins`' levels
+    (`device.merge`), and the user's answers about its listing, security or issuer applied. An answer stays applied
+    where the installed release, at confirm level, states another value for the same fact; `contradicted` lists those
+    for `conflicts` to ask about."""
     subject = load_reference_subject(ref, subject_id, listing_id)
     if subject is None:
         return None
+    device.merge(ref, store, subject, plugins)
     subject["contradicted"] = []
     ids = [value for value in subject["ids"].values() if value]
     rows = store.select(

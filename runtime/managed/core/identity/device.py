@@ -24,6 +24,7 @@ import sqlite3
 from typing import Any, Iterable, Mapping
 
 from . import evidence as weighing
+from . import relations
 from . import subject as reference
 from .claims import RecordAttributes
 from .model import Binding, IdentifierAssertion, ProviderRef, evidence_id
@@ -137,9 +138,10 @@ def bump(store: IdentityStore) -> int:
 
 def bind_introduced(store: IdentityStore, plugin: str, ref: ProviderRef, subject_id: str) -> bool:
     """Bind a plugin's own record to the device subject it introduced (rule `introduced@1`), whatever the plugin's
-    trust level. False, binding nothing, for a subject it did not introduce or a reference bound elsewhere."""
-    row = subject_row(store, subject_id)
-    if row is None or row["introduced_by"] != plugin:
+    trust level. False, binding nothing, for a subject it did not introduce, a reference bound elsewhere or one whose
+    binding the user rejected."""
+    row, bound = subject_row(store, subject_id), store.binding_for(ref)
+    if row is None or row["introduced_by"] != plugin or (bound is not None and bound["status"] == "rejected"):
         return False
     cited = evidence_id({"kind": "introduced", "plugin": plugin, "ref": ref.wire()})  # the same after a re-key
     return store.put_binding(Binding(provider_ref=ref, subject_id=subject_id, status="confirmed",
@@ -170,10 +172,34 @@ def current_id(ref: sqlite3.Connection | None, store: IdentityStore, subject_id:
 
 def load_subject(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, plugins: Iterable = (),
                  listing_id: str | None = None) -> dict[str, Any] | None:
-    """The subject from the reference (`subject.load_subject`), else from the device store (`load`)."""
+    """The subject from the reference (`subject.load_subject`) with what the device holds about it (`merge`), else
+    from the device store (`load`)."""
     subject_id = current_id(ref, store, subject_id)
     found = reference.load_subject(ref, subject_id, listing_id) if ref is not None else None
-    return found or load(ref, store, subject_id, plugins)
+    return merge(ref, store, found, plugins) if found else load(ref, store, subject_id, plugins)
+
+
+def merge(ref: sqlite3.Connection, store: IdentityStore, subject: dict[str, Any], plugins: Iterable = ()) -> dict:
+    """A reference subject with what the device holds about it and its family (ADR 0037, amendment "ingest"): the
+    plugins' `self` identifiers weighed beside the package's, each at its plugin's level (`levels`), so a confirm-level
+    plugin's other value contests the fact and a display-level one is shown; their relations (`relations.related`);
+    and the plugins behind them with what each states (`contributors`, only when there are any). Updates `subject`."""
+    plugins = list(plugins)
+    family, granted = [value for value in subject["ids"].values() if value], levels(plugins)
+    rows = [item for item in assertions(store, family) if item["role"] == IdentifierRole.SELF]
+    if rows:
+        package = weighing.level(ref)
+        weighed = weighing.weigh_each([*((item, package) for item in [*subject["evidence"], *subject["shown"]]),
+                                       *((_assertion(item), granted.get(item["plugin"], DISPLAY)) for item in rows)])
+        if subject["listing"] is not None and subject["listing"]["status"] == "inactive":
+            weighed["values"].pop("ticker_mic", None)  # a delisted line's ticker may name another company
+        subject.update(weighed, contributed=_contributed(rows))
+    subject["view"]["related"] = relations.related(ref, store, family, granted, lambda item: _name(ref, store, item))
+    contributors = _contributors(store, family, None, plugins)
+    if contributors:
+        subject["contributors"] = subject["view"]["contributors"] = contributors
+    weighing.show(subject)
+    return subject
 
 
 def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
@@ -201,17 +227,17 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
         found = subject_row(store, ids[Level.LISTING]) if ids[Level.LISTING] else None
         listing = _listing(found) if found else None
     family = [value for value in ids.values() if value]
-    weighed = [(_assertion(item), granted.get(item["plugin"], DISPLAY)) for item in assertions(store, family)
-               if item["role"] == IdentifierRole.SELF]
+    stated = [item for item in assertions(store, family) if item["role"] == IdentifierRole.SELF]
+    weighed = [(_assertion(item), granted.get(item["plugin"], DISPLAY)) for item in stated]
     held = [value for value in family if subject_row(store, value) is None]  # parents the reference holds
     if ref is not None and held:
         weighed += [(reference._assertion(item), weighing.level(ref)) for item in ref.execute(
             "SELECT * FROM assertions WHERE subject_id IN (SELECT value FROM json_each(?))", (json.dumps(held),))]
-    contributors = _contributors(store, subject_id, row["introduced_by"], plugins)
+    contributors = _contributors(store, [subject_id], row["introduced_by"], plugins)
     issuer, security = ids.get(Level.ISSUER), ids.get(Level.SECURITY)
     subject = {
         "id": subject_id, "level": Level(kind) if kind in INSTRUMENT_KINDS else kind, "ids": ids,
-        **weighing.weigh_each(weighed),
+        **weighing.weigh_each(weighed), "contributed": _contributed(stated),
         "asset_class": attributes.get("asset_class"), "kind": attributes.get("kind"), "listing": listing,
         "introduced_by": row["introduced_by"], "contributors": contributors,
         "view": {
@@ -222,7 +248,7 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
             "security": {"id": security, "name": _name(ref, store, security) or security} if security else None,
             "listings": [{"id": listing["id"], "ticker": listing["ticker"], "mic": listing["operating_mic"],
                           "venue": None, "currency": listing["trading_currency"], "primary": False}] if listing else [],
-            "related": _related(ref, store, family),
+            "related": relations.related(ref, store, family, granted, lambda item: _name(ref, store, item)),
             "contributors": contributors,
         },
     }
@@ -243,7 +269,7 @@ def named(store: IdentityStore) -> set[str]:
 def repoint(store: IdentityStore, moved: Mapping[str, str]) -> dict[str, str]:
     """Re-point the device tables through `moved` (an old ID to the current one), inside the caller's transaction: a
     subject's row (merged into the current one's where both exist), its children's parent, its assertions (each
-    under the evidence ID its new subject gives it), relations and placed claims. Returns each moved assertion's old
+    under the evidence ID its new subject gives it), relations (likewise) and placed claims. Returns each moved assertion's old
     evidence ID with its new one, and bumps the generation when a row changed."""
     db, evidence = store.db, {}
     before = db.total_changes
@@ -260,8 +286,14 @@ def repoint(store: IdentityStore, moved: Mapping[str, str]) -> dict[str, str]:
         db.execute("DELETE FROM subjects WHERE id = ? AND EXISTS (SELECT 1 FROM subjects WHERE id = ?)", (old, new))
     pairs = [(new, old) for old, new in moved.items()]
     db.executemany("UPDATE subjects SET parent_id = ? WHERE parent_id = ?", pairs)
-    db.executemany("UPDATE OR IGNORE relations SET from_id = ? WHERE from_id = ?", pairs)  # never onto itself
-    db.executemany("UPDATE OR IGNORE relations SET to_id = ? WHERE to_id = ?", pairs)
+    marks = json.dumps(list(moved))
+    for row in [dict(item) for item in db.execute("SELECT * FROM relations WHERE from_id IN (SELECT value FROM"
+                                                  " json_each(?)) OR to_id IN (SELECT value FROM json_each(?))",
+                                                  (marks, marks))]:
+        ends = {"from_id": moved.get(row["from_id"], row["from_id"]), "to_id": moved.get(row["to_id"], row["to_id"])}
+        if ends["from_id"] != ends["to_id"]:  # never onto itself
+            db.execute("UPDATE OR IGNORE relations SET from_id = ?, to_id = ?, evidence_id = ? WHERE evidence_id = ?",
+                       (ends["from_id"], ends["to_id"], relations.relation_id({**row, **ends}), row["evidence_id"]))
     db.executemany("UPDATE claims SET subject_id = ? WHERE subject_id = ?", pairs)
     if db.total_changes != before:
         bump(store)
@@ -337,28 +369,24 @@ def _name(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str)
     return found[0] if found else None
 
 
-def _related(ref: sqlite3.Connection | None, store: IdentityStore, subject_ids: list[str]) -> list[dict[str, Any]]:
-    """`related` relations the device holds about these subjects (a pool's protocol), in either direction, after the
-    reference's."""
-    marks = json.dumps(subject_ids)
-    rows = store.select(
-        "SELECT type, from_id, to_id FROM relations WHERE type IN (SELECT value FROM json_each(?)) AND (from_id IN"
-        " (SELECT value FROM json_each(?)) OR to_id IN (SELECT value FROM json_each(?))) ORDER BY type, from_id, to_id",
-        (json.dumps(list(reference.RELATED)), marks, marks))
-    out: dict[tuple[str, str, str], None] = {}
-    for type, start, end in rows:
-        outgoing = start in subject_ids
-        out.setdefault((end if outgoing else start, type, "to" if outgoing else "from"))
-    return (reference.related(ref, subject_ids) if ref is not None else []) + [
-        {"id": other, "type": type, "direction": direction, "kind": subject_kind(other),
-         "name": _name(ref, store, other)} for other, type, direction in out]
+def _contributed(rows: Iterable[Mapping[str, Any]]) -> dict[str, str]:
+    """Each device assertion's evidence ID with the plugin that stated it, for the view's `provenance`."""
+    return {row["evidence_id"]: row["plugin"] for row in rows}
 
 
-def _contributors(store: IdentityStore, subject_id: str, introducer: str, plugins: list) -> list[dict[str, str]]:
-    """The plugins behind a device subject, the one that introduced it first, each with its status now."""
-    infos = {info.manifest.plugin: info for info in plugins}
-    stated = store.select("SELECT plugin FROM device_assertions WHERE subject_id = ? UNION"
-                          " SELECT plugin FROM claims WHERE subject_id = ? ORDER BY 1", (subject_id, subject_id))
+def _contributors(store: IdentityStore, subject_ids: list[str], introducer: str | None,
+                  plugins: list) -> list[dict[str, Any]]:
+    """The plugins behind these subjects, the one that introduced them first, each with its status now and the
+    identifiers it states about them (`stated`)."""
+    infos, marks = {info.manifest.plugin: info for info in plugins}, json.dumps(subject_ids)
+    stated: dict[str, list[dict[str, str]]] = {}
+    for plugin, scheme, value in store.select(
+            "SELECT plugin, scheme, value FROM device_assertions WHERE role = 'self' AND subject_id IN (SELECT value"
+            " FROM json_each(?)) ORDER BY plugin, scheme, value", (marks,)):
+        stated.setdefault(plugin, []).append({"scheme": scheme, "value": value})
+    placed = [row[0] for row in store.select("SELECT DISTINCT plugin FROM claims WHERE subject_id IN (SELECT value FROM"
+                                             " json_each(?)) ORDER BY 1", (marks,))]
     return [{"plugin": name, "label": infos[name].label if name in infos else name,
-             "status": "removed" if name not in infos else "enabled" if infos[name].enabled else "disabled"}
-            for name in dict.fromkeys([introducer, *(row[0] for row in stated)])]
+             "status": "removed" if name not in infos else "enabled" if infos[name].enabled else "disabled",
+             "stated": stated.get(name, [])}
+            for name in dict.fromkeys([*([introducer] if introducer else []), *sorted({*stated, *placed})])]

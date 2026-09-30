@@ -377,8 +377,9 @@ another source describes. Binding a shared subject does, which needs confirm.
 
 - Introducing a subject still confers no authority over facts about it: the
   introducer's identifiers count at its own level, display included.
-- Core's ingest of plugin records (roadmap stage 0) writes the `introduced@1`
-  binding when a record introduces a subject.
+- Core's ingest of plugin records writes the `introduced@1` binding when a
+  record introduces a subject, and never re-confirms one the user rejected
+  ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
 
 **Rejected alternatives.**
 
