@@ -362,9 +362,11 @@ subjects without confirming facts about shared ones.
   stays an `unaudited` residual, raised only when its subject becomes relevant
   (a resolve for an opened page), for the user to confirm or dismiss.
 - **The one display exception:** a plugin's own record binds the device
-  subject it introduced (rule `introduced@1`, `device.bind_introduced`), and
-  its resolve answer may bind that subject. A subject introduced by another
-  plugin, or held by the reference, is shared.
+  subject it introduced (rule `introduced@1`, authority `rule_confirmed`,
+  `device.bind_introduced`), and its resolve answer may bind that subject
+  itself, never its parent or child. A subject introduced by another plugin, or
+  held by the reference, is shared: a line a plugin introduced under a
+  reference security gives it no binding of that security.
 - **The user's answer** may choose a reference or a device subject.
 
 **Rationale.** A subject that exists only through one plugin's records has no

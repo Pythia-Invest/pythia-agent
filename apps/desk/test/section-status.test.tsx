@@ -208,6 +208,54 @@ describe("a share whose issuer the reference leaves undecided", () => {
   });
 });
 
+describe("an identifier whose sources disagree", () => {
+  const page = (fields: Record<string, unknown>) =>
+    subjectPageSchema.parse({
+      subject: {
+        id: "security:isin:XS0000000009",
+        level: "security",
+        name: "Example plc",
+      },
+      security: { id: "security:isin:XS0000000009", name: "Example plc" },
+      issuer: {
+        id: "issuer:lei:X",
+        name: "Example plc",
+        lei: "EXAMPLE0000000000000",
+      },
+      ...fields,
+    });
+  const header = (fields: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      <InstrumentHeader page={page(fields)} subjectId="security:x" />,
+    );
+
+  it("shows each value with its sources where the identifier goes, not a blank", () => {
+    const markup = header({
+      contested: {
+        isin: [
+          { value: "XS0000000009", sources: ["source-a"] },
+          { value: "XS0000000017", sources: ["source-b", "source-c"] },
+        ],
+      },
+    });
+    expect(markup).toMatch(
+      /<dt[^>]*>ISIN<\/dt><dd data-slot="instrument-identifier-contested"/u,
+    );
+    expect(markup).toContain("XS0000000009");
+    expect(markup).toContain("(source-a)");
+    expect(markup).toContain("XS0000000017");
+    expect(markup).toContain("(source-b, source-c)");
+    expect(markup).toContain("sources disagree");
+    expect(markup).toContain("EXAMPLE0000000000000"); // the settled identifiers are shown as before
+  });
+
+  it("says nothing of disagreement when the sources agree", () => {
+    const markup = header({ identifiers: { isin: "XS0000000009" } });
+    expect(markup).toContain("XS0000000009");
+    expect(markup).not.toContain("sources disagree");
+  });
+});
+
 describe("reports of one period", () => {
   it("name a parallel report and one report filed in two places", () => {
     const period = "issuer|annual|2025-12-31";

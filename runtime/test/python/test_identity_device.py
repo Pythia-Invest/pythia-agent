@@ -8,6 +8,7 @@ binds, except a display plugin onto a subject it introduced.
 import json
 import sqlite3
 import tempfile
+import threading
 import types
 import unittest
 import unittest.mock
@@ -15,10 +16,10 @@ from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 
-from identity_world import AS_OF, NOW, World, record, vendor
+from identity_world import AS_OF, NOW, PROVENANCE, World, record, vendor
 from test_identity_contracts import FIXTURES, identity
 from test_identity_queue import load_core
-from pythia_identity_fixture import build_questions, device, queue, store, trust  # noqa: E402
+from pythia_identity_fixture import build_questions, device, page, queue, reference_package, store, trust  # noqa: E402
 
 SAP_ISIN, GSK_ISIN = "DE0007164600", "GB00BN7SWP63"  # SAP is in no reference here; GSK is in the world's
 SAP, SAP_XETRA = f"security:isin:{SAP_ISIN}", f"listing:isin:{SAP_ISIN}:XETR:EUR"
@@ -110,7 +111,8 @@ class MigrationTest(DeviceWorld):
         self.assertEqual((migrated.set_aside, migrated.metadata("schema_version")), (None, "6"))
         self.assertEqual(after, before)  # nothing set aside, nothing lost
         self.assertEqual(sum(before.values()), 11)
-        kept = [path.name for path in directory.iterdir() if path.name != "identity.sqlite3"]
+        kept = [path.name for path in directory.iterdir()
+                if path.name not in ("identity.sqlite3", reference_package.MOVE_LOCK)]
         self.assertRegex(" ".join(kept), r"^identity\.before-v6-[0-9a-f]{8}\.sqlite3$")  # the v5 file, kept
         self.assertEqual(device.subject_row(migrated, "index:provisional:eodhd:catalogue:GSPC.INDX")
                          | {"attributes": None},
@@ -126,7 +128,48 @@ class MigrationTest(DeviceWorld):
         self.assertEqual(migrated.bound_subject(identity.ProviderRef("quotes", "ERIC-B.ST", "symbol")), ERIC_B_LINE)
         # Opened again, it is the current schema: no second migration.
         store.IdentityStore(directory).db.close()
-        self.assertEqual(len(list(directory.iterdir())), 2)
+        self.assertEqual(len(list(directory.iterdir())), 3)  # the store, its v5 file and the directory's lock
+
+    def test_a_second_process_waits_for_the_migration(self):
+        # Two processes opening a v5 store at once used to both copy and replace it, leaving the first one writing to
+        # a replaced file. The migration holds the directory's lock, so the other opener waits for it.
+        directory = self.tmp / "v5"
+        directory.mkdir()
+        with closing(sqlite3.connect(directory / "identity.sqlite3")) as db, db:
+            db.executescript((FIXTURES / "identity-v5.sql").read_text())
+            db.execute("INSERT INTO metadata VALUES ('schema_version', '5')")
+        opened = []
+        with reference_package.locked(directory / reference_package.MOVE_LOCK):  # another opener, mid-migration
+            waiting = threading.Thread(target=lambda: opened.append(store.IdentityStore(directory)))
+            waiting.start()
+            waiting.join(0.3)
+            self.assertTrue(waiting.is_alive())
+            with closing(sqlite3.connect(directory / "identity.sqlite3")) as db:
+                self.assertEqual(db.execute("SELECT value FROM metadata WHERE key = 'schema_version'").fetchone(), ("5",))
+        waiting.join(10)
+        self.addCleanup(opened[0].db.close)
+        self.assertEqual((opened[0].metadata("schema_version"), opened[0].set_aside), ("6", None))
+
+
+class TransactionTest(DeviceWorld):
+    def test_a_failed_commit_rolls_back_and_the_next_write_lands(self):
+        identity_store = self.world.identity
+        identity_store.db.execute("PRAGMA busy_timeout = 0")  # fail at once instead of after five seconds
+        miss = "INSERT INTO resolve_misses VALUES (?, 'p', 'r', '2030-01-01T00:00:00Z')"
+        with closing(sqlite3.connect(identity_store.path, isolation_level=None)) as reader:
+            reader.execute("BEGIN")
+            reader.execute("SELECT * FROM metadata").fetchall()  # another process mid-read: COMMIT cannot proceed
+            with self.assertRaises(sqlite3.OperationalError):
+                with identity_store.transaction():
+                    identity_store.db.execute(miss, ("listing:x:1",))
+            self.assertFalse(identity_store.db.in_transaction)  # rolled back, never joined by the next write
+            reader.execute("COMMIT")
+        with identity_store.transaction():
+            with identity_store.transaction():  # nested: part of the one outside
+                identity_store.db.execute(miss, ("listing:x:2",))
+            self.assertTrue(identity_store.db.in_transaction)
+        with closing(sqlite3.connect(identity_store.path)) as disk:  # what another process, or the next start, reads
+            self.assertEqual(disk.execute("SELECT subject_id FROM resolve_misses").fetchall(), [("listing:x:2",)])
 
 
 class RekeyTest(DeviceWorld):
@@ -166,6 +209,13 @@ class RekeyTest(DeviceWorld):
         # A saved old ID reads as the subject it became, and the line's page names it as its security.
         self.assertEqual((self.world.subject(old)["id"], self.world.subject(old)["values"]["isin"]), (SAP, SAP_ISIN))
         self.assertEqual(self.world.subject(line)["ids"][identity.Level.SECURITY], SAP)
+
+    def test_a_device_alias_never_moves_an_id_the_reference_holds(self):
+        # A later release holds a subject under the ID a device alias leads away from: the reference's subject wins.
+        device.put_alias(self.world.identity, ERIC_B_LINE, "listing:provisional:lister:symbol:ERIC-B.ST")
+        self.assertEqual(device.current_id(self.world.ref, self.world.identity, ERIC_B_LINE), ERIC_B_LINE)
+        self.assertEqual(device.current_id(None, self.world.identity, ERIC_B_LINE),
+                         "listing:provisional:lister:symbol:ERIC-B.ST")  # with no reference, the device's alias
 
 
 class EvidenceTest(unittest.TestCase):
@@ -234,6 +284,33 @@ class BindingTest(DeviceWorld):
         self.assertEqual((row["subject_id"], row["authority"], row["rule_id"]), (SAP_XETRA, "rule_confirmed", "introduced@1"))
         self.assertIsNone(self.world.identity.binding_for(other))
 
+    def test_a_display_plugin_never_binds_the_parent_of_a_subject_it_introduced(self):
+        # The lister introduced a line under Ericsson B's security, which the reference holds. Its security-level
+        # answer binds that shared security from neither the line's page nor the security's own.
+        lister = page.PluginInfo(key="lister", manifest=identity.validate_manifest({
+            "contract_version": 1, "plugin": "lister", "provider": "lister",
+            "addressing": {"native": [{"native_scope": "symbol", "level": "listing"},
+                                      {"native_scope": "share", "level": "security"}]},
+            "concepts": {"market_data": {"level": "listing", "via": "listing", "operations": {"quote": "latest"}}},
+            "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": []},
+            "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "unsigned"}}))
+        self.world.plugins = [lister]
+        line = "listing:provisional:lister:symbol:ERIC-B.XX"
+        device.put_subject(self.world.identity, line, plugin="lister", name="Ericsson B", parent_id=ERIC_B,
+                           attributes={"ticker": "ERIC-B", "operating_mic": "XSTO", "currency": "SEK"})
+
+        def answer(level, scope, native_id):
+            return {"level": level, "identifiers": [{"scheme": "isin", "value": "SE0000108656"}],
+                    "provenance": {**PROVENANCE, "plugin": "lister", "source": "lister"},
+                    "native_ref": {"provider": "lister", "native_id": native_id, "native_scope": scope}}
+        for subject_id in (line, ERIC_B):
+            with self.subTest(page=subject_id):
+                binding, item = self.world.resolve(lister, subject_id, answer("security", "share", "ERIC-B-SHARE"))
+                self.assertIsNone(binding)
+                self.assertEqual((item.reason, item.candidate_ids), ("unaudited", (ERIC_B,)))
+        binding, item = self.world.resolve(lister, line, answer("listing", "symbol", "ERIC-B.XX"))
+        self.assertEqual((binding.subject_id, item), (line, None))  # its own line, on its own page
+
 
 class NoReferenceTest(unittest.TestCase):
     """A device subject's page, as the Desk reads it, on a device with no reference package installed."""
@@ -282,7 +359,7 @@ class NoReferenceTest(unittest.TestCase):
         self.assertEqual((view["subject"]["name"], view["subject"]["level"]), ("USDC lending on Navi", "market"))
         self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"], quote["unaudited"]),
                          ("pool-source", "ready", "confirmed", self.pool.wire(), True))  # labelled not yet audited
-        self.assertEqual(view["sources"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled"}])
+        self.assertEqual(view["contributors"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled"}])
         self.assertEqual(view["related"], [{"id": PROTOCOL, "type": "part_of", "direction": "to", "kind": "protocol",
                                             "name": "Navi"}])
         protocol = self.page(PROTOCOL)["data"]  # a protocol's page: its label and its pools, no data section
@@ -297,15 +374,15 @@ class NoReferenceTest(unittest.TestCase):
         self.plugins = [replace(self.source, enabled=False)]
         view = self.page(POOL)["data"]
         [quote] = [section for section in view["sections"] if section["section"] == "quote"]
-        self.assertEqual((view["subject"]["name"], quote["status"], view["sources"][0]["status"]),
+        self.assertEqual((view["subject"]["name"], quote["status"], view["contributors"][0]["status"]),
                          ("USDC lending on Navi", "disabled", "disabled"))
         token = self.page(USDC)["data"]
-        self.assertEqual((token["subject"]["name"], token["identifiers"], token["sources"][0]["status"]),
+        self.assertEqual((token["subject"]["name"], token["identifiers"], token["contributors"][0]["status"]),
                          ("USD Coin on Ethereum", {"caip19": TOKEN}, "disabled"))
         self.plugins = []  # removed
         for subject_id in (POOL, USDC):
             body = self.page(subject_id)
-            self.assertEqual((body["outcome"], body["data"]["sources"][0]["status"]), ("ok", "removed"))
+            self.assertEqual((body["outcome"], body["data"]["contributors"][0]["status"]), ("ok", "removed"))
         self.assertEqual(self.page(POOL)["data"]["sections"], [])
 
 
