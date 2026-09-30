@@ -433,10 +433,12 @@ class Search(search_tests.DeviceSearch):
         self.assertIn('protocol:provisional:navi:protocol:navi-lending', found('navi'))
         self.assertIn('protocol:provisional:navi:protocol:navi-lending', found('navi protocol'))
 
-    def test_a_deprecated_reserve_leaves_search_and_its_page_still_opens(self):
-        found = lambda query: [group['id'] for group in self.search(query)['data']['groups']]
-        self.assertIn(self.reserve_group('main-1'), found('navi wormhole'))  # Wormhole USDC, active
-        self.assertNotIn(self.reserve_group('main-8'), found('navi wormhole'))  # Wormhole WBTC, deprecated
+    def test_a_deprecated_reserve_stays_findable_after_the_live_one_and_its_page_still_opens(self):
+        found = lambda query, **arguments: [group['id'] for group in self.search(query, **arguments)['data']['groups']]
+        live, deprecated = self.reserve_group('main-1'), self.reserve_group('main-8')  # Wormhole USDC, Wormhole WBTC
+        groups = found('navi wormhole')
+        self.assertLess(groups.index(live), groups.index(deprecated))  # delisted lines rank below live ones
+        self.assertEqual(found('navi wormhole', include_delisted=False), [live])
         body = json.loads(queue_ops.read_subject(self.ops, {'subject_id': self.reserve_group('main-8')}))
         self.assertEqual((body['outcome'], body['data']['subject']['name']),
                          ('ok', 'NAVI Lending WBTC (Wormhole, Main Market)'))
