@@ -66,7 +66,9 @@ It takes time, and it is the only way to get data we can trust.
 
   Without more, it only suggests. Auto-confirmation also needs a gold set per
   relation with a frozen dev/test split, and a test precision whose Wilson 95%
-  lower bound is at least 99%.
+  lower bound is at least 99%. A type that meets the bar may apply its
+  verdicts for read-only use ([ADR 0044](0044-product-direction.md),
+  amendment of 2026-09-30, J2).
 - **Where the material lives.** Question sets and the eval harness are public
   source. Gold labels on licensed data, raw model exchanges and verdicts stay on
   the device.
@@ -196,8 +198,9 @@ The code gate maps onto them without a new field: `unsigned` is display, and
 As direction, the statement above that the builder's reference sources are
 not plugins is reversed: reference sources contribute through the same
 contract as any plugin, and trust attaches to a signed or hashed release
-rather than to a plugin's name. Reviewed answers over open data may ship as a
-Pythia-maintained answer list (ADR 0044, amendment A7). Gold labels on licensed
+rather than to a plugin's name. Reviewed answers over open data could ship as a
+Pythia-maintained answer list (ADR 0044, amendment A7, superseded for now by its
+amendment of 2026-09-30). Gold labels on licensed
 data and raw model exchanges stay on the device. Further source audits are paused until a
 strategy's universe or a second user needs them.
 

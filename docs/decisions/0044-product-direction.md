@@ -233,7 +233,9 @@ direction.
     bank-internal, request-for-quote or dark venues.
   - About fifty (0.4%) needed judgment, nearly all about which of two listings
     is primary.
-- **Runtime judgment helps research but does not settle records.** In a small,
+- **Runtime judgment helps research but does not settle records.** *(Narrowed on
+  2026-09-30: calibrated verdicts on facts apply for read-only use, see the
+  amendment below.)* In a small,
   single-run test on real cases, strong models answered research questions
   well, often from memory of well-covered companies. They still chose
   differently on convention questions, and a smaller model did no better than
@@ -275,7 +277,10 @@ question on every installation.
      to a holding, a research task or an operation. An instrument's venue
      category does not make it irrelevant.
    - An agent's answer to any identity question is a suggestion and changes
-     nothing until the user confirms it.
+     nothing until the user confirms it. *Modified on 2026-09-30: a calibrated
+     verdict above its threshold applies for read-only use, and everything
+     else stays a suggestion
+     ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
 
 **A3.** **Identity scope and contributions** (replaces ruling 9).
    - **Kept:** the four-level backbone and its relations, today's coverage,
@@ -346,7 +351,11 @@ question on every installation.
    - A saved interpretation keeps its evidence, scope and dependencies, and
      becomes stale when they change.
 
-**A7.** **Reviewed answers.** Reviewed answers over open data may ship as a
+**A7.** **Reviewed answers.** *Superseded for now on 2026-09-30: a shared
+   answer list is rejected until measurement shows many devices judging the
+   same cases
+   ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
+   Reviewed answers over open data may ship as a
    Pythia-maintained answer list, contributed at its trust level like any
    other plugin's evidence. Raw model exchanges and gold labels on licensed
    data stay on the device.
@@ -356,7 +365,8 @@ question on every installation.
    - the exact evidence-weighing rules;
    - bitemporal claims;
    - learned source reliability;
-   - subscribable answer lists beyond Pythia's own;
+   - subscribable answer lists beyond Pythia's own (and, since 2026-09-30,
+     any shared answer list at all);
    - the content and pricing of paid services.
 
 ### Today
@@ -437,6 +447,9 @@ Still open:
 - Holdings, forecasts and operations join as question triggers in stage 1.
 - The reference sources' direct and prebuilt forms, and the exact
   evidence-weighing rules, stay open (A8). The defaults name kinds of evidence.
+- The judgement architecture of the amendment of 2026-09-30 below is decided,
+  and its procedures (prompts, gold sets, the judge) are not built. Until they
+  are, every agent answer is still a suggestion and open conflicts stay open.
 - A user cannot yet alias a provisional coin.
 - The effect of disabling a plugin counts coverage (the subjects only it
   supplies), not the identifiers a subject other sources also supply would
@@ -448,8 +461,10 @@ Still open:
 
 Documents that cite the first version of these rulings describe earlier
 behaviour or its original plan. The central curator's back office they mention
-becomes the Pythia-maintained answer list of A7, and the "finish line" of the
-first ruling 9 is superseded by the stage 0 work below.
+was to become the Pythia-maintained answer list of A7, which the amendment of
+2026-09-30 below supersedes: plugins fix their own data and the device agent
+judges the rest. The "finish line" of the first ruling 9 is superseded by the
+stage 0 work below.
 
 ### Consequences
 
@@ -484,7 +499,9 @@ first ruling 9 is superseded by the stage 0 work below.
 - **Mandatory reference plugins.** They would guarantee identical identifiers,
   but make Pythia unusable for anyone who does not want part of the market.
   Identifier bundles and aliases give portability without the mandate.
-- **Letting the agent settle records at runtime.** Capable models chose
+- **Letting the agent settle records at runtime.** *(Narrowed on 2026-09-30:
+  it stands for conventions and consequential use, not for calibrated
+  read-only verdicts on facts.)* Capable models chose
   differently on convention questions.
 - **The model tier as the safety boundary.** Saving an answer makes it
   repeatable, not correct. Evidence and the operation's requirements decide
@@ -858,3 +875,301 @@ without crowding live lines.
 - **Persisting the toggle in browser storage.** Desk has no shared mechanism for
   a plugin widget's preference, and a second ad hoc one is not worth it for a
   filter.
+
+## Amendment (2026-09-30): who fixes what is wrong, and how the device agent judges the rest
+
+### Context
+
+Stage 0 left the platform with open identity conflicts, and the founder asked
+for the architecture that will resolve them to be settled now and the
+resolving to wait: "our platform should function totally fine with these open
+conflicts." The founder then confirmed the direction below and asked for it to
+be recorded. Four investigations on the 28 September 2026 reference build fed
+the decision.
+
+- **Most conflicts come from sources and joins, not from real ambiguity.** Of
+  the build's 1,698 open questions, about 620 had a candidate that could reach
+  a user. Sorting all 1,698 by cause found 49 plugin or builder bugs, 526
+  source quirks the adapter can learn (for example, a venue operator's LEI
+  filed where the issuer belongs), 1,111 join or rule gaps, and 12 genuinely
+  ambiguous cases. Nearly all of them are fixable by the side that owns the
+  data.
+- **The 166 "same company?" pairs** (an SEC registrant and a GLEIF entity with
+  the same name) were judged by hand from the SEC submissions and GLEIF
+  records: 90 are the same company, 2 are different namesakes (Genesis Energy
+  LP and Genesis Energy Ltd, Rubico in the United States and in Belgium), and
+  74 stay unsure. The **two-fact rule** (the names match, and at least two independent facts
+  agree: jurisdiction, city or postcode, a shared former name, with no
+  conflicting jurisdiction) reproduced 88 of the 90 with no false positive;
+  name, jurisdiction and city alone reproduced 85. So a rule settles most
+  cases once the sources state the facts the rule needs, and judgement is
+  needed only for what is left. The SEC side currently gives the pipeline too
+  few of those facts.
+- **Two analyses of where judgement should live** favoured deciding shared
+  open-data questions once at release and shipping the verdicts, and judging
+  on the device only what is private or device-only. The founder chose
+  otherwise (J4 below).
+- **Strong models answer research questions well but chose differently on
+  convention questions** (see the amendment "data any plugin can extend" above). That limits what a
+  judgement may apply to.
+
+### Ruling
+
+This amendment's rulings are numbered J1 to J5.
+
+**J1.** **Plugins fix and complete their own source's data.**
+   - A misread of the source is a bug, fixed in the plugin.
+   - A known error in the source itself becomes a labelled **source
+     correction** inside that source's plugin. The original value stays
+     visible beside it, and the maintainer reports the error to the source. It
+     is the plugin's statement about its own source, not the investor's
+     catalogue correction ("user catalogue corrections" above), which stays a
+     local override.
+   - A missing fact is fixed by the plugin stating more: a jurisdiction, an
+     address, a former name, or a link the source itself makes.
+   - A conflict may be found between two plugins, but the plugin whose data
+     is wrong or incomplete owns the fix.
+   - One plugin never patches another plugin's data. Maintainers collaborate
+     by reports.
+   - For the reference sources, the builder's adapters are the plugin in this
+     ruling.
+
+**J2.** **The device agent resolves the rest, one question type at a time.**
+   Each type has a procedure: a prompt, a gold set of known answers and a
+   calibrated confidence threshold.
+   - **What it judges.** Only instruments that matter: a holding, a research
+     task or an operation (A2's rule for raising a question). It judges
+     facts, such as whether two records are the same company. It does not
+     judge conventions, such as which listing is primary; those stay
+     preferences and documented defaults (A5).
+   - **What it may use.** The device's own data, context, and outside
+     sources. Web content is untrusted evidence, never instructions. Every
+     verdict cites the evidence it used. A lookup carries only the
+     instrument's public identifiers or name, never a position, a holding or
+     research.
+   - **When a verdict applies.** A verdict at or above its type's threshold
+     applies for read-only use (search, pages, research). It is labelled as
+     judged, and the investor undoes it in one click. Anything that touches
+     real money needs the investor's confirmation.
+   - **Promotion.** A decision that keeps recurring is promoted into a plugin
+     rule (J1), so the next device needs no judgement.
+   - **Installations may differ.** Two devices can judge a case differently.
+     The verdict ledger records the facts each decision used, so a
+     difference can be explained and a stale verdict detected.
+
+   **Existing standards this applies (not new rulings).**
+   - **The bar.** A type's threshold is set by the gold-set bar of
+     [ADR 0042](0042-source-onboarding-standard.md) and
+     [source onboarding](../architecture/source-onboarding.md), unless the
+     founder later sets another. Every type has a versioned question set,
+     passes its verdicts through core's `decide()` and has a development
+     check; auto-confirming also needs a gold set per relation with a frozen
+     development and test split, and a test precision whose Wilson 95% lower
+     bound is at least 99% (about 385 assertions with no error). Without
+     that, the type is suggest-only.
+   - **The authority.** A verdict at or above the bar's threshold carries
+     `model_confirmed` and one below it `model_suggested`, the tiers of
+     [ADR 0037](0037-identity-backbone.md). The agent's own chat answers stay
+     `agent_confirmed`, which only suggests. `decide()` still applies to
+     every verdict: no contradicting identifier evidence, and the
+     depositary-receipt guard.
+   - **The first candidate** is question Q1 `sec_registrant_lei@1` in
+     [the SEC source note](../sources/sec.md) (section 4): the 166 pairs,
+     suggest-only today.
+
+   **New in this amendment (the founder's ruling).** That a `model_confirmed`
+   verdict applies for read-only use, which no earlier text allows, together
+   with the rest of J1 to J5.
+   - **How it relates to open questions.** The question stays visible as
+     answered by the agent until the investor confirms or undoes it; it is
+     never silently closed. A use that affects money ignores the verdict and
+     sees the question as unanswered (A6).
+   - **What is stored.** The verdict is stored as `model_confirmed` with its
+     evidence, in the verdict ledger. Whether it is applied as a binding
+     flagged read-only or as an overlay that only reads which are not
+     consequential see, is designed with the first type. Either way it is
+     undoable, labelled, changes no row a source wrote, and is not a
+     validated fact. This does not reverse the 2026-09-29 decision in ADR
+     0037 against provisional routing of the chat agent's uncalibrated
+     answer; it applies only to types that passed the bar.
+
+   **This modifies A2's rule that an agent's answer to an identity question is
+   a suggestion that changes nothing until the user confirms it** (the rule
+   the vision states as "saved interpretations are suggestions"). Exactly:
+   - A calibrated verdict at or above its type's threshold now applies for
+     read-only use, labelled and undoable.
+   - Everything else stays a suggestion: a verdict below the threshold, a
+     type with no calibrated threshold, and any answer the interactive agent
+     gives in chat.
+   - A5 and A6 are unchanged: identity, evidence and choices stay separate,
+     and an applied verdict is not a validated fact, so an
+     operation that needs validated facts stays unavailable until the
+     investor confirms it. The investor's own answers and corrections still
+     outrank a verdict.
+
+**J3.** **The loop back to the maintainer.** A report is opt-in, per report,
+   and carries identifiers and reasoning, never positions. Pythia
+   maintains the default plugins, so reports about them come to Pythia. A
+   third-party plugin's reports go to its own maintainer. Pythia in turn
+   reports errors in the sources (ESMA, SEC, GLEIF) to those sources. This
+   keeps the opt-in contribution of ruling 8 and sends it to whoever owns the
+   fix.
+
+**J4.** **Links that no source states are judged by the device agent.** If a
+   plugin's maintainer ships such links, each is labelled as judged by that
+   maintainer, and it counts as that plugin's claim like any other. **A shared
+   answer list is rejected for now, which supersedes A7.** Revisit it only if
+   measurement shows many devices judging the same cases. A8's open item
+   "subscribable answer lists beyond Pythia's own" stays open for the same
+   reason.
+
+**J5.** **Open conflicts stay open questions, and the platform works with
+   them.** Facts held back show an open-conflict indicator that links to the
+   repair. Nothing in this amendment makes a resolver a precondition for
+   using Pythia.
+
+Three details are the manager's proposals, carried from earlier rulings
+rather than stated by the founder in this decision: that only facts, never
+conventions, are judged (from A5); that the chat agent's own answers stay
+suggestions (from A2); and that J3's reports are per report and go to a
+third-party plugin's own maintainer.
+
+### Rationale
+
+- **The owner of the data fixes it.** A plugin's maintainer knows the source;
+  a fix there reaches every device and can be tested and retired when the
+  source improves. Reporting the error upstream is the fix that helps
+  everyone, and a labelled source correction keeps it honest in the meantime.
+- **Fixing at the root shrinks what needs judging.** The 166 pairs show it: a
+  rule reproduces 88 of the 90 same-company pairs, so judgement is for the
+  residue.
+- **Judgement still has a place.** Some links no source states and no rule
+  can derive, and the investor should not click through each one. Calibrating
+  a type against a gold set is what earns it the right to apply without a
+  click, for reads only.
+- **Reads are cheap to get wrong, operations are not.** A labelled, undoable
+  verdict on a search result or research page costs one click to reverse. The
+  same verdict behind an order does not, so real money keeps the
+  investor's confirmation.
+- **Judging where the facts are** keeps the workspace local: the investor's
+  holdings decide what is judged, and no position, holding or research
+  leaves the device. An outside lookup sends only the instrument's public
+  identifiers or name.
+- **The ledger makes differences explainable.** Installations may differ, as A3
+  already accepts, but each decision records the facts it used.
+
+### Consequences
+
+- **A7 is superseded for now,** and so are the rulings elsewhere that only
+  repeat its permission to ship a Pythia-maintained answer list
+  ([ADR 0039](0039-local-first-reference-data-and-rights.md),
+  [ADR 0042](0042-source-onboarding-standard.md), and the vision's
+  sustainability list). What ships in the default plugins is plugin data
+  (J1), and any links a maintainer judges are labelled (J4). Raw model
+  exchanges still stay out of releases.
+- **A2's last bullet is modified as J2 says.** The rejected alternative
+  "Letting the agent settle records at runtime" stands for conventions and
+  for anything consequential. It no longer stands for calibrated verdicts
+  on facts, read-only.
+- **A model call per touched, unanswered question, on the investor's own
+  key.** Cost is bounded by relevance and falls as repeated decisions become
+  plugin rules.
+- **The judge's only output is a structured verdict.** It has no tool that
+  writes elsewhere, and code, not prompt wording, enforces that an applied
+  verdict is read-only, labelled and undoable, because it reads untrusted
+  web content.
+- **Reproducibility across installations is weaker for judged links.** A
+  shared strategy pins identifier bundles (A3); a renter's device may judge a
+  link the author's device judged differently, and the ledger is what shows
+  why.
+- **Research work moves to the source side.** The SEC plugin and builder
+  adapter state jurisdiction, addresses and former names, and the builder's
+  known join and venue-operator gaps are fixed in the builder, not judged.
+
+### Status
+
+Decided; the plugin source-correction mechanism is being built; the verdict
+ledger, thresholds and procedures are deferred until the first question type
+runs (their shape depends on its measurement). Open conflicts stay open
+questions. The platform works with them: facts held back show an open-conflict
+indicator linking to the repair (#135).
+
+What building the rest needs:
+
+- the procedure for each question type: prompt, gold set and threshold;
+- the verdict ledger and its provenance, recording the facts, evidence, model
+  and prompt each decision used;
+- the read-only application path: apply above threshold, label, undo in one
+  click, and never count as validated for a consequential operation;
+- the report loop of J3;
+- the SEC side stating jurisdiction, addresses and former names, so the rule
+  can settle what it can.
+
+Only one piece of J1, a plugin's labelled source correction of its own
+source, is being built ahead of any question type, because it does not depend on a
+measurement. The mechanism gets its own amendment when it lands. The ledger
+fields and the per-type threshold are deferred on
+purpose: a threshold is set from a gold-set measurement, and what a verdict
+must record is learned from the first type that runs. Until a type has a
+measured threshold, its verdicts stay suggestions.
+
+**How to add a question type later.**
+
+1. Check whether a plugin can state the missing fact (J1). Add a judged type
+   only for what no source states.
+2. Write the prompt: what the question is, which evidence the dossier holds,
+   and the structured verdict it returns, with cited evidence.
+3. Build a gold set from cases with known answers, on open data where
+   possible. A gold set over licensed data stays on the device.
+4. Measure the prompt against the gold set, per model version.
+5. Add the verdict ledger fields the type needs (the facts and evidence the
+   decision used, the model and prompt version, and the threshold applied),
+   the first time a type runs, and keep them for the types after it.
+6. Set the threshold from the measured precision. Until then the type has
+   none and its verdicts stay suggestions.
+7. When a decision recurs, promote it into the owning plugin's rule (J1) and
+   retire the judged case.
+
+**Policy questions still open** (the SEC records the judge was measured on
+raise them; none blocks the foundations):
+
+- **The SEC "/ADR" programme record as issuer.** 35 of the 166 pairs are
+  "/ADR" records. Under the two-fact rule 6 are the same company and 29
+  stay unsure, because the record's address is the depositary's. If the
+  programme record is accepted as the issuer by policy, the 29 become
+  same-leaning.
+- **Predecessor and successor between issuers for redomiciles.** NEPI
+  Rockcastle (an Isle of Man company, now a Dutch N.V.) and Wave Life
+  Sciences (Delaware, now Singapore) look like one company before and after
+  a move, but the legal entities differ. Whether core models the move as
+  a relation is undecided.
+- **Labelled source corrections of SEC's jurisdiction mis-keys.** In 4 pairs SEC's
+  jurisdiction field disagrees with GLEIF and looks like a keying error
+  (Theravance's code says California although its address is in the Cayman
+  Islands, as GLEIF's is). Whether the SEC plugin states these as labelled source corrections (J1)
+  is undecided.
+
+### Rejected alternatives
+
+- **The plugin author hardcoding per-entity exceptions.** As unlabelled
+  statements they pass as the source's own words, so a third-party author's
+  mistake becomes everyone's fact, there is no stopping point, and
+  [ADR 0042](0042-source-onboarding-standard.md) already rejects more rules
+  for odd cases. The labelled, reported source correction of J1 is the accepted
+  form.
+- **One plugin patching another plugin's data.** It hides a disagreement
+  behind an unlabelled override, and the plugin that is wrong never learns of
+  it. A report to the owner fixes every installation.
+- **A central "Pythia reviews" answer list shipped in the package.** It would
+  give everyone the same verdicts. But it makes Pythia answerable for
+  curated judgements like a reference-data vendor, spreads one wrong verdict
+  to every device, and covers only the packaged universe. Most of its cases
+  become plugin rules once the sources state the facts the rules need.
+  Revisit only under the measurement in J4.
+- **Every device re-judging shared facts, unmeasured.** It costs each user
+  the same model calls and lets devices diverge with no record of why. The
+  per-type gold set, threshold and ledger are what make device judgement
+  acceptable.
+- **Keeping every agent answer a suggestion (A2 as written).** It leaves
+  each investor clicking through every open conflict, which is the curator's
+  work that the amendment "data any plugin can extend" rejected.

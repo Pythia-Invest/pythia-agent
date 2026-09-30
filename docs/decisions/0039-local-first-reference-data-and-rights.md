@@ -178,8 +178,9 @@ default. As direction, it has no more authority than the same plugins run
 locally, and any plugin can contribute subjects and evidence through the same
 contract; today the builder remains the only writer of reference data. The
 package is delivered as downloads so that Pythia's services never receive
-users' queries. Reviewed answers over open data may ship as a Pythia-maintained
-answer list (ADR 0044, amendment A7); raw model exchanges stay out of
+users' queries. Reviewed answers over open data could ship as a Pythia-maintained
+answer list (ADR 0044, amendment A7, superseded for now by its amendment of
+2026-09-30); raw model exchanges stay out of
 releases. Publishing waits for the
 checks listed in "If Pythia later publishes a snapshot" above. Raw model
 exchanges stay out of releases. Pythia still never publishes, pools or
