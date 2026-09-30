@@ -64,6 +64,10 @@ function agentAnswerWords({
   return relation === "depositary_receipt_of" ? "depositary receipt" : "match";
 }
 
+/** The row key of an identity question, as `?question=` names it. */
+export const identityRepairId = (questionId: string) =>
+  `identity:${questionId}`;
+
 export function identityRepair(item: IdentityQuestion): IdentityRepair {
   const built = isBuildQuestion(item);
   // A record's question is about the instrument it may be; a build
@@ -77,7 +81,7 @@ export function identityRepair(item: IdentityQuestion): IdentityRepair {
         : "resolved";
   const record = item.record;
   return {
-    id: `identity:${item.id}`,
+    id: identityRepairId(item.id),
     kind: "identity",
     title:
       (built ? BUILD_TITLES[item.reason] : IDENTITY_TITLES[item.kind]) ??

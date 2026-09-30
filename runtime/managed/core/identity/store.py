@@ -264,7 +264,9 @@ class IdentityStore:
     @_locked
     def open_queue(self, subject_ids: Iterable[str]) -> list[dict]:
         """The page's short form of a subject's open items."""
-        return [{"id": item["id"], "plugin": item["plugins"][0], "kind": item["kind"], "reason": item["reason"]}
+        return [{"id": item["id"], "plugin": item["plugins"][0], "kind": item["kind"], "reason": item["reason"],
+                 "plugins": item["plugins"], "provider_ref": item["provider_ref"], "subjects": item["subject_ids"],
+                 "candidates": item["candidate_ids"], "scheme": item["scheme"]}
                 for item in self.queue_items(subject_ids=subject_ids)]
 
     @_locked

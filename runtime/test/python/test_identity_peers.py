@@ -349,6 +349,12 @@ class EqualTermsTest(PeersFixture):
                "device_aliases": "old_id, new_id", "queue": "key, kind, reason, subject_ids, candidate_ids, state",
                "bindings": "provider, native_scope, native_id, subject_id, status, authority, rule_id, plugin"}
 
+    @staticmethod
+    def without_queue_ids(view):
+        """A page without the queue item IDs it names, which each device makes up."""
+        return {**view, "queue": None, "withheld": [{**entry, "question": None} for entry in view["withheld"]],
+                "sections": [{**section, "question": None} for section in view["sections"]]}
+
     def run_as(self, device, key, name, signoff):
         self.device(device)
         self.meridian(key=key, name=name, signoff=signoff)
@@ -358,7 +364,7 @@ class EqualTermsTest(PeersFixture):
         self.pages[(name, "lines")][0] = line("ASML.AS", ("isin", "NL0010273215"), ("figi", OTHER_FIGI), mic="XAMS",
                                               provider=name)
         summaries.append(self.sync(key))
-        pages = {subject: {**self.page(subject), "queue": None} for subject in (ASML_LINE, SAP_BY_FIGI, APPLE_LINE)}
+        pages = {subject: self.without_queue_ids(self.page(subject)) for subject in (ASML_LINE, SAP_BY_FIGI, APPLE_LINE)}
         rows = {table: sorted(tuple(row) for row in self.ops.store.select(f"SELECT {columns} FROM {table}"))
                 for table, columns in self.COLUMNS.items()}
         [plugin] = self.effect(key)
