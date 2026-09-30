@@ -14,9 +14,7 @@
   and OpenFIGI stages always have (to be onboarded next); with none, the relevant venue is only a liquidity
   measure, so the primary is unknown. An unknown primary is a coverage count, never a question: which listing a
   view shows is a choice (ADR 0044, A5), and the line at the most liquid EU market is priced meanwhile.
-- Receipt underlying: field 26 (`receipts.link_receipts`); a share that states one is asked as `receipt_conflict`,
-  unless the stated security is the share's own under another ISIN (same issuer, same name: a predecessor or
-  successor ISIN), which is recorded as `same_security`.
+- Receipt underlying: field 26 (`receipts.link_receipts`); a share that states one is asked as `receipt_conflict`.
 """
 
 from __future__ import annotations
@@ -26,7 +24,7 @@ from collections import Counter, defaultdict
 from . import firds, rules
 from .claims import Claims, Meaning, Venues, requested
 from .linking import us_lines
-from .model import Evidence, Listing, Security, Snapshot
+from .model import Evidence, Listing, Snapshot
 
 # A venue attribute (Pythia-authored): Deutsche Börse runs the Frankfurt Stock Exchange's regulated market on two
 # venues, the Frankfurt floor and Xetra, its main one. When the claims decide that market, the line is on Xetra.
@@ -50,13 +48,8 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
             _issuer_unknown(snap, claims, venues, security, lines[security.security_id], evidence, audit)
         stated = claims.isins[isin].get(Meaning.UNDERLYING_ISIN, set()) - {isin}
         if security.kind != "dr" and stated and live:  # the CFI says share, field 26 says receipt
-            same = {target for target in sorted(stated) if _same_security(security, snap.securities.get(f"isin:{target}"))}
-            for target in sorted(same):  # a predecessor or successor ISIN of the same share, not an underlying
-                snap.flag(security.security_id, "same_security", f"isin:{target}")
-                audit["same_security"] += 1
-            if stated - same:
-                targets = [f"isin:{target}" for target in sorted(stated - same) if f"isin:{target}" in snap.securities]
-                snap.ask("receipt_conflict", security.security_id, targets, evidence, sorted(stated - same))
+            targets = [f"isin:{target}" for target in sorted(stated) if f"isin:{target}" in snap.securities]
+            snap.ask("receipt_conflict", security.security_id, targets, evidence, sorted(stated))
         rule, line = _primary(claims, venues, isin, lines[security.security_id], as_of)
         audit[f"primary_{rule}"] += 1
         for other in lines[security.security_id]:
@@ -91,16 +84,6 @@ def _issuer_unknown(snap: Snapshot, claims: Claims, venues: Venues, security, li
         snap.ask("issuer_identity", security.security_id, candidates, evidence, sorted(leis))
     else:  # nothing to choose: FIRDS names a venue operator's LEI where the issuer did not request the admission
         audit["issuer_unknown_venue_lei" if venue_only else "issuer_unknown_no_candidate"] += 1
-
-
-def _same_security(share: Security, stated: Security | None) -> bool:
-    """A stated ISIN that is the share's own under another ISIN (a predecessor or a reverse split's successor): the same
-    known issuer and the same name, or a FIRDS name cut short (`CC JAPAN INCOME &`). Another issuer's security, or the
-    same issuer's under another name, is a conflict."""
-    if stated is None or not share.issuer_id or stated.issuer_id != share.issuer_id:
-        return False
-    ours, theirs = (" ".join((security.name or "").upper().split()) for security in (share, stated))
-    return bool(ours and theirs) and (ours.startswith(theirs) or theirs.startswith(ours))
 
 
 def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as_of: str) -> tuple[str, Listing | None]:

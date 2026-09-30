@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from .model import Evidence, Relationship, Security, Snapshot
+from . import rules
+from .model import Evidence, Issuer, Relationship, Security, Snapshot
 
-RECEIPT_RULE = "receipt_issuer_share@1"
+RECEIPT_RULE = "receipt_issuer_share@2"
 
 
 def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> None:
@@ -64,6 +65,12 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
         shares = [item for item in live if item.activity == "active" and item.security_id in lined]
         unique = (security.issuer_id and security.security_id not in asked and len(live) == 1 and shares == live
                   and not any(item.kind == "preferred" for item in siblings))
+        if unique and _names_disagree(security, shares[0], snap.issuers.get(security.issuer_id or "")):
+            # Name only vetoes, never links: FIRDS field 5 on a receipt with no admission its issuer requested can be a
+            # venue's guess (Concord Medical's ADR under China Medical System). The question stays.
+            snap.flag(security.security_id, "receipt_name_disagrees", shares[0].security_id)
+            audit["receipt_name_disagrees"] += 1
+            unique = False
         if unique:
             snap.relationships.append(Relationship(security.security_id, "depositary_receipt_of", shares[0].security_id,
                                                    "pythia", RECEIPT_RULE, None))
@@ -77,6 +84,18 @@ def link_receipts(snap: Snapshot, firds_isins: frozenset[str] = frozenset()) -> 
             audit["receipt_underlying_question"] += 1
         elif security.issuer_id:
             audit["receipt_without_underlying"] += 1
+
+
+def _names_disagree(receipt: Security, share: Security, issuer: Issuer | None) -> bool:
+    """The receipt's own name and the names of its share and issuer share no leading word: Concord Medical Services
+    against China Medical System Holdings. A side without a name says nothing, and a rename (Huazhu, now H World) only
+    costs the edge: the receipt is asked instead. Legal forms and punctuation do not count (`rules.normalized_name`)."""
+    def first(text: str) -> str:
+        return (rules.normalized_name(text).split() or [""])[0]
+
+    names = [share.name, *([issuer.name, *(name for name, *_ in issuer.names)] if issuer else [])]
+    known = {first(name) for name in names if name}
+    return bool(receipt.name and known) and first(receipt.name) not in known
 
 
 def _issuers(security: Security) -> set[str]:

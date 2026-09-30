@@ -167,14 +167,15 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
   | Field | FIRDS decides | Asked instead (question type) |
   | --- | --: | --- |
-  | Issuer | 28,087 securities carry field 5's LEI as issuer; 141 more take the SEC registrant joined by ISIN or FIGI (`registrant_join@1`) | 19 `issuer_identity`, all contested: a share its receipts claim for another live issuer, or a receipt of it under the same field 5 (Nestlé and its ADR; REA Group; Barrick). 469 securities whose only claim is an operator's LEI offer nothing to choose and are counted (`issuer_unknown_venue_lei`), not asked |
+  | Issuer | 28,087 securities carry field 5's LEI as issuer; 141 more take the SEC registrant joined by ISIN or FIGI (`registrant_join@1`) | 19 `issuer_identity` on securities, all contested: a share its receipts claim for another live issuer, or a receipt of it under the same field 5 (Nestlé and its ADR; REA Group; Barrick). 469 securities whose only claim is an operator's LEI offer nothing to choose and are counted (`issuer_unknown_venue_lei`), not asked |
   | Primary | 10,863 from issuer-requested admissions (field 8) | None since rules version 2: the primary is a choice (ADR 0044, A5), so 10,271 stay unknown and counted: 10,071 with no request and no line outside the EEA, 169 with a request beside a line outside the EEA, 31 with requests at several venues and none the most liquid |
-  | Receipt underlying | 2,754 receipts link to the field 26 security of their own issuer, or of an issuer claimed for it while it is asked; 52 more whose field 26 is empty take their issuer's one live share (`receipt_issuer_share@1`) | 836 `receipt_underlying` (42 because field 26 names another issuer's security; 105 with field 26 empty and no share of the issuer in the build to offer), 7 `receipt_conflict` (3 more are a share stating its own other ISIN: `same_security`) |
+  | Receipt underlying | 2,754 receipts link to the field 26 security of their own issuer, or of an issuer claimed for it while it is asked; 49 more receipts (46 whose field 26 is empty, 3 SEC ADRs) take their issuer's one live share (`receipt_issuer_share@2`); 3 more were vetoed by name and stay asked (`receipt_name_disagrees`: Concord Medical's ADR under China Medical System, Huazhu, a receipt named only "Depositary Receipts") | 839 `receipt_underlying` (42 because field 26 names another issuer's security; 105 with field 26 empty and no share of the issuer in the build to offer), 10 `receipt_conflict` |
 
   The SEC stage adds 166 name-only issuer questions (#73) and, where a CIK's
   identifier links conflict and no rule decides, `issuer_identity` questions
-  (8 before; none now: seven are decided by the exchange-ticker and exact-name
-  rules, and ProShares Trust II is a fund trust, no issuer). All 1,028
+  (8 before, 3 now: four CIKs are decided by the exchange-ticker and exact-name
+  rules, ProShares Trust II is a fund trust, no issuer, and no tie-break picks a
+  lapsed LEI, so Critical Metals and Vishay Intertechnology stay asked). All 1,037
   (1,698 before rules version 5) are in the package's `claims` file; core queues one only when its
   instrument is opened, watched or used by the agent. A security
   without a primary the package can write is priced on its line at the most
@@ -215,8 +216,8 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Field 8 true for US large caps on the Bulgarian exchange | 122 true of 377 `JBUL` records (audit) | Cisco, Costco, UnitedHealth, Morgan Stanley | Unexplained; the segment also answers false, so it is not a whole-segment habit | Where the SEC shows the US line (Cisco on Nasdaq), the primary is asked (`requested_in_eea_listed_outside`). Not added to the venue-habit list without an explanation | Open |
 | Several issuer-requested countries | 2,413 ISINs (audit) | Erste Group: Vienna, Bucharest, Prague | Dual listings, and the segment convention above | Co-primary, or a question where only always-true segments add a country | Open |
 | The venue's own spelling in field 2 | 19,483 ISINs carry several full names (audit) | SLB: 7 names | Each venue reports its own | Every name is a claim; none is the name | Counted |
-| A share that states an underlying | 302 `ESXXXX` ISINs (audit) | Argentine CEDEARs of US shares | Receipts classified as shares | Counted; asked as `receipt_conflict` (7 live) unless the stated security is the share's own under another ISIN: same issuer and name (`same_security`, 3: Ascential, CC Japan Income & Growth, Liberty SiriusXM). Invesco Asia Trust stating an iShares ETF and BNP certificates stating an ETF stay asked | Open |
-| A receipt that states itself | 121 receipts (audit) | James Hardie CUFS | Field 26 repeats the receipt's ISIN | No underlying: the issuer's one live share is its underlying (`receipt_issuer_share@1`, 52 of the 121 have one), and two share classes or none leave it asked | Decided or asked |
+| A share that states an underlying | 302 `ESXXXX` ISINs (audit) | Argentine CEDEARs of US shares | Receipts classified as shares | Counted; asked as `receipt_conflict` (10 live). A stated ISIN of the same issuer is not settled by name: Liberty SiriusXM (non-voting) states its voting class, CC Japan Income & Growth (`ESNTFR`) its ordinary share, and only Ascential states a predecessor ISIN | Open |
+| A receipt that states itself | 121 receipts (audit) | James Hardie CUFS | Field 26 repeats the receipt's ISIN | No underlying: the issuer's one live share is its underlying (`receipt_issuer_share@2`, 49 of the 121 have one), unless the receipt's name disagrees with its issuer's (Concord Medical under China Medical System: `receipt_name_disagrees`), and two share classes or none leave it asked | Decided or asked |
 | Share classes share a sub-fund LEI | 3,542 ETF ISINs in 1,176 sub-funds | VWRL and VWCE | Q&A 1502 | `share_class_of` by the same sub-fund LEI, in code | Open |
 | Underlying superseded or outside the build | 116 receipts (local build) whose underlying is in the build but inactive | — | FIRDS keeps the old ISIN | Keep the edge by global identifier and follow `successor_of` | Open |
 | `NOISIN` underlying placeholder | 203 records on 40 receipt ISINs in the audit scope (238 on 44 in all): the receipts without an underlying | `US00689A1051` Adimmune GDS states `NOISINFOUND9` | ESMA's placeholder for "no ISIN found" | No claim, counted (`underlying_placeholder`). The receipt is read as stating none: its issuer's one live share would be its underlying, and none of the 40 has one in the build (39 have no share of the issuer, 1 has two classes), so they stay asked | Counted |
@@ -225,8 +226,8 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
-| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 19 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
-| The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 843 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
+| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 22 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 849 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
 The questions ship in the package's `claims` file. Core queues one when its
 instrument becomes relevant; the agent may suggest an answer and the user's

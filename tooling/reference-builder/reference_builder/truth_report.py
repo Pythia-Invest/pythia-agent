@@ -118,6 +118,7 @@ ATTENTION = (
     ("securities_without_primary", ("schema",), "live securities without a primary listing"),
     ("issuer_unknown_venue_lei", ("reconcile",), "live securities whose only issuer claim is a venue operator's LEI: issuer unknown, not asked"),
     ("registrant_join@1", ("reconcile",), "securities whose issuer is the SEC registrant joined by ISIN or FIGI (registrant_join@1)"),
+    ("receipt_name_disagrees", ("flags",), "receipts whose name disagrees with their issuer's: no underlying decided, asked"),
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
     ("issuer_identity_name_candidate", ("questions",), "CIK-only issuers whose name matches one LEI issuer: open questions"),

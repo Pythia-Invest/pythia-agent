@@ -135,7 +135,7 @@ the amendment "evidence counts by kind and trust level").
 | Tier | Authorities | Confirms? |
 | --- | --- | --- |
 | T0 identifier | `source_asserted`: a source's own record, a reference package's or a plugin's alike. The reference builder writes every value it reads from a source so, and core's curated crypto table as source `pythia` | Yes, at confirm level |
-| T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`; the builder's `receipt_issuer_share@1` edges) | Yes |
+| T1 versioned rule | `rule_confirmed` with a `rule_id` (e.g. `isin_mic@1`; the builder's `receipt_issuer_share@2` edges) | Yes |
 | T3 model verdict | `model_confirmed` at or above the threshold; `model_suggested` below | Only `model_confirmed` |
 | T3 agent answer | `agent_confirmed` (the Hermes agent) | No: it suggests (see the 2026-09-29 amendment) |
 | T4 attestation | `user_attested` | Yes |

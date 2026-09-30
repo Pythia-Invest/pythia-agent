@@ -67,7 +67,7 @@ or names two subjects, is dropped and counted. Every assertion and relation
 states the kind of evidence it is, never where it came from (ADR 0044, A2;
 package format 6): a value read from a source is `source_asserted`, and one a
 builder rule derives is `rule_confirmed` with the rule in `source_record`: a
-receipt edge of `receipt_issuer_share@1`, and a CIK the build joins to a LEI
+receipt edge of `receipt_issuer_share@2`, and a CIK the build joins to a LEI
 issuer (`isin_exch_us`, `share_class_figi`; GLEIF's EDGAR registration states
 it, so that one is `source_asserted`). Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
@@ -249,6 +249,11 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
     companies' tickers under a registrant's CIK (CIBC's `CNDIF` is Canadian
     Copper's share class). An OTC row that disagreed is counted
     (`link_otc_outranked`).
+  - **A tie-break never picks a LAPSED LEI** (GLEIF registration not renewed):
+    neither the exchange-over-OTC ranking nor the name test may. A CIK whose
+    exchange evidence names a lapsed LEI keeps its OTC evidence beside it, and so
+    stays asked (Critical Metals Corp.: Nasdaq names the lapsed Ltd, an OTC row
+    the PLC).
   - A CIK that identifiers link to several LEIs links to the one whose GLEIF
     name the SEC title is, exactly (`_named`); the other claims are flagged
     `cik_lei_claim_rejected`. With none, or several, it links to none and is
@@ -258,9 +263,9 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
     no link and no question (`fund_trust`).
   - When several CIKs link one LEI by identifier, the one whose SEC title is
     exactly the LEI's name links (FIRDS gives Lee Enterprises' ISIN Berkshire
-    Hathaway's LEI, and Vishay Precision Group's Vishay Intertechnology's); when
-    several are, none links and each CIK is asked with the LEI as candidate; when
-    none is, none links (`lei_contested_unnamed`: FIRDS puts venue and
+    Hathaway's LEI); when several are, or the LEI is lapsed (Vishay
+    Intertechnology's), none links and each CIK is asked with the LEI as candidate;
+    when none is, none links (`lei_contested_unnamed`: FIRDS puts venue and
     data-vendor LEIs such as TP ICAP's or Bloomberg's on US ISINs).
   - **Exact name, not a shared word.** The name test is equality of the
     normalised full names (`rules.normalized_name`: legal forms and punctuation
@@ -271,6 +276,10 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
     longer decides anything; it only raises the review flag below. An issuer
     GLEIF did not describe has only a FIRDS instrument name, which names a
     security, not the entity, so it matches no title.
+  - **What a name may do.** A name may break a tie only among candidates the
+    identifiers already name, and may veto a rule (`receipt_name_disagrees`), but
+    never creates a link. Nothing here links on a name; a CIK no identifier links
+    stays CIK-only.
   Two cases are flagged for review and left as built: an identifier link whose
   SEC title shares no name word with any GLEIF name of the LEI (`cik_link_suspect`:
   a rename, or a wrong LEI in FIRDS such as Lee Enterprises under Berkshire
@@ -286,23 +295,27 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   outside the scope; then the underlying is unknown and asked
   (`receipt_underlying`, the issuer's shares as candidates). A share whose CFI
   says share while field 26 states an underlying is asked too
-  (`receipt_conflict`), unless the stated security is the share's own under
-  another ISIN, with the same known issuer and name (a predecessor ISIN, a
-  reverse split's successor, a FIRDS name cut short): that is recorded as
-  `same_security` and asked nothing; only another issuer's security, or the
-  same issuer's under another name, is a conflict. SEC ADRs, New York registry
+  (`receipt_conflict`): a stated ISIN of the same issuer is not settled by
+  its name (two share classes share a name), so it is asked too. SEC ADRs, New York registry
   shares outside FIRDS, and FIRDS receipts whose field 26 states none (empty,
   its own ISIN, or the `NOISINFOUND9` placeholder, which is no claim) name no
   underlying (neither does OpenFIGI), so rule
-  `receipt_issuer_share@1` links a receipt to its issuer's one ordinary
+  `receipt_issuer_share@2` links a receipt to its issuer's one ordinary
   share that is not inactive, when that share is active with an active ticker
   line (a share search cannot show folds nothing in). An issuer with a
   preferred share or several such shares, with a ticker line or not, gets no
   edge (`receipt_without_underlying`; a FIRDS receipt with field 26 empty is
   then asked as `receipt_underlying`, with the shares as candidates): a shared
   issuer never picks a share class (ADR 0044, A3), so a FIRDS class A beside a
-  SEC-only class B no longer takes the receipt. On the 2026-09-28 build the rule
-  links 250 receipts (198 before FIRDS receipts with no stated underlying were
+  SEC-only class B no longer takes the receipt. A FIRDS receipt's field 5 can be
+  a venue's guess (no admission its issuer requested), which the SEC registrant
+  behind an ADR is not, so a name may veto the rule: when the receipt's own name
+  and the names of its share and issuer share no leading word (Concord Medical
+  Services' ADR under China Medical System Holdings), nothing is decided, the
+  question stays and the receipt is flagged `receipt_name_disagrees` (3 on the
+  2026-09-28 build: Concord, Huazhu, now H World, and a receipt named only
+  "Depositary Receipts"). The name never links. On that build the rule links 247
+  receipts (198 before FIRDS receipts with no stated underlying were
   included); Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a
   second share without an active line, get none. The edge is `rule_confirmed` and names its
   rule in `source_record`: a display default, never a validated fact (ADR
@@ -327,17 +340,20 @@ assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
 - **5** (2026-09-30, roadmap stage 0): fewer avoidable questions, each rule
-  measured on the 2026-09-28 build (1,698 questions before, 1,028 after):
+  measured on the 2026-09-28 build (1,698 questions before, 1,037 after):
   a security whose only issuer claim is a venue operator's LEI and that has
   nothing to choose between is counted, not asked (`issuer_unknown_venue_lei`,
   469); the SEC registrant joined to such a security is its issuer
   (`registrant_join@1`, 141); a FIRDS receipt with no stated underlying takes
-  its issuer's one live share as a SEC ADR does (`receipt_issuer_share@1`, 52
-  more edges); a share stating its own other ISIN is `same_security`, not a
-  `receipt_conflict` (3); a CIK's exchange tickers outrank its OTC rows, the
-  name tie-break between a CIK's several LEIs and between several CIKs' one LEI
-  is exact full-name equality instead of a shared word, and a multi-series fund
-  trust has no CIK-to-LEI link (6 CIKs link a LEI, 1 trust skipped).
+  its issuer's one live share as a SEC ADR does, unless the receipt's name
+  disagrees with its issuer's (`receipt_issuer_share@2`, 49 more edges, 3
+  vetoed and asked; the rule id moves to `@2` because its evidence basis
+  now includes FIRDS field 5 on a receipt); a CIK's exchange tickers outrank its
+  OTC rows, the name tie-break between a CIK's several LEIs and between several
+  CIKs' one LEI is exact full-name equality instead of a shared word, no
+  tie-break picks a LAPSED LEI (Critical Metals and Vishay Intertechnology stay
+  asked), and a multi-series fund trust has no CIK-to-LEI link (4 CIKs link a
+  LEI, 1 trust skipped).
 - **4** (2026-09-30, roadmap stage 0; package format 6): rows state the kind of
   evidence they are, never where they came from: an identifier a source
   states is `source_asserted`, a relation a source states (FIRDS field 26)

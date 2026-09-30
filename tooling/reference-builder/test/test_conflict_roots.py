@@ -1,18 +1,17 @@
 """The root causes of avoidable identity conflicts: a venue operator's LEI is no issuer claim, a registrant joined to a
-security is its issuer, a receipt FIRDS states no underlying for has its issuer's one share, and a share stating its own
-other ISIN is no receipt. Each rule leaves what the evidence does not decide asked."""
+security is its issuer, and a receipt FIRDS states no underlying for has its issuer's one share unless its name
+disagrees. Each rule leaves what the evidence does not decide asked."""
 
-import dataclasses
 import unittest
 from collections import Counter
 from datetime import date
 from unittest import mock
 
-from reference_builder import assemble, claims, firds, mic, reconcile, sec
+from reference_builder import assemble, claims, firds, linking, mic, reconcile, sec
 from reference_builder.config import Scope
-from reference_builder.model import Evidence, Listing, Security, Snapshot
+from reference_builder.model import Evidence, Issuer, Listing, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
-from reference_builder.receipts import link_receipts
+from reference_builder.receipts import RECEIPT_RULE, _names_disagree, link_receipts
 
 from .fixtures import (ASML_ISIN, ASML_LEI, MIC_CSV, FakeOpenFigi, figi_row, firds_record, fulins, sec_json, stream)
 from .test_claims import admissions
@@ -117,8 +116,8 @@ class ReceiptRootsTest(unittest.TestCase):
         # `NOISINFOUND9` is FIRDS' "no underlying" placeholder (no claim), and so is an empty field 26.
         for stated in ("NOISINFOUND9", None):
             with self.subTest(stated=stated):
-                snap = self.build([firds_record("US0000000002", "XAMS", ASML_LEI, cfi="EDSXFR", underlying=stated)])
-                self.assertIn(("isin:US0000000002", f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), self.edges(snap))
+                snap = self.build([firds_record("US0000000002", "XAMS", ASML_LEI, cfi="EDSXFR", name="ASML HOLDING ADR", underlying=stated)])
+                self.assertIn(("isin:US0000000002", f"isin:{ASML_ISIN}", "receipt_issuer_share@2"), self.edges(snap))
                 self.assertNotIn("isin:US0000000002", {q.subject_id for q in snap.questions})
 
     def test_a_firds_receipt_stating_no_underlying_beside_two_share_classes_is_still_asked(self):
@@ -126,7 +125,7 @@ class ReceiptRootsTest(unittest.TestCase):
         answers = {("ID_ISIN", "NL0000000002", "XAMS"): [figi_row("ASMB", "NA", "BBGASMBNA001", "BBGASMBSC001")]}
         given = inputs(Scope(mics=("XAMS",), sec=False))
         firds.apply(given.admissions, firds.full_records(stream(fulins(
-            both + [firds_record("US0000000002", "XAMS", ASML_LEI, cfi="EDSXFR")])), given.scope.cfi_prefixes), Counter())
+            both + [firds_record("US0000000002", "XAMS", ASML_LEI, cfi="EDSXFR", name="ASML HOLDING ADR")])), given.scope.cfi_prefixes), Counter())
         snap = build_snapshot(given, gleif_fetch, FakeOpenFigi(OPENFIGI | answers))
         self.assertNotIn("isin:US0000000002", {from_id for from_id, _to, _rule in self.edges(snap)})
         asked = [q.candidates for q in snap.questions if q.question == "receipt_underlying" and q.subject_id == "isin:US0000000002"]
@@ -139,30 +138,56 @@ class ReceiptRootsTest(unittest.TestCase):
         self.assertEqual([(q.question, q.subject_id, q.candidates) for q in snap.questions],
                          [("receipt_underlying", "isin:US9", ())])
 
-    def test_a_share_stating_its_own_other_isin_is_a_same_security_and_asks_nothing(self):
-        for name, same in (("ASML HOLDING", True), ("ASML HOLD", True), ("ASML HOLDING B", True), ("OTHER NAME", False)):
-            with self.subTest(name=name):
-                snap = self.build([firds_record("NL0000000003", "XAMS", ASML_LEI, name=name, underlying=ASML_ISIN)])
-                asked = [q.subject_id for q in snap.questions if q.question == "receipt_conflict"]
-                self.assertEqual(asked, [] if same else ["isin:NL0000000003"])
-                self.assertEqual(snap.audit["reconcile"].get("same_security", 0), 1 if same else 0)
+    def test_a_receipt_whose_own_name_disagrees_with_its_issuers_is_asked_and_flagged(self):
+        # Concord Medical's ADR carries China Medical System's LEI in field 5 (a venue's guess, no admission requested).
+        # The issuer's one share would be its underlying, but the names share no leading word: name only vetoes.
+        snap = self.build([firds_record("US0000000005", "XAMS", ASML_LEI, cfi="EDSXFR", name="CONCORD MEDICAL SERVICES ADR")])
+        self.assertNotIn("isin:US0000000005", {from_id for from_id, _to, _rule in self.edges(snap)})
+        self.assertEqual([(q.question, q.candidates) for q in snap.questions if q.subject_id == "isin:US0000000005"],
+                         [("receipt_underlying", (f"isin:{ASML_ISIN}",))])
+        self.assertIn(("isin:US0000000005", "receipt_name_disagrees", f"isin:{ASML_ISIN}"),
+                      {(f.subject_id, f.flag, f.detail) for f in snap.flags})
+        self.assertEqual(snap.audit["relations"]["receipt_name_disagrees"], 1)
+        # A receipt named like its issuer, a rename the GLEIF names do not show apart, and one without a name decide.
+        for name in ("ASML HOLDING NV ADR", "ASML NY REGISTRY SHARES"):
+            snap = self.build([firds_record("US0000000006", "XAMS", ASML_LEI, cfi="EDSXFR", name=name)])
+            self.assertIn(("isin:US0000000006", f"isin:{ASML_ISIN}", RECEIPT_RULE), self.edges(snap))
+        nameless = Security("isin:US9", "dr", "esma_firds", Evidence.ADMISSION_REGISTER, issuer_id="lei:X", isin="US9")
+        share = Security("isin:NL9", "share", "esma_firds", Evidence.ADMISSION_REGISTER, issuer_id="lei:X", name="Other")
+        self.assertFalse(_names_disagree(nameless, share, None))
 
-    def test_a_share_stating_another_issuers_security_is_still_a_conflict(self):
-        other = "724500AAAAAAAAAAAA77"
-        snap = self.build([firds_record("NL0000000004", "XAMS", other, name="ASML HOLDING", underlying=ASML_ISIN)])
-        self.assertEqual([(q.subject_id, q.candidates, q.values) for q in snap.questions if q.question == "receipt_conflict"],
-                         [("isin:NL0000000004", (f"isin:{ASML_ISIN}",), (ASML_ISIN,))])
-        self.assertNotIn("same_security", snap.audit["reconcile"])
 
-    def test_the_stated_security_must_be_the_shares_own_not_only_the_same_issuers(self):
-        ours = Security("a", "share", "esma_firds", Evidence.ADMISSION_REGISTER, issuer_id="lei:X", name="Liberty SiriusXM")
-        for stated, expected in ((dataclasses.replace(ours, security_id="b"), True),
-                                 (dataclasses.replace(ours, security_id="b", name="Liberty Formula One"), False),
-                                 (dataclasses.replace(ours, security_id="b", issuer_id="lei:Y"), False),
-                                 (dataclasses.replace(ours, security_id="b", issuer_id=None), False),
-                                 (None, False)):
-            self.assertEqual(reconcile._same_security(ours, stated), expected)
-        self.assertFalse(reconcile._same_security(dataclasses.replace(ours, issuer_id=None), ours))
+class LapsedLeiTest(unittest.TestCase):
+    def test_no_tie_break_picks_a_lapsed_lei(self):
+        # Critical Metals Corp.: Nasdaq evidence names the Ltd, whose LEI registration has lapsed, and an OTC row names
+        # the PLC. Exchange tickers outrank OTC rows, and an exact name picks between LEIs, but neither may pick a lapsed
+        # one: the CIK stays asked. The same holds for a lapsed LEI several CIKs claim.
+        snap = Snapshot(as_of="2026-09-25")
+        snap.audit["sec"] = Counter()
+        for lei, name, status in (("LTD", "CRITICAL METALS LTD", "LAPSED"), ("PLC", "CRITICAL METALS PLC", "ISSUED")):
+            snap.issuers[f"lei:{lei}"] = Issuer(f"lei:{lei}", name, "gleif", lei=lei, registration_status=status,
+                                                names=[(name, "LEGAL_NAME", "en", "gleif")])
+            snap.securities[f"isin:{lei}"] = Security(f"isin:{lei}", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
+                                                      issuer_id=f"lei:{lei}", isin=lei, share_class_figi=f"BBG{lei}")
+        tickers = [SecTicker("1", "Critical Metals Corp.", "CRML", "Nasdaq", 0), SecTicker("1", "Critical Metals Corp.", "CRTMF", "OTC", 1)]
+        rows = {"CRML": {"shareClassFIGI": "BBGLTD"}, "CRTMF": {"shareClassFIGI": "BBGPLC"}}
+        evidence, _isins = linking._link_evidence(snap, {}, tickers, rows, lambda jobs: [{} for _ in jobs], {})
+        self.assertEqual([lei for lei, _rule, _cite in evidence["1"]], ["LTD", "PLC"])
+        self.assertEqual(snap.audit["sec"]["link_otc_outranked"], 0)
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
+        self.assertEqual([q.subject_id for q in snap.questions], ["cik:1"])
+        # One name and a lapsed LEI: an exact name does not pick it.
+        other = Snapshot(as_of="2026-09-25")
+        other.issuers = {"lei:LTD": snap.issuers["lei:LTD"], "lei:OTH": Issuer("lei:OTH", "Other Mining", "gleif", lei="OTH")}
+        self.assertEqual(linking._decide(other, tickers[:1], {"1": [("LTD", "isin_exch_us", "r:1"), ("OTH", "share_class_figi", "r:2")]},
+                                         Counter()), {})
+        self.assertEqual([f.flag for f in other.flags], ["cik_lei_conflict"])
+        # A lapsed LEI two CIKs claim, one named: the name does not pick it either.
+        both = [SecTicker("1", "Critical Metals Ltd", "CRML", "Nasdaq", 0), SecTicker("2", "Critical Metals Acquisition", "CRMA", "NYSE", 1)]
+        third = Snapshot(as_of="2026-09-25")
+        third.issuers["lei:LTD"] = snap.issuers["lei:LTD"]
+        self.assertEqual(linking._decide(third, both, {"1": [("LTD", "isin_exch_us", "r:1")], "2": [("LTD", "share_class_figi", "r:2")]},
+                                         Counter()), {})
 
 
 if __name__ == "__main__":

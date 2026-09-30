@@ -111,7 +111,7 @@ INVARIANTS: tuple[Invariant, ...] = (
               share_primary_silent, 1072, "1,052 SEC OTC-only shares, which no rule places; 20 shares whose most liquid "
               "venue has no line", headroom=0.02),
     Invariant("questions_open", "error", "A question the build left open (the package's claims file).",
-              questions_open, 1028, "evidence that does not decide (claims step 3)", headroom=0.02),
+              questions_open, 1037, "evidence that does not decide (claims step 3)", headroom=0.02),
     Invariant("primary_open_market_beside_us_exchange", "error",
               "A security with a live NYSE/Nasdaq line has its primary on an EEA open-market segment.",
               primary_open_market_beside_us_exchange),

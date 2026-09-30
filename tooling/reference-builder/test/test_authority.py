@@ -38,7 +38,7 @@ class AuthorityTest(unittest.TestCase):
                                                           " WHERE authority <> 'source_asserted'")}
             relations = {tuple(row) for row in ref.execute("SELECT type, source, source_record, authority FROM relations")}
             self.assertEqual(asserted, {("cik", "rule_confirmed")})  # joined CIK links only
-            self.assertIn(("depositary_receipt_of", "pythia", "receipt_issuer_share@1", "rule_confirmed"), relations)
+            self.assertIn(("depositary_receipt_of", "pythia", "receipt_issuer_share@2", "rule_confirmed"), relations)
             self.assertIn(("wraps", "pythia", "canonical_assets@1", "source_asserted"), relations)  # Pythia's own list
             for subject_id, kinds in ((ASML, {"source_asserted", "rule_confirmed"}), (BTC, {"source_asserted"})):
                 subject = subjects.load_subject(ref, subject_id)
@@ -74,10 +74,10 @@ class AuthorityTest(unittest.TestCase):
         snap.relationships += [  # FIRDS field 26 states one underlying; the receipt rule derives the other
             Relationship(f"isin:{RECEIPT}", "depositary_receipt_of", f"isin:{ASML_ISIN}", "esma_firds",
                          "firds_underlying_isin", Evidence.STATED_UNDERLYING),
-            Relationship(f"isin:{NN_ISIN}", "depositary_receipt_of", f"isin:{ASML_ISIN}", "pythia", "receipt_issuer_share@1",
+            Relationship(f"isin:{NN_ISIN}", "depositary_receipt_of", f"isin:{ASML_ISIN}", "pythia", "receipt_issuer_share@2",
                          None)]
         written = {row["source_record"]: row["authority"] for row in schema.rows(snap, {"build_id": "t"}, [])["relations"]}
-        self.assertEqual(written, {"firds_underlying_isin": "source_asserted", "receipt_issuer_share@1": "rule_confirmed",
+        self.assertEqual(written, {"firds_underlying_isin": "source_asserted", "receipt_issuer_share@2": "rule_confirmed",
                                    "canonical_assets@1": "source_asserted"})
 
 

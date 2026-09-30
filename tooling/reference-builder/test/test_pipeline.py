@@ -110,7 +110,7 @@ class PipelineTest(unittest.TestCase):
     def test_a_receipt_no_source_links_is_the_receipt_of_its_issuers_one_share(self):
         edges = {(item.from_id, item.relation, item.to_id, item.rule_id) for item in self.snap.relationships}
         receipt = self.snap.listings["XNAS:ASML"].security_id
-        self.assertIn((receipt, "depositary_receipt_of", f"isin:{ASML_ISIN}", "receipt_issuer_share@1"), edges)
+        self.assertIn((receipt, "depositary_receipt_of", f"isin:{ASML_ISIN}", "receipt_issuer_share@2"), edges)
         self.snap.securities["preferred"] = Security("preferred", "preferred", "sec", Evidence.REGISTRANT_FILING,
                                                      issuer_id=self.snap.securities[receipt].issuer_id)
         self.snap.relationships.clear()
