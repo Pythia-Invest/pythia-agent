@@ -571,7 +571,11 @@ second time, by a digest they cannot judge, adds friction and no safety.
   no longer writes or reads one. `reference_package install` takes no
   `--display` and needs no config folder.
 - A disagreement between two plugins that an earlier version ranked by level
-  is now a contested fact and a question on touch.
+  is now a contested fact and a question on touch. Two plugins that name
+  different parents for one device line leave the line without a parent
+  (neither wins), and another plugin's line on the same exchange counts as a
+  second line there, so a currency-less record that would have joined the
+  exchange's one line stays unmatched.
 - Evidence Pythia cannot rank stays unranked: the exact weighing rules remain
   open (A8).
 - The remedies the founder named, an explanation of where a value comes from,
