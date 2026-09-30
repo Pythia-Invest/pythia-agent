@@ -897,7 +897,9 @@ list in a rule, or a question every device answers again.
   field) with the same module, so an adapter patches nothing itself. A corrected `Claim`
   carries `correction`, the build decides from its value, and the reference file
   gets an additive `source_corrections` table (subject, source, field, original,
-  value, reason). The build report counts applied, stale and absent entries.
+  value, reason). A builder entry may be a retraction (`value` null): the source's
+  statement is wrong and no right value exists, so the claim is not emitted and the
+  table's `value` is NULL. The build report counts applied, stale and absent entries.
 - **Reporting stays a maintainer's act.** `docs/sources/<source>.md` lists each
   entry and whether it was reported upstream. Nothing is stored or sent for it.
 
@@ -921,9 +923,9 @@ list in a rule, or a question every device answers again.
 - The reference format does not change: the table is additive, a package built
   before it has none and core reads it only when it exists.
 - The SEC cases (Theravance's and ioneer's state codes) wait for the builder to
-  emit incorporation; they are recorded in `docs/sources/sec.md`. The Concord
-  Medical entry waits for that company's LEI, which no cached source holds
-  (`docs/sources/firds.md`).
+  emit incorporation; they are recorded in `docs/sources/sec.md`. The first
+  entry is a retraction: Concord Medical's ADR carries China Medical System's LEI
+  in FIRDS, and Concord has no LEI in GLEIF (`docs/sources/firds.md`).
 - No Desk surface is added beyond the view list.
 
 ### Rejected alternatives

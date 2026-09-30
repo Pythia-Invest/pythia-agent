@@ -33,7 +33,7 @@ Meaning = identity.SourceMeaning
 
 class Claim(NamedTuple):
     subject_key: str  # a global identifier: isin:<ISIN>, or isin:<ISIN>@<segment MIC> for an admission
-    value: str
+    value: str | None  # None only on a retraction (`corrected`)
     source: str
     source_field: str  # the element path in the source record
     meaning: Meaning
@@ -45,7 +45,8 @@ class Claim(NamedTuple):
 def corrected(found: Iterable[Claim], table) -> Iterator[Claim]:
     """An adapter's claims with its source's own errors corrected: where `table` (a `source_corrections.Table`) holds a
     fix for a claim's record and field and the source still states the original, the claim states the corrected value
-    and carries the original and the reason. The adapter itself reads the source as it is and patches nothing."""
+    and carries the original and the reason; a retraction (no corrected value) leaves a claim with no value, which
+    `load` records and never decides from. The adapter itself reads the source as it is and patches nothing."""
     for claim in found:
         value, fix = table.apply(claim.source, claim.subject_key, claim.source_field, claim.value)
         yield claim._replace(value=value, correction=fix) if fix else claim
@@ -146,6 +147,8 @@ def load(claims: Iterable[Claim], table=None) -> Claims:
         if claim.correction:
             original, reason = claim.correction
             found.corrected[(claim.subject_key, claim.source_field)] = (claim.source, original, claim.value, reason)
+        if claim.value is None:  # a retraction: the source's statement is wrong and the build states nothing instead
+            continue
         if claim.meaning not in KEPT:
             continue
         isin, _, segment = claim.subject_key.removeprefix("isin:").partition("@")

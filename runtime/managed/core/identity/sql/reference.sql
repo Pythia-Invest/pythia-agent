@@ -133,7 +133,7 @@ CREATE TABLE source_corrections (  -- a value the build states instead of what i
   source TEXT NOT NULL,            -- the source that states the original, as in assertions.source (esma_firds)
   field TEXT NOT NULL,             -- the source's own field as the adapter reads it (for esma_firds an element path: Issr)
   original TEXT NOT NULL,          -- what the source states, exactly
-  value TEXT NOT NULL,             -- what the build states instead: the rows about the subject carry it (an issuer LEI is the one securities.issuer_id points to)
+  value TEXT,                      -- what the build states instead: the rows about the subject carry it (an issuer LEI is the one securities.issuer_id points to). NULL: a retraction, the build states nothing in this field
   reason TEXT NOT NULL CHECK (length(reason) <= 400),  -- what is wrong and the evidence
   PRIMARY KEY (subject_id, source, field)
 );

@@ -451,7 +451,8 @@ record as its adapter reads it, and the original stays readable beside it. A
 plugin's corrections are in its record's `attributes.corrections` in the `claim`
 JSON of `claims`; the reference build's are in `ref.source_corrections`, which a
 package built before it lacks (then the query fails with "no such table": leave
-its second half out). `value` is what the record states now, and `original` is
+its second half out). `value` is what the record states now (empty for a retraction, where the source's statement is
+wrong and no right value exists), and `original` is
 what the source stated, exactly as the source wrote it, so it can be reported. A
 correction applies only while the source still states the original; when the
 source fixes its error the raw value passes through and the build counts the

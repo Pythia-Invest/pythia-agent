@@ -29,7 +29,7 @@ class Entry(NamedTuple):
     key: str       # the record the source states it on, in the adapter's own key (`isin:US2062772049`)
     field: str     # the source's own field, as its adapter reads it (`Issr`)
     original: str  # what the source states, raw
-    value: str     # what the record states instead
+    value: str | None  # what the record states instead; None retracts the statement (the record should state nothing)
     reason: str    # what is wrong and the evidence
 
 
@@ -40,8 +40,9 @@ class Table:
         self.entries: dict[tuple[str, str, str], Entry] = {}
         for raw in entries:
             entry = Entry(**raw)
-            if not all(isinstance(text, str) and text for text in entry) or len(entry.reason) > REASON_LENGTH \
-                    or entry.original == entry.value or (entry.source, entry.key, entry.field) in self.entries:
+            if not all(isinstance(text, str) and text for text in (*entry[:4], entry.reason)) \
+                    or not (entry.value is None or (isinstance(entry.value, str) and entry.value)) \
+                    or len(entry.reason) > REASON_LENGTH or entry.original == entry.value or (entry.source, entry.key, entry.field) in self.entries:
                 raise ValueError(f"source correction {entry.source} {entry.key} {entry.field}: every part is required, "
                                  f"the reason is at most {REASON_LENGTH} characters, the value differs from the original "
                                  "and each record field has one correction")
@@ -53,8 +54,9 @@ class Table:
         return cls(json.loads(text)["entries"])
 
     def apply(self, source: str, key: str, field: str, stated: str | None) -> tuple[str | None, tuple[str, str] | None]:
-        """The value to use for what `source` states in `field` of `key`, and its (original, reason) when corrected. A
-        source that no longer states the original passes through: the entry is stale (`report`)."""
+        """The value to use for what `source` states in `field` of `key`, and its (original, reason) when corrected (a
+        retraction gives no value). A source that no longer states the original passes through: the entry is stale
+        (`report`)."""
         entry = self.entries.get((source, key, field)) if self.entries else None
         if entry is None or stated is None:
             return stated, None

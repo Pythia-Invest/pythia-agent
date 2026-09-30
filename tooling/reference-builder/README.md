@@ -420,7 +420,7 @@ When a source is wrong in a way the builder can show, its adapter states a
 labelled correction of that source's own value: never another source's, and never
 a rule. `source_corrections.json` lists each one by source, record key (for FIRDS,
 `isin:<ISIN>`), the source's own field (`Issr`), the `original` the source states, the
-`value` to use, and a `reason` of at most 400 characters that says what is wrong and
+`value` to use (`null` retracts the statement: the claim is not emitted, for a field whose right value does not exist), and a `reason` of at most 400 characters that says what is wrong and
 cites the evidence. The adapter itself reads its source as it is; the build passes
 its claims through `claims.corrected` with core's `source_corrections.Table`, which
 sets `Claim.correction = (original, reason)` on each corrected claim. That claim's

@@ -67,6 +67,18 @@ class AdapterTest(unittest.TestCase):
         with self.assertRaises(ValueError):  # one correction per record field
             Table([ENTRY, {**ENTRY, "original": "724500AAAAAAAAAAAA01"}])
 
+    def test_a_retraction_states_no_value_and_the_build_decides_from_no_claim(self):
+        retraction = {**ENTRY, "value": None}
+        found, table = read(NN_LEI, retraction)
+        [issuer] = [c for c in found if c.source_field == "Issr"]
+        self.assertEqual((issuer.value, issuer.correction), (None, (NN_LEI, REASON)))
+        loaded = claims.load(found, table)
+        self.assertIsNone(loaded.one(ASML_ISIN, schema.identity.SourceMeaning.ISSUER_OR_VENUE_OPERATOR_LEI))
+        self.assertEqual(loaded.corrected, {(f"isin:{ASML_ISIN}", "Issr"): (firds.SOURCE, NN_LEI, None, REASON)})
+        self.assertEqual(loaded.corrections["applied"], 1)
+        passed, table = read(ASML_LEI, retraction)  # the source now states another LEI: it passes through, the entry is stale
+        self.assertEqual(([c.value for c in passed if c.source_field == "Issr"], table.report()["stale"]), ([ASML_LEI], 1))
+
     def test_the_shipped_entries_are_well_formed(self):
         Table.read(SOURCE_CORRECTIONS.read_text(encoding="utf-8"))
 

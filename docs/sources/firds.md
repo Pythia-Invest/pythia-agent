@@ -231,11 +231,11 @@ file, [identity data](../architecture/identity-data.md)). A correction is FIRDS'
 record as the adapter reads it; it is never another source's value and never a rule.
 It applies only while FIRDS still states the original: a build counts an entry FIRDS has
 fixed as stale, and the entry is retired. Every entry is reported to ESMA by a maintainer;
-the last column says whether that happened.
+the last column says whether that happened. A correction whose right value does not exist (the company has no LEI) is a retraction: the package states nothing in that field (`value` is NULL).
 
 | Record | Field | FIRDS states | Corrected to | Evidence | Reported upstream | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `US2062772049`, Concord Medical Services' ADR (FRAB and FRAV) | `Issr` (field 5) | `529900Z57DVJXUBLHX66`, which GLEIF registers to China Medical System Holdings Limited (Cayman, a company with shares of its own) | Concord Medical Services Holdings' own LEI | The record's name is Concord's; field 8 is false; field 26 repeats the receipt's own ISIN; the LEI's GLEIF names share no word with the receipt's. The 2026-09-28 build found it through the `receipt_name_disagrees` review flag: the name vetoed China Medical System's one share as the receipt's underlying, and the receipt is asked | Not yet | Not entered: Concord's LEI is in none of the cached sources (FIRDS, GLEIF, OpenFIGI, SEC tickers), so the correction needs one GLEIF lookup by name, with its source recorded in the entry's reason |
+| `US2062772049`, Concord Medical Services' ADR (FRAB and FRAV) | `Issr` (field 5) | `529900Z57DVJXUBLHX66`, which GLEIF registers to China Medical System Holdings Limited (Cayman, a company with shares of its own) | Nothing: a retraction. GLEIF has no LEI for Concord Medical Services Holdings (an exact legal-name filter and a full-text search, 2026-09-30), so there is no right LEI to state | The record's name is Concord's; field 8 is false; field 26 repeats the receipt's own ISIN; the LEI's GLEIF names share no word with the receipt's. The 2026-09-28 build found it through the `receipt_name_disagrees` review flag | Not yet | Entered. In the 2026-09-28 build the ADR has no issuer (before: China Medical System's) and its `receipt_underlying` question no longer offers China Medical System's share; the question total stays 1,035 |
 
 ## 4. Judgement cases
 
