@@ -107,10 +107,10 @@ export function InvestmentSearchDemo() {
           </div>
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
-          Try asml, asmlf, alphabet, shell, bitcoin, IE00B4L5Y983, milkiland or
-          zzzz. Arrow keys move through listings and a company&apos;s “All
-          listings” toggle, Enter opens a listing or toggles, Esc closes, Tab
-          reaches the type pills and the delisted toggle.
+          Try asml, asmlf, alphabet, shell, bitcoin, IE00B4L5Y983, milkiland,
+          aroma or zzzz. Arrow keys move through listings and a company&apos;s
+          “All listings” toggle, Enter opens a listing or toggles, Esc closes,
+          Tab reaches the type pills and the delisted toggle.
         </p>
         <output className="text-body text-foreground">
           {chosen
@@ -175,6 +175,12 @@ export function InvestmentSearchDemo() {
             note="Found by name, ticker or ISIN, marked Delisted and ranked below live lines; the toggle hides it."
             query="milkiland"
             options={options("milkiland")}
+          />
+          <Specimen
+            title="A security with no ticker"
+            note="Aroma has no line with a ticker: one row, found by name or ISIN, marked No ticker and ranked below lines that have one."
+            query="aroma"
+            options={options("aroma")}
           />
           <Specimen
             title="Delisted lines hidden"

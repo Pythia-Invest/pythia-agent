@@ -30,6 +30,7 @@ PREFERENCES = ("primary", "EU", "US")
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other",
          "market", "protocol")
 SHOWN = 3  # relevant listing rows a search group carries
+LIVE = "delisted = 0 AND tickerless = 0"  # a line the page lists and prices through: neither weak kind
 GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -138,8 +139,8 @@ class Directory(Index):
         with self.lock:
             rows = self.db.execute(
                 "SELECT listing, ticker, mic, venue, currency, kind, security <> inst, prim, liq FROM doc"
-                " WHERE inst = (SELECT inst FROM doc WHERE security = ? AND delisted = 0 LIMIT 1) AND crypto = 0"
-                " AND delisted = 0"
+                f" WHERE inst = (SELECT inst FROM doc WHERE security = ? AND {LIVE} LIMIT 1) AND crypto = 0"
+                f" AND {LIVE}"
                 " ORDER BY security <> inst, security, prim DESC, fus, otc, home DESC, liq DESC, mic, listing",
                 (security,)).fetchall()
         # `folded`: a line of a security that folds into the instrument (a receipt), not of the instrument's own.
@@ -157,9 +158,9 @@ class Directory(Index):
         with self.lock:
             rows = self.db.execute(
                 "SELECT inst, names, ikind, listing, ticker, mic, venue, currency, size FROM doc d JOIN"
-                " (SELECT grp, inst AS own FROM doc WHERE security = ? AND delisted = 0 LIMIT 1) me ON d.grp = me.grp"
-                " AND d.inst <> me.own WHERE d.crypto = 0 AND d.delisted = 0 ORDER BY d.inst, d.security <> d.inst,"
-                " -d.prim, d.fus, d.otc, -d.home, -d.liq, d.mic, d.listing",
+                f" (SELECT grp, inst AS own FROM doc WHERE security = ? AND {LIVE} LIMIT 1) me ON d.grp = me.grp"
+                " AND d.inst <> me.own WHERE d.crypto = 0 AND d.delisted = 0 AND d.tickerless = 0"
+                " ORDER BY d.inst, d.security <> d.inst, -d.prim, d.fus, d.otc, -d.home, -d.liq, d.mic, d.listing",
                 (security,)).fetchall()
         seen: dict[str, tuple] = {}
         for row in rows:
@@ -173,7 +174,8 @@ class Directory(Index):
                suffixes: Callable[[], dict[str, set[str]]] = dict,
                priced: Callable[[], Mapping[str, frozenset[str]]] = dict, delisted: bool = True) -> dict[str, Any]:
         """The SearchResponse (packages/market-data/src/search.ts): core's search groups (ADR 0037). Groups compete
-        by their best line, a group with a live line before one with only delisted lines; each carries its relevant
+        by their best line, a group with a live line before one with only delisted lines, and one with a ticker before
+        one with none; each carries its relevant
         listings (at most `SHOWN`) and how many it has in all. `delisted=False` leaves delisted lines out."""
         allowed = set(kinds) if kinds else None
         groups: dict[str, list] = {}
@@ -181,8 +183,8 @@ class Directory(Index):
         for score, line, key in self.lines(query, prefer, suffixes, venues):
             if not _allowed(line, allowed, delisted):
                 continue
-            # A group's rank: its best live line's score when it has a live line, else its best delisted one's.
-            rank = (int(not line["delisted"]), score)
+            # A group's rank: its best live line with a ticker, else its best tickerless one, then its delisted ones.
+            rank = (int(not line["delisted"]), int(not line["tickerless"]), score)
             group = groups.setdefault(line["grp"], [rank, {}])
             group[0] = max(group[0], rank)
             group[1].setdefault(line["security"], []).append((score, key, line))
@@ -195,7 +197,7 @@ class Directory(Index):
             for members in securities.values():
                 folded.setdefault(members[0][2]["inst"], []).extend(members)
             lead = max(max(folded.values(), key=lambda m: _order(m, "ikind")), key=lambda entry: entry[1])[2]
-            best = [max(members, key=lambda entry: (entry[1][:3], entry[2]["prim"], entry[1]))[2]
+            best = [max(members, key=lambda entry: (entry[1][:4], entry[2]["prim"], entry[1]))[2]
                     for members in sorted(securities.values(), key=lambda m: _order(m, "kind"), reverse=True)]
             everything = self._group_lines(key, allowed, delisted)
             primary = everything[:1] if everything and everything[0]["prim"] else []
@@ -215,12 +217,13 @@ class Directory(Index):
         return {"groups": [_group(key, everything[0], everything[:GROUP_ROWS], len(everything))]}
 
     def _group_lines(self, key: str, allowed: set[str] | None = None, delisted: bool = True) -> list[dict]:
-        """Every listing of a search group that the type filter allows: the live lines, then the delisted ones; each
-        with the main share's lines first (primary, then exchange, then OTC), then other share classes, receipts,
-        preferreds and notes."""
+        """Every listing of a search group that the type filter allows: the live lines, then the delisted ones, the
+        tickerless security rows last of each; each with the main share's lines first (primary, then exchange, then
+        OTC), then other share classes, receipts, preferreds and notes."""
         with self.lock:
             lines = self._fetch("d.grp = ?", (key,))
-        lines.sort(key=lambda line: (line["delisted"], -KIND_ORDER.get(line["kind"], 1), -(line["size"] or 0), line["security"],
+        lines.sort(key=lambda line: (line["delisted"], line["tickerless"], -KIND_ORDER.get(line["kind"], 1),
+                                     -(line["size"] or 0), line["security"],
                                      -line["prim"], line["fus"], line["otc"], -line["home"], -line["liq"], line["mic"] or "",
                                      line["listing"]))
         seen: set[str] = set()  # a crypto asset's chain deployments are one listing
@@ -248,7 +251,8 @@ def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
                       _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
                       "venue": line["venue"], "country": line["country"], "currency": line["currency"],
                       **({"source": line["source"]} if line["source"] else {}),  # a plugin's subject names it
-                      **({"delisted": True} if line["delisted"] else {})}
+                      **({"delisted": True} if line["delisted"] else {}),
+                      **({"no_ticker": True} if line["tickerless"] else {})}
                      for line in lines]}
 
 
@@ -264,7 +268,7 @@ def _order(members: list, kind: str) -> tuple:
     """Order a group's instruments ("ikind", receipts folded in) or securities ("kind"): one whose line the
     query names (venue, exact ticker) first, then the main share before a receipt before notes, funds and
     preferreds, then the best line score."""
-    return (max(key[:3] for _score, key, _line in members), KIND_ORDER.get(members[0][2][kind], 1),
+    return (max(key[:4] for _score, key, _line in members), KIND_ORDER.get(members[0][2][kind], 1),
             max(score for score, _key, _line in members))
 
 

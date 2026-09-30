@@ -30,9 +30,9 @@ DOC = """CREATE TABLE doc (
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
   dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER, source TEXT, line TEXT,
-  delisted INTEGER)"""
+  delisted INTEGER, tickerless INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg liq source line delisted").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg liq source line delisted tickerless").split()
 LINE = ("SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
         " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid,"
         " l.status = 'inactive' OR s.status = 'inactive' FROM {} JOIN securities s ON s.id = l.security_id")
@@ -43,6 +43,20 @@ HELD = {"listing": "SELECT value FROM json_each(?)",
         "composite": "SELECT id FROM listings WHERE composite_id IN (SELECT value FROM json_each(?))",
         "issuer": "SELECT l.id FROM securities s CROSS JOIN listings l ON l.security_id = s.id"
                   " WHERE s.issuer_id IN (SELECT value FROM json_each(?))"}
+
+
+def _tickerless(lines: list) -> set[str]:
+    """One line for each security of the reference none of whose lines has a ticker: the primary one, else the first by
+    ID. Such a security is searchable by name and identifier, as that one row, marked `tickerless`; a line with no ticker
+    of a security that has one adds nothing."""
+    best: dict[str, tuple] = {}
+    for line in lines:  # (listing, security, ..., ticker = 5, ..., primary = 8)
+        listing, security, ticker, primary = line[0], line[1], line[5], line[8]
+        if ticker or security in best and best[security] is None:
+            best[security] = None
+        elif security not in best or (-primary, listing) < best[security]:
+            best[security] = (-primary, listing)
+    return {key[1] for key in best.values() if key}
 
 
 class Index:
@@ -85,8 +99,10 @@ class Index:
                                      if not relations.contests(tuple(edge), contested))
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
-        docs = self._docs(ref, list(ref.execute(JOIN)), None)
-        live = [doc for doc in docs if not doc["delisted"]]  # only a live security is a unit others fold into
+        lines = list(ref.execute(JOIN))
+        self.reps = _tickerless(lines)
+        docs = self._docs(ref, lines, None)
+        live = [doc for doc in docs if not doc["delisted"] and not doc["tickerless"]]  # only these are units others fold into
         self.kinds = {doc["security"]: doc["kind"] for doc in live}
         self.issuers_of = {doc["security"]: doc["issuer"] for doc in live}
         self._fold(docs)
@@ -124,7 +140,7 @@ class Index:
              asset_class, rank, liquid, delisted) = row
             own, stated = lines.get(listing), tickers.get(listing, [])
             ticker = ticker or next(iter(stated), None)  # a plugin's ticker makes a ticker-less line findable
-            if not ticker and own is None:
+            if not ticker and own is None and listing not in self.reps:  # a tickerless line: its security's one row, or none
                 continue
             values = {item.split(":", 1)[0]: item.split(":", 1)[1] for key in (listing, security, composite, issuer)
                       for item in ids.get(key or "", [])}
@@ -153,7 +169,7 @@ class Index:
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank) if own is None else own["size"],
                 security, kind, int(mic in self.regulated or op in self.regulated & set(US_LISTED)), int(bool(liquid)),
-                own and own["source"], listing, int(bool(delisted))))))
+                own and own["source"], listing, int(bool(delisted)), int(not ticker and own is None)))))
         return docs
 
     def _fold(self, docs: list[dict]) -> None:
@@ -161,14 +177,14 @@ class Index:
         folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund, an ETF
         or a crypto asset is its own group, and so is a pool or a protocol."""
-        live = [doc for doc in docs if not doc["delisted"]]
+        live = [doc for doc in docs if not doc["delisted"] and not doc["tickerless"]]
         kinds = ChainMap({doc["security"]: doc["kind"] for doc in live}, self.kinds)
         issuers_of = ChainMap({doc["security"]: doc["issuer"] for doc in live}, self.issuers_of)
         for doc in docs:
             unit = self.units.get(doc["security"])
-            # A unit outside the directory folds nothing in, and neither does a delisted one: a live receipt of a
-            # delisted share stays its own instrument, as before delisted lines were searchable. A delisted line
-            # still joins a live unit it folds into, or stands as its own.
+            # A unit outside the directory folds nothing in, and neither does a delisted or tickerless one: a live
+            # receipt of a delisted share stays its own instrument, as before such lines were searchable. Such a
+            # line still joins a live unit it folds into, or stands as its own.
             unit = unit if unit in kinds else doc["security"]
             kind, issuer = (kinds[unit], issuers_of[unit]) if unit in kinds else (doc["kind"], doc["issuer"])
             company = issuer if kind in ISSUER_INTERESTS else None

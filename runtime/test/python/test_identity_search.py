@@ -382,3 +382,57 @@ class SearchTest(Fixture):
         receipt, = directory.instrument_listings("security:milk-adr")
         self.assertEqual((receipt["id"], receipt["folded"]), (self.MILK_LINE, False))
         self.assertEqual([item["id"] for item in directory.other_instruments("security:milk-adr")], [])
+
+    # ---- securities whose lines have no ticker: one row each, found by name and ISIN, ranked below ticker lines ------------
+
+    def tickerless(self):
+        """Quux (live, two lines without a ticker, one flagged primary), Oldco (delisted, one), Quuxworth (has a ticker), and Zeta (a ticker line and a line without one)."""
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XBUL", "XBUL", "Bulgarian Stock Exchange", "BG", "RMKT")])
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank)"
+                           " VALUES (?, NULL, ?, 'equity', 'ordinary', ?, ?)",
+                           [("security:isin:BG1100087987", "Quux", "active", None),
+                            ("security:isin:BG1100000001", "Oldco", "inactive", None),
+                            ("security:quuxworth", "Quuxworth Holdings", "active", 50000),
+                            ("security:zeta", "Zeta", "active", None)])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary, status)"
+                           " VALUES (?, ?, ?, ?3, ?, 'EUR', ?, ?)",
+                           [("listing:quux:xetr", "security:isin:BG1100087987", "XETR", None, 0, "active"),
+                            ("listing:quux:xbul", "security:isin:BG1100087987", "XBUL", None, 1, "active"),
+                            ("listing:oldco:xbul", "security:isin:BG1100000001", "XBUL", None, 0, "inactive"),
+                            ("listing:quuxworth", "security:quuxworth", "XNYS", "QWX", 0, "active"),
+                            ("listing:zeta:xnys", "security:zeta", "XNYS", "ZETA", 0, "active"),
+                            ("listing:zeta:xbul", "security:zeta", "XBUL", None, 0, "active")])
+            db.executemany("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, authority, source, plugin,"
+                           " adapter_version, retrieved_at) VALUES (?, ?, 'security', 'isin', ?, 'source_asserted', 'fixture',"
+                           " 'pythia', '1', '2026-09-28T00:00:00Z')",
+                           [("ev:quux", "security:isin:BG1100087987", "BG1100087987"),
+                            ("ev:oldco", "security:isin:BG1100000001", "BG1100000001")])
+        return search.Directory(self.ref)
+
+    def test_a_security_with_no_ticker_is_found_by_name_and_isin_as_one_marked_row(self):
+        directory = self.tickerless()
+        for query in ("quux", "BG1100087987"):
+            with self.subTest(query=query):
+                group = next(group for group in directory.search(query, limit=5)["groups"] if group["id"] == "security:isin:BG1100087987")
+                # One row for the security, through its primary line; the ticker column is empty and the row says why.
+                self.assertEqual([(row["id"], row["ticker"], row["no_ticker"], "delisted" in row) for row in group["rows"]],
+                                 [("listing:quux:xbul", None, True, False)])
+                self.assertEqual(group["listings"], 1)
+        old, = directory.search("BG1100000001", limit=5)["groups"]  # delisted too: both marks
+        self.assertEqual([(row["ticker"], row["no_ticker"], row["delisted"]) for row in old["rows"]], [(None, True, True)])
+        self.assertEqual(directory.search("oldco", limit=5, delisted=False)["groups"], [])
+        # A ticker line carries no mark, and a line with no ticker of a security that has one adds no row.
+        zeta, = directory.search("zeta", limit=5)["groups"]
+        self.assertEqual([(row["id"], "no_ticker" in row) for row in zeta["rows"]], [("listing:zeta:xnys", False)])
+
+    def test_a_tickerless_row_ranks_below_lines_with_tickers_however_well_it_matches(self):
+        directory = self.tickerless()  # "quux" is Quux's exact name; Quuxworth only starts with it and is obscure
+        ranked = [group["id"] for group in directory.search("quux", limit=5)["groups"]]
+        self.assertEqual(ranked[:2], ["security:quuxworth", "security:isin:BG1100087987"])
+
+    def test_a_tickerless_row_never_joins_the_pages_lines(self):
+        directory = self.tickerless()
+        self.assertEqual(directory.instrument_listings("security:isin:BG1100087987"), [])
+        self.assertEqual([item["id"] for item in directory.instrument_listings("security:zeta")], ["listing:zeta:xnys"])

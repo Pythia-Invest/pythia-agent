@@ -172,7 +172,9 @@ up to 500, for "All N listings", each opened group being its own read. A row car
 security the page is; a receipt's is the share it folds into), ticker, the
 listed security's own name and kind, MIC, short venue label, venue country and
 currency; `delisted: true` marks a line its source says no longer trades (the
-key is absent on a live line). Core orders the rows (see ADR 0037: a listing the query names, else
+key is absent on a live line) and `no_ticker: true` marks the one row of a
+security none of whose lines has a ticker (`ticker` is then null; ranked below
+lines that have one). Core orders the rows (see ADR 0037: a listing the query names, else
 `search_listing_preference` in `settings.json`, `primary` by default, or `EU`
 or `US`; then a flagged primary listing and other classes and receipts). A type
 filter picks groups and narrows their listings. Delisted lines are found too,
@@ -191,7 +193,8 @@ listings; the heading belongs to the first listing's option, so hovering or
 choosing it highlights and opens that listing and the keyboard stops there
 once. Listings take one line each: ticker, the venue with a small country flag, what the
 listing is when it is not the plain share (Class C, registry shares), currency
-and type, and "Delisted" on a line that no longer trades. A group with more listings ends in an "All N listings" option that
+and type, "No ticker" on a security none of whose lines has one, and "Delisted" on a
+line that no longer trades. A group with more listings ends in an "All N listings" option that
 reads and reveals every listing in place ("Fewer listings" hides them again);
 the arrow keys reach it like any listing and Enter toggles it. Type pills ask the
 directory for their instrument kinds, and the "Include delisted" toggle beside

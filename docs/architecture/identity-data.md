@@ -87,7 +87,11 @@ name, ticker and identifier, ranked below live lines (a company with a live line
 before one with only delisted lines, and within a company its live lines first),
 and hidden only when a search asks for `include_delisted: false`. The page's
 listing selector and the line a security page prices through leave delisted
-lines out, as before. A line with no ticker is not in the index, live or not.
+lines out, as before. A security none of whose lines has a ticker is in the index
+as one row through its primary line (else the first by id), marked `no_ticker`,
+found by name and identifier and ranked below lines that have a ticker; it too
+stays out of the page's listings. A line with no ticker of a security that has
+one is not a row.
 
 ### The identity store
 

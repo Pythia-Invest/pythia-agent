@@ -473,4 +473,37 @@ describe("investment search", () => {
     });
     expect(toggle()?.getAttribute("aria-pressed")).toBe("false");
   });
+
+  it("shows a security that has no ticker as one row marked so, with no ticker text", async () => {
+    const { search, answer } = directory();
+    await act(async () => root.render(<Harness search={search} />));
+    await type("aroma");
+    const aroma: SearchRow = {
+      ...row("ZZ", "Bulgarian Stock Exchange"),
+      id: "listing:isin:BG1100087987:XBUL:EUR",
+      ticker: null,
+      name: "Aroma",
+      no_ticker: true,
+      delisted: true,
+    };
+    await answer("aroma", [
+      {
+        id: "security:aroma",
+        name: "Aroma",
+        kind: "ordinary",
+        listings: 1,
+        rows: [aroma],
+      },
+    ]);
+    await until(() => expect(rows()).toHaveLength(1));
+    const option = document.querySelector('[role="option"]');
+    expect(option?.getAttribute("aria-label")).toBe(
+      "Aroma, Bulgarian Stock Exchange, no ticker, delisted, EUR, Stock",
+    );
+    expect(
+      [...(option?.querySelectorAll('[data-slot$="-mark"]') ?? [])].map(
+        (mark) => mark.textContent,
+      ),
+    ).toEqual(["No ticker", "Delisted"]);
+  });
 });

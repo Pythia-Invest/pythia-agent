@@ -280,6 +280,26 @@ export const demoCompanies: readonly Company[] = [
       }),
     ],
   },
+  // A security none of whose lines has a ticker: one row, found by name or ISIN.
+  {
+    id: "security:isin:BG1100087987",
+    name: "Aroma",
+    kind: "ordinary",
+    rows: [
+      line(
+        "listing:isin:BG1100087987:XBUL:EUR",
+        null,
+        "Aroma",
+        "Bulgarian Stock Exchange",
+        {
+          mic: "XBUL",
+          country: "BG",
+          currency: "EUR",
+          no_ticker: true,
+        },
+      ),
+    ],
+  },
   {
     id: "index:demo:AEX",
     name: "AEX Index",

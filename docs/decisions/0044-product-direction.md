@@ -381,7 +381,8 @@ central curator exists.
   (its security or listing is inactive) is found by name, ticker and
   identifier, marked "Delisted" and ranked below live lines; an "Include
   delisted" toggle in the search panel hides them. Its page still gets no live
-  price through the ticker (amendment of 2026-09-30 below).
+  price through the ticker. A security none of whose lines has a ticker is
+  found too, as one row marked "No ticker" (amendment of 2026-09-30 below).
 - **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
   for data, with no restart, and its subjects and saved references keep
@@ -738,6 +739,13 @@ name nor by ISIN, although its page opens by id and the reference holds it.
   and within a group, live lines first (also as the line that represents a
   security). A live receipt whose share is delisted stays its own instrument.
   A subject a plugin marks inactive (a dead DeFi protocol) is treated the same.
+- **A security with no ticker is found.** Search holds everything the device
+  holds: a security none of whose lines has a ticker (live or delisted) is one
+  row, through its primary line (else the first by id), found by name and by
+  identifier, marked "No ticker" (and "Delisted" if inactive), and ranked below
+  lines that have a ticker. A line with no ticker of a security that has one
+  adds no row. Like a delisted line, such a row never joins the page's listing
+  selector or the line a security page prices through.
 - **A way to hide them.** Search takes `include_delisted` (default true), and the
   search panel has an "Include delisted" toggle, on by default, kept for the
   session only: Desk has no per-viewer preference mechanism for a plugin's
@@ -766,12 +774,15 @@ without crowding live lines.
   the agent's `pythia_find` sees the flag.
 - The effect of pausing a plugin counts an inactive subject as supplied only by
   that plugin, because search finds it.
-- A line with no ticker is still not in the directory, live or delisted (560 of
-  the 597 inactive lines in the 2026-09-28 build have none): findability by ISIN
-  for tickerless lines is a separate decision.
+- The directory grows by one row per security without a ticker: on the
+  2026-09-28 package (135,596 lines), 7,188 rows (+7.7%, 207 of them delisted),
+  +6.6 MB of index (+7%), no change in build time (about 2.7 s) and no
+  measurable change in query latency (all under 1.3 ms).
 
 ### Rejected alternatives
 
+- **Indexing every tickerless line.** About 42,000 near-duplicate rows; one row
+  per security answers "is it held" without them.
 - **Keeping the lookup in search but moving it behind a setting.** It is still
   a plugin-specific action on a shared screen.
 - **A plugin page framework** (a route and layout per plugin). Nothing needs it

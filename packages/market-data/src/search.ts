@@ -62,6 +62,10 @@ export const searchRowSchema = z.object({
    * live line. Core ranks delisted lines below live ones; the instrument
    * page still refuses a live price through them. */
   delisted: z.boolean().optional(),
+  /** The listed security has no line with a ticker: this is its one row,
+   * found by name or identifier. Absent otherwise. Ranked below lines that
+   * have a ticker. */
+  no_ticker: z.boolean().optional(),
 });
 export type SearchRow = z.infer<typeof searchRowSchema>;
 
