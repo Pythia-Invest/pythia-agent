@@ -8,7 +8,7 @@ import {
   initializeDevelopmentRuntime,
   stopStack,
 } from "../../scripts/dev/supervisor.mjs";
-import { developmentPaths } from "../support/dev-stack";
+import { developmentPaths } from "../support/dev-stack.js";
 
 function stack() {
   const paths = developmentPaths();
@@ -67,7 +67,7 @@ describe("development receipt left by an exited supervisor", () => {
     ).resolves.toBe("prepared");
     expect(existsSync(paths.receipt)).toBe(false);
     const [retired] = retiredReceipts(paths);
-    expect(readFileSync(join(paths.processRoot, retired), "utf8")).toBe(
+    expect(readFileSync(join(paths.processRoot, retired ?? ""), "utf8")).toBe(
       recorded,
     );
     expect(existsSync(paths.preparationAdmission)).toBe(false);

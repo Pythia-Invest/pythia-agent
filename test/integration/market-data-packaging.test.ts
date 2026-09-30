@@ -26,7 +26,9 @@ const repository = new URL("../../", import.meta.url).pathname;
 // preparation. Never rely on committed bundles or a previous contributor build,
 // and build into the suite's own directory rather than the checkout.
 const built = mkdtempSync(join(tmpdir(), "pythia-widget-build-"));
-const builtOutputs = new Set(MANAGED_WIDGET_BUILDS.map(({ output }) => output));
+const builtOutputs = new Set<string>(
+  MANAGED_WIDGET_BUILDS.map(({ output }) => output),
+);
 beforeAll(async () => {
   for (const { entry, output } of MANAGED_WIDGET_BUILDS)
     await buildWidget(join(repository, entry), join(built, output));

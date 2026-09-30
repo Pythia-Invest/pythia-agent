@@ -14,7 +14,7 @@ import {
   requestRuntimeRefresh,
   runDevelopment,
 } from "../../scripts/dev/supervisor.mjs";
-import { developmentPaths } from "../support/dev-stack";
+import { developmentPaths } from "../support/dev-stack.js";
 
 describe("development preparation admission", () => {
   it("serializes real development entrypoints and releases failed preparation", async () => {

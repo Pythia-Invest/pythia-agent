@@ -72,6 +72,16 @@ function installationStatus(paths) {
   };
 }
 
+/**
+ * @param {any} paths
+ * @param {string} provider
+ * @param {boolean} statusOnly
+ * @param {(
+ *   command: string,
+ *   args: string[],
+ *   options: object,
+ * ) => { error?: Error, status: number | null, stdout?: unknown }} [run]
+ */
 export function nativeAuth(paths, provider, statusOnly, run = spawnSync) {
   const supported = new Set([
     "anthropic",

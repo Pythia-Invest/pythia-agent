@@ -7,7 +7,7 @@ import {
   rebuildDevice,
 } from "../../scripts/install/runtime.mjs";
 import { applyUpdate } from "../../scripts/update/apply.mjs";
-import { commit, releaseFixture, run } from "../support/release-fixture";
+import { commit, releaseFixture, run } from "../support/release-fixture.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 
@@ -104,7 +104,12 @@ describe("installation source preflight", () => {
       const actions: string[] = [];
       const result = await rebuildDevice(fixture.paths, {
         stop: async () => actions.push("disable-stop"),
-        prepare: async (_paths, _channel, revision, options) => {
+        prepare: async (
+          _paths: unknown,
+          _channel: unknown,
+          revision: string,
+          options: unknown,
+        ) => {
           actions.push("prepare");
           expect(options).toEqual({ allowLocal: true });
           return { revision };
@@ -159,7 +164,13 @@ describe("installation source preflight", () => {
     });
     const rebuilt = await rebuildDevice(fixture.paths, {
       stop: async () => undefined,
-      prepare: async (_paths, _channel, revision) => ({ revision }),
+      prepare: async (
+        _paths: unknown,
+        _channel: unknown,
+        revision: string,
+      ) => ({
+        revision,
+      }),
       startAndVerify: async () => undefined,
     });
     expect(rebuilt.source).toMatchObject({
@@ -189,7 +200,13 @@ describe("installation source preflight", () => {
     });
     const rebuilt = await rebuildDevice(fixture.paths, {
       stop: async () => undefined,
-      prepare: async (_paths, _channel, revision) => ({ revision }),
+      prepare: async (
+        _paths: unknown,
+        _channel: unknown,
+        revision: string,
+      ) => ({
+        revision,
+      }),
       startAndVerify: async () => undefined,
     });
     expect(rebuilt.source).toMatchObject({

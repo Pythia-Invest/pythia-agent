@@ -73,6 +73,26 @@ export const MANAGED_PLUGINS = Object.freeze([
   }),
 ]);
 
+/**
+ * @typedef {object} ManagedPlugin
+ * @property {string} name
+ * @property {boolean} install
+ * @property {boolean} enabledByDefault
+ * @property {boolean} doctor
+ * @property {string} source
+ * @property {readonly string[]} files
+ */
+
+/**
+ * @param {any} paths
+ * @param {string} apiKey
+ * @param {{
+ *   freshProfile?: boolean,
+ *   execute?: (paths: any, args: string[], apiKey: string) => unknown,
+ *   payloads?: readonly ManagedPlugin[],
+ *   report?: (message: string) => void,
+ * }} [options]
+ */
 export function refreshManagedPlugins(
   paths,
   apiKey,

@@ -17,7 +17,7 @@
     "check:boundaries": "node tooling/check-boundaries.mjs",
     "check:hermes-capture": "node tooling/qualification/hermes-capture.mjs --check",
     "check:structure": "node tooling/check-structure.mjs",
-    "check:types": "tsc --noEmit --project runtime/managed/runner/tsconfig.json",
+    "check:types": "tsc --noEmit --project runtime/managed/runner/tsconfig.json && tsc --noEmit --project tsconfig.test.json",
     "dev": "node tooling/run-turbo.mjs dev --parallel",
     "lint": "node tooling/run-biome.mjs",
     "test": "pnpm run test:fast && pnpm run test:system",
