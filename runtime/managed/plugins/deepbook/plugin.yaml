@@ -1,0 +1,8 @@
+name: pythia-deepbook
+version: 0.1.0
+description: DeepBook V3 pools on Sui as subjects with their base and quote tokens; keyless, personal use
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_deepbook_catalogue

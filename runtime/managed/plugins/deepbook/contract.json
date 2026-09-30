@@ -1,0 +1,59 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-deepbook",
+  "provider": "deepbook",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "pool",
+        "level": "market",
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      {
+        "native_scope": "protocol",
+        "level": "protocol"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "caip19"
+      ]
+    }
+  },
+  "introduces": {
+    "market": [
+      "native",
+      "sui_object"
+    ],
+    "protocol": [
+      "native",
+      "sui_package"
+    ],
+    "listing": [
+      "caip19"
+    ]
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "protocols",
+      "pools"
+    ]
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "Data from Mysten Labs' DeepBook indexer",
+      "url": "https://docs.sui.io/standards/deepbookv3-indexer"
+    }
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/deepbook.md"
+  }
+}

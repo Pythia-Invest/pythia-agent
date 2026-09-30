@@ -17,6 +17,23 @@
     }
   },
   {
+    "name": "defillama_protocol_metrics",
+    "description": "DeFi protocol TVL, fees, revenue and volume from DefiLlama. Each row has its definition, period and as-of. Use it for a protocol subject DefiLlama lists. TVL differs by source and category (supplied minus borrowed for lending): compare rows only when their definition ids match.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_id"],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "The investment's subject id from pythia_find; Pythia fills in this source's own reference."
+        }
+      }
+    }
+  },
+  {
     "name": "eodhd_fundamentals",
     "description": "Company fundamentals and financial statements from EODHD. Statement facts for a listing where the investor's EODHD plan includes them.",
     "parameters": {
@@ -172,6 +189,23 @@
         "subject_id": {
           "type": "string",
           "pattern": "^market:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}$"
+        }
+      }
+    }
+  },
+  {
+    "name": "navi_reserve_metrics",
+    "description": "NAVI reserve supply, borrow, utilisation and rates. From NAVI's own API, each row with its definition and as-of. Use it for a NAVI reserve (market) subject. Supplied and borrowed are US dollars at NAVI's oracle price; rates are yearly percentages before incentive rewards.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_id"],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370,
+          "description": "The investment's subject id from pythia_find; Pythia fills in this source's own reference."
         }
       }
     }

@@ -1,0 +1,56 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-suilend",
+  "provider": "suilend",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "market",
+        "level": "market",
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      {
+        "native_scope": "protocol",
+        "level": "protocol"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "caip19"
+      ]
+    }
+  },
+  "introduces": {
+    "market": [
+      "native",
+      "sui_object"
+    ],
+    "protocol": [
+      "native",
+      "sui_package"
+    ]
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "protocols",
+      "markets"
+    ]
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "Data from Suilend",
+      "url": "https://suilend.fi"
+    }
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/suilend.md"
+  }
+}

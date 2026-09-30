@@ -23,7 +23,7 @@ hermes -p <profile> plugins enable pythia-sui
 | Operation | Input | Result |
 | --- | --- | --- |
 | `catalogue` | `scope`: `protocols`, `tokens` or `markets`; optional `cursor` | One page of a `ClaimBatch` (ADR 0038) and `next_cursor` (null on the last page, which is `complete`) |
-| `metrics` | `market`: a DeepBook V3 pool's object id | The pool's governance parameters as of now (taker fee, maker fee, DEEP stake required, and any change voted for the next epoch), with `basis: on_chain`, `as_of` and the governance epoch |
+| `metrics` | `native_ref`: a DeepBook V3 pool (`native_scope` market) | The pool's taker and maker fee as core's metric rows (`fundamentals.metrics`, `core/identity/defi_metrics.py`): percent, `basis: on_chain`, definition `governance_trade_params`, `as_of`; the stake required and any change voted for the next epoch come as `limitations` |
 
 Core's identity sync pages the scopes in the contract's order, `protocols`,
 `tokens`, `markets`, on the investor's request (Settings, Data, Data sources,
@@ -85,9 +85,9 @@ retried: a batch is halved, a single read is asked three times.
   used `Market.id`, the wrapped UID, which no API reads.
 - **Bucket's list** is its `Config` registry, not a type scan: the chain also holds
   a `TLP` vault (limit 0) the registry does not list.
-- **Fees are governance state**, so they are a read (`metrics`) with an as-of, never
-  a claim. The contract declares it as `fundamentals` at level `market`, basis
-  `on_chain`.
+- **Fees are governance state**, so they are metric rows (`metrics`) with an as-of, never
+  a claim. The contract declares `fundamentals` at level `market`, basis `on_chain`;
+  core's vocabulary gained `taker_fee` and `maker_fee` for it, and has no unit for a DEEP stake. No agent tool is registered: the tool budget (`test_agent_surface`) has no room for a pool-fee tool.
 - **Bridge provenance has no relation or attribute slot**: `bridged_from` links
   securities, not deployments, and a record has no provenance field. The name and
   the provenance record carry it.

@@ -318,7 +318,8 @@ class Failures(unittest.TestCase):
         sui = Sui()
         sui.failures = ['timeout', 'timeout']
         market = pool('SUI', 'USDC')['address']
-        result = reader(sui)[0].invoke('metrics', {'market': market}, cache_scope='test')
+        result = reader(sui)[0].invoke('metrics', {'native_ref': {'provider': 'sui', 'native_scope': 'market', 'native_id': market}},
+                                       cache_scope='test')
         self.assertEqual(result['outcome'], 'ok')
 
     def test_a_payload_the_endpoint_refuses_is_an_alarm_not_a_partial_answer(self):
@@ -342,45 +343,49 @@ class Failures(unittest.TestCase):
         read, sui = reader()
         for arguments in ({'scope': 'pools'}, {}, {'scope': 'markets', 'cursor': ''}):
             self.assertEqual(read.invoke('catalogue', arguments)['issues'][0]['code'], 'invalid_request')
-        self.assertEqual(read.invoke('metrics', {'market': 'pool'})['issues'][0]['code'], 'invalid_request')
+        self.assertEqual(read.invoke('metrics', {'native_ref': 'pool'})['issues'][0]['code'], 'invalid_request')
         self.assertEqual(sui.calls, [])
 
 
 class Metrics(unittest.TestCase):
-    def read(self, market, sui=None):
+    def read(self, market, sui=None, scope='market'):
         read, sui = reader(sui)
-        return read.invoke('metrics', {'market': market}, cache_scope='test')
+        ref = {'provider': 'sui', 'native_scope': scope, 'native_id': market}
+        return read.invoke('metrics', {'native_ref': ref}, cache_scope='test')
 
-    def test_a_deepbook_pools_governance_parameters_are_read_as_of_now(self):
-        sui_usdc = pool('SUI', 'USDC')['address']
-        result = self.read(sui_usdc)
+    def test_a_deepbook_pools_fees_are_metric_rows_core_accepts_as_of_now(self):
+        target = pool('SUI', 'USDC')
+        result = self.read(target['address'])
         self.assertEqual(result['outcome'], 'ok')
-        data = result['data']
-        self.assertEqual((data['market'], data['basis'], data['as_of']), (sui_usdc, 'on_chain', STAMP))
-        inner = FIXTURE['deepbook']['inner'][pool('SUI', 'USDC')['json']['inner']['id']]['state']['governance']
-        self.assertEqual(data['governance_epoch'], inner['epoch'])
-        self.assertEqual({row['metric']: row['value'] for row in data['metrics']},
-                         {'taker_fee': int(inner['trade_params']['taker_fee']) / 1e9,
-                          'maker_fee': int(inner['trade_params']['maker_fee']) / 1e9,
-                          'stake_required': int(inner['trade_params']['stake_required']) / 1e6})
-        self.assertEqual(self.read(sui_usdc.upper().replace('0X', '0x'))['data']['market'], sui_usdc)  # any case is the same pool
+        inner = FIXTURE['deepbook']['inner'][target['json']['inner']['id']]['state']['governance']
+        self.assertEqual(result['data']['market'], {'object': target['address'], 'governance_epoch': inner['epoch']})
+        rows = identity.validate_metrics(result['data']['metrics'], 'market', bases=['on_chain'])  # core's own check
+        self.assertEqual({row['metric']: (row['value'], row['unit'], row['as_of'], row['period']) for row in rows},
+                         {'taker_fee': ('0.02', 'percent', STAMP, {'kind': 'instant'}),
+                          'maker_fee': ('0', 'percent', STAMP, {'kind': 'instant'})})
+        self.assertEqual({row['definition']['id'] for row in rows}, {'governance_trade_params'})
+        self.assertEqual(result['data']['limitations'], ['Staking 100000 DEEP earns the discounted fee rate.'])
+        upper = self.read(target['address'].upper().replace('0X', '0x'))
+        self.assertEqual(upper['data']['market']['object'], target['address'])  # any case is the same pool
 
-    def test_a_fee_voted_for_the_next_epoch_is_a_separate_row(self):
+    def test_a_fee_voted_for_the_next_epoch_is_a_limitation_not_a_row(self):
         sui = Sui()
         target = pool('SUI', 'USDC')
         governance = sui.fx['deepbook']['inner'][target['json']['inner']['id']]['state']['governance']
         governance['next_trade_params'] = {**governance['trade_params'], 'taker_fee': '100000'}
-        rows = {row['metric']: row['value'] for row in self.read(target['address'], sui)['data']['metrics']}
-        self.assertEqual(rows['next_taker_fee'], 0.0001)
-        self.assertEqual({name for name in rows if name.startswith('next_')}, {'next_taker_fee'})  # the others are unchanged
+        data = self.read(target['address'], sui)['data']
+        self.assertEqual([row['metric'] for row in data['metrics']], ['taker_fee', 'maker_fee'])
+        self.assertEqual(data['metrics'][0]['value'], '0.02')  # the fee in force
+        self.assertIn('Voted for the next epoch, not yet in force: taker fee 0.01%.', data['limitations'])
 
-    def test_any_other_market_is_not_covered(self):
+    def test_any_other_market_is_not_covered_and_another_reference_is_refused(self):
         alpha = FIXTURE['alphalend']['fields'][0]['address']
         sui = Sui()
         sui.objects[alpha] = {'address': alpha, 'type': FIXTURE['alphalend']['fields'][0]['type'], 'json': {}}
         result = self.read(alpha, sui)
         self.assertEqual((result['data'], result['issues'][0]['code']), (None, 'not_covered'))
         self.assertEqual(self.read('0x' + '1' * 64, sui)['issues'][0]['code'], 'not_covered')  # no such object
+        self.assertEqual(self.read(alpha, sui, scope='protocol')['issues'][0]['code'], 'invalid_request')
 
 
 class ThroughCore(IngestTest):

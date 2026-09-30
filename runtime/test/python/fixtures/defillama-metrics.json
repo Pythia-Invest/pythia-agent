@@ -1,0 +1,58 @@
+{
+  "protocols": [
+    {
+      "id": "3323",
+      "slug": "navi-lending",
+      "name": "NAVI Lending",
+      "chains": ["Sui"],
+      "category": "Lending",
+      "tvl": 192577192.7001955
+    },
+    {
+      "id": "2289",
+      "slug": "cetus-clmm",
+      "name": "Cetus CLMM",
+      "chains": ["Sui", "Aptos"],
+      "category": "Dexs",
+      "tvl": 30990821.75936783
+    },
+    {
+      "id": "5296",
+      "slug": "deepbook-v3",
+      "name": "DeepBook V3",
+      "chains": ["Sui"],
+      "category": "Dexs",
+      "tvl": 13326812.431490837
+    }
+  ],
+  "summaries": {
+    "fees:cetus-clmm:dailyFees": {
+      "id": "2289",
+      "slug": "cetus-clmm",
+      "total24h": 29615,
+      "total7d": 251322,
+      "total30d": 764665
+    },
+    "fees:cetus-clmm:dailyRevenue": {
+      "id": "2289",
+      "slug": "cetus-clmm",
+      "total24h": 5923,
+      "total7d": 50263,
+      "total30d": 152933
+    },
+    "dexs:cetus-clmm:None": {
+      "id": "2289",
+      "slug": "cetus-clmm",
+      "total24h": 22184025,
+      "total7d": 182636975,
+      "total30d": 516902030
+    },
+    "fees:navi-lending:dailyFees": {
+      "id": "3323",
+      "slug": "navi-lending",
+      "total24h": 19119,
+      "total7d": 98540,
+      "total30d": 402175
+    }
+  }
+}

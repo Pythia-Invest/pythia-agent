@@ -91,7 +91,7 @@ published quota.
   its limit is; a vault's `collateral` and its USDB `debt`.
 - **The dust floor is depth**, 8 resting orders, because the chain has no price: the
   smallest of the 26 pools the Mysten indexer lists rests 8. 41 of 89 pass.
-- **Governance fees are a read**, `metrics`, with as-of and governance epoch.
+- **Governance fees are metric rows**, `metrics`, in core's `defi_metrics` shape, with as-of; core gained `taker_fee` and `maker_fee` (percent, definition `governance_trade_params`). The stake required (DEEP) has no unit there and is a limitation in words.
 - **Gaps found:** a bridged coin's origin has no relation (`bridged_from` links
   securities) and no attribute, so it is in the name and the provenance record; token
   supply has no field, so `rank.supply` carries it (a stop-gap: `rank` is the one

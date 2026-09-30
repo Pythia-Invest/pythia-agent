@@ -1,15 +1,18 @@
 """Native NAVI plugin: NAVI Protocol's lending reserves as subjects for Pythia's core.
 
-One keyless, read-only operation pages a bulk catalogue (`catalogue.py`) that core's identity sync ingests. Core's
-connector toolkit bounds the one directory read; there are no rates, positions, profiles or search here.
+A keyless, read-only operation pages a bulk catalogue (`catalogue.py`) that core's identity sync ingests, and a second
+serves a reserve's supplied, borrowed, utilisation and rates (`metrics.py`) through core's `fundamentals` concept. Core's
+connector toolkit bounds the reads; there are no positions, profiles or search here.
 """
 import json
 
-from . import catalogue
+from . import catalogue, metrics
 from .definition import TOOLS, schemas
 
 MARKETS = 'navi_markets'  # native plugin setting: NAVI market keys; unset or empty is every market the SDK names
 POLICY = 'navi-catalogue-2'  # the projection cached reads carry; bump it when the projection changes
+METRICS_POLICY = 'navi-metrics-1'  # the same, for the metrics projection
+METRICS_AGE = 60  # seconds: NAVI caches its answer for a minute
 
 
 def envelope(data, issues=(), **extra):
@@ -51,6 +54,8 @@ class Reader:
             wanted = catalogue.markets(markets)
             # A conservative local ceiling: NAVI publishes no limit, and a sync makes one request.
             budget = self.connector.connection(catalogue.PROVIDER, concurrency=2, per_minute=30)
+            if operation == 'metrics':
+                return self.metrics(clean['native_ref'], wanted, cache_scope, cancelled, budget)
 
             def prepare(raw):
                 try:
@@ -76,18 +81,50 @@ class Reader:
             return self.connector.qualify_failure(envelope(None, [issue(detail['code'], detail['message'])]),
                                                   getattr(error, 'raw', {}))
 
+    def metrics(self, native_ref, wanted, cache_scope, cancelled, budget):
+        """One reserve's metric rows from a fresh read of the directory (a reserve is found by its Pool object id)."""
+        if (native_ref.get('provider'), native_ref.get('native_scope')) != (catalogue.PROVIDER, 'reserve'):
+            return envelope(None, [issue('invalid_request', 'Metrics are read for a NAVI reserve only.')])
+
+        def prepare(raw):
+            try:
+                return {**raw, 'data': metrics.reserve_figures(raw['data'], wanted)}
+            except (ValueError, TypeError, KeyError, AttributeError):
+                raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
+        url = catalogue.url(wanted)
+        read = self.reads.read([__file__], {'operation': 'reserve_metrics', 'url': url}, {}, age=METRICS_AGE,
+                               cache_scope={'access': cache_scope, 'policy': METRICS_POLICY}, prepare_result=prepare,
+                               cancelled=cancelled, budget=budget, timeout=30)
+        figures = read['data'].get(native_ref['native_id'])
+        if figures is None:
+            return envelope(None, [issue('unknown_reserve', f'NAVI lists no single reserve with this Pool object id in '
+                                         f'the {MARKETS} markets.')])
+        limits = ["as_of is when Pythia read NAVI's answer, which NAVI caches for a minute; the reserve itself was last "
+                  'updated on chain at updated_at.',
+                  "Rates are NAVI's base rates before incentive rewards; amounts carry interest accrued to that update."]
+        return envelope({'reserve': {'pool': figures['pool'], 'market': figures['market'], 'symbol': figures['symbol'],
+                                     'updated_at': figures['updated_at']},
+                         'metrics': metrics.reserve_rows(figures, read['observed_at'], url), 'limitations': limits})
+
 
 def register(ctx):
     import pythia_platform as platform  # published by Pythia core (ADR 0045)
     platform.require(1)
     reader = Reader(platform.wire, platform.connector)
 
-    def handler(arguments, **context):
-        access = platform.access.native_access_scope()
-        result = reader.invoke('catalogue', arguments, markets=ctx.get_config(MARKETS),
-                               cancelled=context.get('cancelled'), cache_scope=access)
-        if platform.access.native_access_scope() != access:
-            return json.dumps(envelope(None, [issue('unavailable', 'Native access changed during the NAVI read.')]))
-        return json.dumps(result, allow_nan=False)
-    ctx.register_tool(name=TOOLS['catalogue'], toolset='pythia-core', schema=reader.definitions['catalogue'],
-                      handler=handler)
+    def handle(operation):
+        def read(arguments, **context):
+            access = platform.access.native_access_scope()
+            result = reader.invoke(operation, arguments, markets=ctx.get_config(MARKETS),
+                                   cancelled=context.get('cancelled'), cache_scope=access)
+            if platform.access.native_access_scope() != access:
+                return json.dumps(envelope(None, [issue('unavailable', 'Native access changed during the NAVI read.')]))
+            return json.dumps(result, allow_nan=False)
+        return read
+    for operation, schema in reader.definitions.items():
+        ctx.register_tool(name=TOOLS[operation], toolset='pythia-core', schema=schema, handler=handle(operation))
+    platform.register_agent_tool(
+        ctx, 'navi_reserve_metrics', TOOLS['metrics'],
+        'NAVI reserve supply, borrow, utilisation and rates. From NAVI\'s own API, each row with its definition and '
+        'as-of. Use it for a NAVI reserve (market) subject. Supplied and borrowed are US dollars at NAVI\'s oracle '
+        'price; rates are yearly percentages before incentive rewards.')

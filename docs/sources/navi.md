@@ -14,9 +14,10 @@
   https://open-api.naviprotocol.io/api/navi/pools?env=prod&market=<keys>`,
   served as the bulk catalogue scopes `protocols` (one record) and `reserves`,
   for the markets in the `navi_markets` setting (all 11 the SDK names when unset
-  or empty). Reserve parameters (LTV, liquidation threshold, caps, rates,
-  incentives), e-mode, vaults, positions, prices and the chain itself are out of
-  scope.
+  or empty), and, for the experiment branch `exp-sui`, one reserve read of
+  supplied, borrowed, utilisation and rates from the same answer (`metrics.py`).
+  Reserve parameters (LTV, liquidation threshold, caps, incentives), e-mode,
+  vaults, positions and the chain itself are out of scope.
 - **Measured on:** 2026-09-30, one machine. `/api/navi/pools` for all 11
   markets is about 150 KB and 62 reserves; `main` alone is 86 KB and 35
   reserves (24 active, 11 deprecating). All 62 reserves hold one of 38 distinct
@@ -32,6 +33,11 @@
   there (33 DeFiLlama's, SUI and native USDC core's curated ones) and 3 were
   introduced (AUSD, eACRED, YBTC.B). The pools and protocols of the two sources
   stayed separate.
+- **Sui experiment (branch `exp-sui`):** reserves state their Pool object id as
+  `sui_object` and the protocol states the original package of `lending_core`
+  (`0xd899cf7d…81ca`) as `sui_package`, so their subjects are
+  `market:sui_object:<id>` and `protocol:sui_package:<id>`. The display names of
+  the markets follow `/api/navi/markets`. The measurements here predate both.
 - **Changes to other sources' adapters:** none. The plugin reads no other
   source: its tokens join DeFiLlama's because both name a coin type, not
   because either looks at the other.
@@ -57,17 +63,21 @@ API is authoritative.
 
 | Field | Official definition | Pythia meaning | Measured behaviour | Read |
 | --- | --- | --- | --- | --- |
-| `contract.pool` | Object id of the reserve's `Pool<T>` (SDK `Pool.contract`) | Native reference, scope `reserve`: the reserve's ID | A 66-character lowercase id for all 62 reserves, all distinct; the object's type names the coin | Yes |
+| `contract.pool` | Object id of the reserve's `Pool<T>` (SDK `Pool.contract`) | Native reference, scope `reserve`, and the `sui_object` key: the reserve's ID | A 66-character lowercase id for all 62 reserves, all distinct; the object's type names the coin | Yes |
 | `suiCoinType` | The coin type, as a full Sui type | The coin the reserve holds: `market_asset` link, a `listing` keyed by CAIP-19 | Always `0x` plus the address. `coinType` is the same without `0x` and not zero-padded, so core's pattern would refuse it: never read | Yes |
 | `market` | The market key (SDK `MARKETS`) | Which reserves a setting takes; part of the name through the SDK's display name | 11 keys; `main` has 35 reserves, `ember` 3, `rwa` 3, `sui-eco` 7, the seven pair markets 2 each | Yes |
 | `token.symbol` | The token's symbol | The token's label; part of the reserve's name | Drifts: `vSUI` here, `VSUI` at DeFiLlama; `wBTC`/`WBTC` for three different coins in one market. A symbol never identifies | Yes |
 | `isSuiBridge`, `isWormhole`, `isLayerZero` | Bridge flavour of the coin | The bridge tag in the label ("suiUSDT (Sui Bridge)") | Independent booleans; at most one is true on any reserve | Yes |
 | `isDeprecated` | Reserve is being wound down | `status: inactive` | True for 11 reserves of `main`; `status` reads `deprecating` with it. The app marks the whole `ember` market "Deprecating" while its API records are not flagged: the API decides | Yes |
 | `totalSupplyAmount`, `borrowedAmount`, `oracle.price` | Supplied and borrowed amounts in units of 1e-9 of the coin; the oracle's USD price (SDK `getPools` computes its supply and borrow values the same way) | `rank.tvl_usd` = (supplied - borrowed) x price, DeFiLlama's definition for lending: a search rank signal only. A record missing one of the three has no rank | `main-10` USDC: about $36.7M supplied and $25.2M borrowed, so $11.5M, DeFiLlama's $11.48M for the same pool | Yes |
+| `currentSupplyRate`, `currentBorrowRate` | Ray-scaled (1e27 is 100%) yearly rates of the reserve (SDK) | `supply_rate`, `borrow_rate`, percent, `base_apr`: before incentive rewards | `sui-usdc` USDC on 2026-09-30: 0.634% and 2.115%, equal to `vaultApr` in `supplyIncentiveApyInfo` and `borrowIncentiveApyInfo`; 0 on an unborrowed reserve | Yes |
+| `totalSupplyAmount`, `borrowedAmount` (metrics) | As above | `supplied`, `borrowed`: amount x `oracle.price` in USD, `at_oracle_price`; `utilisation` = borrowed over supplied (NAVI states none) | USDC in `sui-usdc`: $3.87M supplied, $1.36M borrowed, 35.3%. `totalSupplyAmount` is the stored `totalSupply` x `currentSupplyIndex`: interest accrued to the reserve's last update | Yes |
+| `lastUpdateTimestamp` | Not documented | `reserve.updated_at` of a metrics result: when the reserve was last touched on chain (milliseconds) | About 20 minutes before the read for that reserve | Yes |
+| `oracle.valid` | Not documented | Not a gate | `false` on all 35 main-market reserves and on the `sui-usdc` ones, prices plausible | No |
 | `id`, `uniqueId` | The reserve's number in its market; `<market>-<id>` | Not read | `id` is contiguous in `main`; deprecated reserves stay listed. Its permanence rests on NAVI's discipline, unlike the object id | No |
 | `isIsolated` | Not documented | Not read | `false` on all 62 reserves although NAVI presents some markets as isolated risk silos | No |
 
-Relevant unread fields: rates, caps, `ltv`, `liquidationFactor`,
+Relevant unread fields: caps, `ltv`, `liquidationFactor`,
 `borrowRateFactors`, incentive APYs, `contract.reserveId` (empty outside
 `main`), `oracleId`, `tags`, `meta.emodes`. They are the reserve-detail read's
 data, not identity, and wait for stage 1.
@@ -87,6 +97,10 @@ data, not identity, and wait for stage 1.
   `invalid_response` and is not cached.
 - [x] Pages continue from the last Pool object id emitted, so an answer
   refreshed mid-sync never skips a reserve both snapshots hold.
+- [x] Metrics: each row passes core's metric vocabulary; a figure NAVI leaves out
+  makes no row; a reserve in no requested market, or one two records share, is
+  refused (`unknown_reserve`). Tests: `test_defi_sources.py`,
+  `fixtures/navi-reserve-metrics.json` (two `sui-usdc` reserves, trimmed).
 - [x] Network-free tests use fixtures cut from NAVI's own responses
   (`runtime/test/python/test_navi_catalogue.py`,
   `fixtures/navi-pools.json`: 13 of the 62 reserves, trimmed to the fields read).
@@ -100,8 +114,8 @@ data, not identity, and wait for stage 1.
 | Every coin type has a CAIP-19 key | 38 of 38 | `unkeyed_coin_type` warning; the reserve is kept without a token link |
 | Every requested market returns a reserve | 11 of 11 | `empty_market` warning naming the markets |
 
-There is no alarm for a market NAVI launches later: NAVI publishes no list of
-markets, so the plugin carries the SDK's 11 keys. The setting `navi_markets`
+There is no alarm for a market NAVI launches later: the plugin carries the SDK's
+11 keys and does not read `/api/navi/markets`, which lists them. The setting `navi_markets`
 replaces that default, as `defillama_chains` does its own, so the investor lists
 all 11 keys and the new one; until then its reserves are not in the catalogue.
 
@@ -109,8 +123,8 @@ all 11 keys and the new one; until then its reserves are not in the catalogue.
 
 | Subject | ID | Why |
 | --- | --- | --- |
-| Protocol | `protocol:provisional:navi:protocol:navi-lending` | One record, keyed by a constant: NAVI publishes no protocol id. NAVI Prime, Volo and the vaults are not modelled |
-| Reserve | `market:provisional:navi:reserve:<Pool object id>` | A permanent on-chain object that is globally unique (62 of 62) and verifiable without NAVI. `uniqueId` is readable and is the SDK's address, but its permanence rests on NAVI; a coin has up to nine reserves, so the coin type alone is no key |
+| Protocol | `protocol:sui_package:0xd899cf7d…81ca` (native `navi-lending`) | The original package of `lending_core` (26 versions), constant across upgrades; NAVI publishes no protocol id. NAVI Prime, Volo and the vaults are not modelled |
+| Reserve | `market:sui_object:<Pool object id>` | A permanent on-chain object that is globally unique (62 of 62) and verifiable without NAVI. `uniqueId` is readable and is the SDK's address, but its permanence rests on NAVI; a coin has up to nine reserves, so the coin type alone is no key |
 | Sui token deployment | `listing:caip19:sui:mainnet/coin:<type>`, SUI as `…/slip44:784` | An on-chain coin type is portable: DeFiLlama naming it reaches the same subject, and core's curated SUI and native USDC listings are reached this way |
 
 NAVI and DeFiLlama join at the token only. DeFiLlama states no on-chain
@@ -149,12 +163,16 @@ Open items accepted for the first version:
 
 - NAVI publishes no data terms for its open API; opt-in and local only. Open:
   ask NAVI whether the API may be used by a desktop app before sign-off.
-- No list of markets is published: a new market needs its key listed in
-  `navi_markets` beside the others, which the setting replaces rather than extends.
+- A new market needs its key listed in `navi_markets` beside the others, which the
+  setting replaces rather than extends; `/api/navi/markets` would list them, and
+  is not read.
 - Reserves are not fused with DeFiLlama's pools, and the two NAVI Lending
   protocols stay separate (a founder decision).
 - An on-chain check that each Pool object's type matches its coin (three
   batched Sui GraphQL reads; 62 of 62 agreed on 2026-09-30) is not in the plugin.
   The public GraphQL endpoint is labelled beta, so a failure would warn, never
   block.
-- No rates, caps or LTVs: a reserve-detail read and agent tool are a later stage.
+- No caps or LTVs: a fuller reserve-detail read is a later stage. NAVI's own
+  `/api/navi/stats` TVL is gross supplied (`gross_supplied`: $250.2M against
+  DeFiLlama's net $192.6M on 2026-09-30); it is not read here, and a protocol-level
+  NAVI metrics read would carry that definition beside DeFiLlama's, never merged.

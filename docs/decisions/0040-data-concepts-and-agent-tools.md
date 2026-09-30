@@ -63,7 +63,11 @@ registry is `identity.concepts.REGISTRY`.
 `news` has a core item and a core read (see the amendment "Sources work
 together"); the FCA NSM plugin ([record](../sources/nsm.md)) is the
 first bundled contract to declare it. `estimates` and `fundamentals`
-get their read and row shape with their first source's onboarding.
+get their read and row shape with their first source's onboarding. On the
+experimental `exp-sui` branch `fundamentals.metrics` is also about a `protocol`
+or a `market` (a DeFi protocol's TVL, a lending reserve's supplied and
+borrowed) with core's metric row, described in
+[identity data](../architecture/identity-data.md); nothing in this ADR decides it.
 
 ### Plugins declare capabilities
 
@@ -84,7 +88,7 @@ quality it actually has.
 | `intraday` | as `quote`, plus `history_days` |
 | `daily` | `adjustment` (`none`, `split`, `split_dividend`, `unknown`), `history_days`, `feed_note` |
 | `live` | `book` (`top` or `snapshot`), `book_levels`, `trades`, `trade_side`, `scope` (`venue` or `consolidated`), `venue`, `context`, `line` |
-| `statements`, `metrics` | `basis` (`as_reported`, `standardized`) |
+| `statements`, `metrics` | `basis` (`as_reported`, `standardized`; experiment: `on_chain`) |
 
 ### One selection rule for every concept
 

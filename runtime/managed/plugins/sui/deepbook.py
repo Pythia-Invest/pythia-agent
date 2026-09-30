@@ -9,13 +9,17 @@ Dust. Anyone can create a pool, and the chain has no price to give one a value, 
 orders, and the 63 others range from none to 61.
 
 Fees are governance state, not identity. `trade_params` (taker fee, maker fee, stake required) change by vote at an epoch
-boundary, so they are served as a read with their as-of (`metrics`), never as a claim.
+boundary, so they are served as metric rows with their as-of (`metrics`, core's `defi_metrics` vocabulary), never as a claim.
 """
-from .chain import address, struct
+from decimal import Decimal
+
+from .chain import URL, address, struct
 
 PACKAGE = '0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809'
 TYPE = f'{PACKAGE}::pool::Pool'
 MIN_ORDERS = 8
+DEFINITIONS = {name: f"The fee a {name.split('_')[0]} pays on the value of a trade, as the pool's governance sets it now; "
+                     'governance changes it by vote at an epoch boundary.' for name in ('taker_fee', 'maker_fee')}
 
 
 def _state_query(chunk):
@@ -66,18 +70,25 @@ def pools(chain):
     return rows, found
 
 
-def governance(chain, pool):
-    """One pool's governance state as of this read: ({metric rows}, epoch), or None if `pool` is not a DeepBook pool."""
+def metrics(chain, pool):
+    """One pool's governance fees as core's metric rows (`fundamentals.metrics`), read now: (rows, governance epoch,
+    limitations), or None if `pool` is not a DeepBook pool. `trade_params` are fractions scaled 1e9, stated here as percent.
+    The stake required (DEEP, which no metric unit holds) and a change voted for the next epoch are limitations in words."""
     node = chain.get('DeepBookPool', [pool])[0]
-    base, args = struct(node['type']) if node else (None, [])
+    base, _args = struct(node['type']) if node else (None, [])
     inner = address(((node or {}).get('json') or {}).get('inner', {}).get('id'))
     if base != TYPE or not inner:
         return None
-    state = states(chain, [inner])[0]
-    params, pending = state['state']['governance']['trade_params'], state['state']['governance']['next_trade_params']
-    scale = {'taker_fee': 1e9, 'maker_fee': 1e9, 'stake_required': 1e6}  # fees: fractions of 1e9; stake: DEEP, 6 dp
-    unit = {'taker_fee': 'fraction of trade value', 'maker_fee': 'fraction of trade value', 'stake_required': 'DEEP'}
-    rows = [{'metric': name, 'value': int(params[name]) / scale[name], 'unit': unit[name]} for name in scale]
-    rows += [{'metric': f'next_{name}', 'value': int(pending[name]) / scale[name], 'unit': unit[name]}
-             for name in scale if pending[name] != params[name]]  # takes effect at the next epoch
-    return rows, state['state']['governance']['epoch']
+    governance = states(chain, [inner])[0]['state']['governance']
+    params, pending = governance['trade_params'], governance['next_trade_params']
+
+    def percent(raw):
+        return Decimal(raw) / 10 ** 7  # a fraction of 1e9, times 100
+    rows = [{'metric': name, 'value': format(percent(params[name]), 'f'), 'unit': 'percent', 'period': {'kind': 'instant'},
+             'as_of': chain.observed_at, 'basis': 'on_chain', 'source_url': URL,
+             'definition': {'id': 'governance_trade_params', 'text': DEFINITIONS[name]}}
+            for name in ('taker_fee', 'maker_fee')]
+    limits = [f"Staking {Decimal(params['stake_required']) / 10 ** 6:f} DEEP earns the discounted fee rate."]
+    limits += [f"Voted for the next epoch, not yet in force: {name.split('_')[0]} fee {percent(pending[name]):f}%."
+               for name in ('taker_fee', 'maker_fee') if pending[name] != params[name]]
+    return rows, governance['epoch'], limits

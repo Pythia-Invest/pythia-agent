@@ -48,6 +48,11 @@
             "on_chain"
           ]
         }
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
       }
     }
   },

@@ -19,7 +19,7 @@ from typing import Any
 
 from . import identity_ops
 from .agent_tools import encode, failure, identity, may_run, run_tool
-from .identity import page
+from .identity import Concept, page, validate_metrics
 
 logger = logging.getLogger(__name__)
 SUBJECT = {"type": "string", "minLength": 5, "maxLength": 370,
@@ -110,6 +110,25 @@ def read_only(schema: dict) -> bool:
     return isinstance(meta, dict) and meta.get("read_only") is True
 
 
+def checked_metrics(info: Any, operation: str | None, subject_id: str, result: dict) -> dict:
+    """A `fundamentals.metrics` result of a protocol or market subject with each row checked against core's metric
+    vocabulary (identity/defi_metrics.py) and stamped with its source. The plugin never states its own identity, and a
+    row that is malformed, repeats another or claims a basis its contract does not refuses the whole answer."""
+    entry = info.manifest.concepts.get(Concept.FUNDAMENTALS) if info is not None else None
+    data = result.get("data")
+    if entry is None or entry.operations.get("metrics") != operation or not isinstance(data, dict):
+        return result
+    try:
+        rows = validate_metrics(data.get("metrics"), subject_id.split(":", 1)[0],
+                                bases=entry.qualities.get("metrics", {}).get("basis"))
+    except ValueError as error:
+        logger.warning("%s metrics refused: %s", info.key, error)
+        return failure("invalid_response", f"{info.label} returned a metric Pythia cannot accept ({error}); "
+                                           "none of its figures are shown.")
+    source = {"plugin": info.manifest.plugin, "provider": info.manifest.provider, "label": info.label}
+    return {**result, "data": {**data, "metrics": [{**row, "source": source} for row in rows]}}
+
+
 def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, context: dict,
         operations: tuple[str, ...] | None = None) -> str:
     from tools.registry import registry
@@ -130,7 +149,7 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
     problem = check_arguments(offered, arguments)  # the schema the model was given, before core fills anything
     if problem:
         return encode(failure("invalid_arguments", problem))
-    args = dict(arguments)
+    args, subject_id = dict(arguments), str(arguments.get("subject_id") or "")
     target = addressed(info, parameters.get("properties", {})) if info is not None else None
     if target:  # the reference comes only from core's lookup, never from a caller's raw symbol
         for key in {target, target + "s"} - {"subject_id"}:
@@ -146,7 +165,8 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
             args[target] = reference["native_id"]
             if parameters.get("properties", {}).get(target + "s", {}).get("type") == "array":
                 args.setdefault(target + "s", [reference["native_id"]])
-    return encode(run_tool(ctx, tool, args, context))
+    result = run_tool(ctx, tool, args, context)
+    return encode(checked_metrics(info, (declaration(schema) or {}).get("operation"), subject_id, result))
 
 
 def own_contract(ctx: Any) -> Any:

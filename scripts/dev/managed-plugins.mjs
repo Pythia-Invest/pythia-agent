@@ -244,6 +244,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "README.md",
       "definition.py",
       "catalogue.py",
+      "metrics.py",
     ]),
   }),
   Object.freeze({
@@ -254,6 +255,58 @@ export const MANAGED_PLUGINS = Object.freeze([
     enabledByDefault: false,
     doctor: false,
     source: "plugins/navi",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+      "metrics.py",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-cetus",
+    install: true,
+    // Opt-in by product default: Cetus publishes no data terms for its stats API, so it is
+    // used as a personal, local source. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/cetus",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-suilend",
+    install: true,
+    // Opt-in by product default: Suilend publishes no data terms for its API, so it is
+    // used as a personal, local source. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/suilend",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+    ]),
+  }),
+  Object.freeze({
+    name: "pythia-deepbook",
+    install: true,
+    // Opt-in by product default: Mysten Labs states no terms or limits for the DeepBook indexer, so it is
+    // used as a personal, local source. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/deepbook",
     files: Object.freeze([
       "__init__.py",
       "contract.json",

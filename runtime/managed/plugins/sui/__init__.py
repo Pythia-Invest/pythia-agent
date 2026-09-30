@@ -55,7 +55,7 @@ class Reader:
             clean = self.wire.validate_parameters(self.definitions[operation]['parameters'], arguments)
             link = chain.Chain(self.reads, self.connector, scope=cache_scope, cancelled=cancelled, memo=self.memo)
             if operation == 'metrics':
-                return self.metrics(link, clean['market'])
+                return self.metrics(link, clean['native_ref'])
             batch, following, found = catalogue.page(link, clean['scope'], clean.get('cursor'))
             return envelope(batch, drift(found), next_cursor=following)
         except self.wire.WireError:
@@ -69,16 +69,15 @@ class Reader:
             return self.connector.qualify_failure(envelope(None, [issue(detail['code'], detail['message'])]),
                                                   getattr(error, 'raw', {}))
 
-    def metrics(self, link, market):
-        found = deepbook.governance(link, chain.address(market))
+    def metrics(self, link, native_ref):
+        if (native_ref.get('provider'), native_ref.get('native_scope')) != (chain.PROVIDER, 'market'):
+            return envelope(None, [issue('invalid_request', 'Metrics are read for a Sui market only.')])
+        pool = chain.address(native_ref['native_id'])
+        found = deepbook.metrics(link, pool) if pool else None
         if found is None:
-            return envelope(None, [issue('not_covered', 'Only DeepBook V3 pools have governance parameters here.')])
-        rows, epoch = found
-        return envelope({'market': chain.address(market), 'basis': 'on_chain', 'as_of': link.observed_at,
-                         'governance_epoch': epoch, 'metrics': rows,
-                         'definition': 'DeepBook pool trade_params: fractions of trade value (from 1e9) and DEEP staked '
-                                       'for the discount. Governance changes them by vote at an epoch boundary; a '
-                                       '`next_` row is voted for the next epoch and not yet in force.'})
+            return envelope(None, [issue('not_covered', 'Only DeepBook V3 pools have fees this plugin reads.')])
+        rows, epoch, limits = found
+        return envelope({'market': {'object': pool, 'governance_epoch': epoch}, 'metrics': rows, 'limitations': limits})
 
 
 def register(ctx):
