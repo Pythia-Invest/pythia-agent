@@ -393,7 +393,7 @@ Relations never merge subjects. Each relation type declares one behaviour:
 | Behaviour | Meaning | Types |
 | --- | --- | --- |
 | `fold` | Sameness across distinct securities, which must be shown together | `depositary_receipt_of` |
-| `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of` |
+| `related` | Different things, shown nearby as links and never folded | `share_class_of`, `wraps`, `bridged_from`, `staked_as`, `tracks`, `derivative_on`, `tokenized_from`, `successor_of`, `part_of`, `market_asset` |
 
 - **Instrument.** An instrument is a security plus every security folded into
   it: its depositary receipts and registry lines. A curated crypto asset's
@@ -408,7 +408,12 @@ Relations never merge subjects. Each relation type declares one behaviour:
   - the asset, for crypto.
 - **Other securities.** The page shows the company's other securities, such as
   share classes and preferreds, as "other securities" of that company. Other
-  `related` subjects appear as links.
+  `related` subjects appear as links. Desk's header presents three types: a
+  derivative market and its underlying (`derivative_on`), a pool and its
+  protocol (`part_of`), and a pool and the tokens it holds (`market_asset`).
+  Each page names the subjects from its own side: a pool's protocol and tokens,
+  a protocol's pools and a token's pools, the first few in name order and the
+  rest behind "and N more".
 - A new relation type states its behaviour when it is added, so an unforeseen
   case groups without new code.
 - Odd fold data is never resolved silently. A second fold target or a fold
@@ -866,6 +871,9 @@ there as the release's does (amendment "ingest").
 **Repairs.** A build question is titled by what it asks ("Issuer unclear",
 "Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
 subject with its identifiers and its candidates, and no provider-record rows.
+A question about a CIK-only SEC registrant's LEI names the CIK and the LEIs,
+and says whether several LEIs claim the CIK or several registrants claim the
+LEI, so two registrants one LEI claims read differently.
 It names its source "Pythia reference": that label names the origin and grants
 no authority. A build question is a row with that tag first and no provider
 record, and `reference` is a reserved plugin name, so no plugin can pose as the
@@ -1140,7 +1148,9 @@ reference package installed every page said so.
   parents are its own device rows, else the reference's, so a line a plugin
   introduces under a security the build holds carries that security's
   identifiers. A device subject's page, a market's or protocol's included,
-  composes with no reference package installed.
+  composes with no reference package installed. A pool or protocol has no data
+  section, so its page shows its links and says Pythia has no price or data for
+  it yet, not that a plugin is missing.
 - **Trust.** A device assertion is the plugin's own statement
   (`source_asserted`) and counts at its plugin's trust level while the plugin
   is enabled (amendment "evidence counts by kind and trust level"). A disabled
