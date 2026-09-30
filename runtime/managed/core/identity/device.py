@@ -8,9 +8,9 @@ writer bumps the store's `generation` once it is done (`bump`), so a cached read
 
 Reads cover reference and device alike. `current_id` follows the reference's aliases, then the device's.
 `load_subject` reads the reference and falls back to the device store (`load`), in the reference's shape plus
-`sources`, so a device subject's page composes with no reference package installed. A device assertion counts at its
-plugin's trust level while the plugin is enabled (`levels`); a disabled or removed plugin's assertions count at
-display, shown with their source and never proving or blocking, and its subjects keep resolving by ID.
+`contributors`, so a device subject's page composes with no reference package installed. A device assertion counts
+at its plugin's trust level while the plugin is enabled (`levels`); a disabled or removed plugin's assertions count
+at display, shown with their source and never proving or blocking, and its subjects keep resolving by ID.
 
 Binding (ADR 0042, amendment of 2026-09-30): only a confirm-level plugin binds, onto reference or device subjects.
 A display-level plugin binds only a subject it introduced itself (`bind_introduced`, rule `introduced@1`); its answer
@@ -39,7 +39,7 @@ PARENT = {Level.LISTING: Level.SECURITY, Level.COMPOSITE: Level.SECURITY, Level.
 _REFERENCE_PARENT = {Level.LISTING: "SELECT security_id FROM listings WHERE id = ?",
                      Level.COMPOSITE: "SELECT security_id FROM composites WHERE id = ?",
                      Level.SECURITY: "SELECT issuer_id FROM securities WHERE id = ?"}
-_NAMES = {"security": "securities", "issuer": "issuers"}  # the reference tables that name a parent
+_TABLES = {"listing": "listings", "composite": "composites", "security": "securities", "issuer": "issuers"}
 
 
 # ---- the store: subjects, assertions, aliases, placed claims and the generation ----------------------------------
@@ -141,7 +141,7 @@ def bind_introduced(store: IdentityStore, plugin: str, ref: ProviderRef, subject
     row = subject_row(store, subject_id)
     if row is None or row["introduced_by"] != plugin:
         return False
-    cited = evidence_id({"kind": "introduced", "subject": subject_id, "plugin": plugin, "ref": ref.wire()})
+    cited = evidence_id({"kind": "introduced", "plugin": plugin, "ref": ref.wire()})  # the same after a re-key
     return store.put_binding(Binding(provider_ref=ref, subject_id=subject_id, status="confirmed",
                                      authority=Authority.RULE_CONFIRMED, evidence_ids=(cited,), plugin=plugin,
                                      rule_id=INTRODUCED_RULE))
@@ -159,7 +159,7 @@ def current_id(ref: sqlite3.Connection | None, store: IdentityStore, subject_id:
                declared: Mapping[str, str] = {}) -> str:
     """The ID a subject has now: each step follows the reference's `id_aliases`, else `declared` (the provisional IDs
     confirm-level contracts alias, `declared.aliases`; reads pass them, the re-key does not), else the device's
-    aliases. A cycle is a defect: its IDs stay as they are."""
+    aliases, never for an ID the reference holds. A cycle is a defect: its IDs stay as they are."""
     seen = [subject_id]
     while (new := _alias(ref, store, seen[-1], declared)) is not None:
         if new in seen:
@@ -183,8 +183,8 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
     An instrument's parents are its own device rows, else the reference's (a listing a plugin introduced under a
     security the build holds); a security is priced through its first device listing. Its identifiers are the
     `self` assertions on it and its parents, the device's at each plugin's level (`levels`), the reference's at the
-    package's. `sources` names the plugins that introduced it or state anything about it, each `enabled`, `disabled`
-    or `removed`, and `introduced_by` the one that introduced it."""
+    package's. `contributors` names the plugins that introduced it or state anything about it, each `enabled`,
+    `disabled` or `removed`, and `introduced_by` the one that introduced it."""
     subject_id = current_id(ref, store, subject_id)
     row = subject_row(store, subject_id)
     if row is None:
@@ -207,13 +207,13 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
     if ref is not None and held:
         weighed += [(reference._assertion(item), weighing.level(ref)) for item in ref.execute(
             "SELECT * FROM assertions WHERE subject_id IN (SELECT value FROM json_each(?))", (json.dumps(held),))]
-    sources = _sources(store, subject_id, row["introduced_by"], plugins)
+    contributors = _contributors(store, subject_id, row["introduced_by"], plugins)
     issuer, security = ids.get(Level.ISSUER), ids.get(Level.SECURITY)
     subject = {
         "id": subject_id, "level": Level(kind) if kind in INSTRUMENT_KINDS else kind, "ids": ids,
-        **weighing.weigh_each(weighed), "trust": granted.get(row["introduced_by"], DISPLAY),
+        **weighing.weigh_each(weighed),
         "asset_class": attributes.get("asset_class"), "kind": attributes.get("kind"), "listing": listing,
-        "introduced_by": row["introduced_by"], "sources": sources,
+        "introduced_by": row["introduced_by"], "contributors": contributors,
         "view": {
             "subject": {"id": subject_id, "level": str(kind), "name": row["name"] or subject_id,
                         "kind": attributes.get("kind"), "listing": listing["id"] if listing else None},
@@ -223,7 +223,7 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
             "listings": [{"id": listing["id"], "ticker": listing["ticker"], "mic": listing["operating_mic"],
                           "venue": None, "currency": listing["trading_currency"], "primary": False}] if listing else [],
             "related": _related(ref, store, family),
-            "sources": sources,
+            "contributors": contributors,
         },
     }
     weighing.show(subject)
@@ -272,9 +272,18 @@ def repoint(store: IdentityStore, moved: Mapping[str, str]) -> dict[str, str]:
 
 def _alias(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
            declared: Mapping[str, str]) -> str | None:
+    """One step: the reference's alias, else a declared one, else the device's unless the reference holds the ID."""
     row = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (subject_id,)).fetchone() \
         if ref is not None else None
-    return row[0] if row else declared.get(subject_id) or alias(store, subject_id)
+    if row or subject_id in declared:
+        return row[0] if row else declared[subject_id]
+    return None if ref is not None and in_reference(ref, subject_id) else alias(store, subject_id)
+
+
+def in_reference(ref: sqlite3.Connection, subject_id: str) -> bool:
+    """Whether the reference holds this subject (it holds instruments only)."""
+    table = _TABLES.get(subject_kind(subject_id))
+    return table is not None and ref.execute(f"SELECT 1 FROM {table} WHERE id = ?", (subject_id,)).fetchone() is not None
 
 
 def _assertion(row: Mapping[str, Any]) -> IdentifierAssertion:
@@ -322,7 +331,7 @@ def _name(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str)
     row = subject_row(store, subject_id)
     if row is not None:
         return row["name"]
-    table = _NAMES.get(subject_kind(subject_id))
+    table = {"security": "securities", "issuer": "issuers"}.get(subject_kind(subject_id))  # the tables with names
     found = ref.execute(f"SELECT name FROM {table} WHERE id = ?", (subject_id,)).fetchone() \
         if ref is not None and table else None
     return found[0] if found else None
@@ -345,7 +354,7 @@ def _related(ref: sqlite3.Connection | None, store: IdentityStore, subject_ids: 
          "name": _name(ref, store, other)} for other, type, direction in out]
 
 
-def _sources(store: IdentityStore, subject_id: str, introducer: str, plugins: list) -> list[dict[str, str]]:
+def _contributors(store: IdentityStore, subject_id: str, introducer: str, plugins: list) -> list[dict[str, str]]:
     """The plugins behind a device subject, the one that introduced it first, each with its status now."""
     infos = {info.manifest.plugin: info for info in plugins}
     stated = store.select("SELECT plugin FROM device_assertions WHERE subject_id = ? UNION"

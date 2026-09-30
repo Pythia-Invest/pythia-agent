@@ -37,10 +37,9 @@ def vanished(store: IdentityStore) -> list[str]:
     return json.loads(store.metadata(VANISHED) or "[]")
 
 
-def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *, again: bool = False) -> dict | None:
+def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again: bool = False) -> dict | None:
     """Re-point local rows to the IDs this release and the device's aliases give their subjects; None when it was
-    already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases).
-    Without a reference (`ref` None), only device aliases move rows and nothing is flagged."""
+    already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases)."""
     db = store.db
     with store.transaction():
         if store.metadata(REKEYED) == release and not again:
@@ -61,7 +60,7 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *,
 
         evidence = _moved_evidence(ref, [(row["subject_id"], row["evidence_ids"]) for row in bindings] + [
             (subject, item["evidence_ids"]) for item in queue for subject in item["subject_ids"] + item["candidate_ids"]],
-            moved) if ref is not None else {}
+            moved)
         evidence.update(device.repoint(store, moved))
         retag = lambda ids: [evidence.get(value, value) for value in ids]  # noqa: E731
         changed = 0
@@ -96,12 +95,10 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *,
     return {"release": release, "moved": len(moved), "rows": changed, "vanished": len(gone)}
 
 
-def _held(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str) -> bool:
-    """Whether the release (it holds instruments only) or the device store holds this subject; without a release,
-    whether it could."""
-    table = TABLES.get(subject_kind(subject_id))
-    return table is None or ref is None or device.subject_row(store, subject_id) is not None or ref.execute(
-        f"SELECT 1 FROM {table} WHERE id = ?", (subject_id,)).fetchone() is not None
+def _held(ref: sqlite3.Connection, store: IdentityStore, subject_id: str) -> bool:
+    """Whether the release (it holds instruments only) or the device store holds this subject."""
+    return subject_kind(subject_id) not in TABLES or device.subject_row(store, subject_id) is not None \
+        or device.in_reference(ref, subject_id)
 
 
 def _moved_evidence(ref: sqlite3.Connection, rows: list[tuple[str, list[str]]], moved: dict[str, str]) -> dict[str, str]:

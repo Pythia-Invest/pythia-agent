@@ -1090,7 +1090,10 @@ reference package installed every page said so.
   chain from 5: every table, including those added within a schema such as
   read checks, is copied into a fresh store, a column the old one lacks takes
   its default, and the old file is kept as `identity.before-v6-<id>.sqlite3`.
-  Nothing is set aside. This is roadmap stage 0's only store bump.
+  Nothing is set aside. One process migrates at a time: opening the store
+  holds the store directory's lock (the one the store's move takes), so a
+  second process waits and opens the migrated file. This is roadmap stage 0's
+  only store bump.
   - `subjects` is a device subject's durable label: its kind, its parent
     (instruments only), name, attributes (the record's own descriptive fields),
     status, the plugin that introduced it, and when it was first and last seen.
@@ -1105,8 +1108,10 @@ reference package installed every page said so.
 - **Reads cover reference and device** (`identity/device.py`). At each step an
   ID follows the reference's aliases, else on reads a confirm-level contract's
   declared alias (amendment above), else the device's. A subject is read from the
-  reference, else from the device store, in the same shape plus `sources`: the
-  plugins behind it, each `enabled`, `disabled` or `removed`. An instrument's
+  reference, else from the device store, in the same shape plus `contributors`:
+  the plugins behind it, each `enabled`, `disabled` or `removed`. (A page's
+  `sources` are its sections' data sources, as the agent reads them.) A device
+  alias never moves an ID the reference holds. An instrument's
   parents are its own device rows, else the reference's, so a line a plugin
   introduces under a security the build holds carries that security's
   identifiers. A device subject's page, a market's or protocol's included,
@@ -1146,9 +1151,16 @@ previous amendment unchanged.
 
 **Consequences.**
 
-- Older Pythia code that opens a schema 6 store sets it aside and starts with
-  empty bindings, answers and claims. The kept `identity.before-v6-<id>` file
-  restores them. Do not run an older build against a migrated store.
+- Older Pythia code that opens a schema 6 store sets it aside as
+  `identity.v6-<id>.sqlite3` and starts with empty bindings, answers and claims.
+  That set-aside file holds the current data; `identity.before-v6-<id>` is only
+  the snapshot from before the upgrade. To recover: stop the stack, move the
+  fresh `identity.sqlite3` aside, rename `identity.v6-<id>.sqlite3` back to
+  `identity.sqlite3`, and start the newer build. Do not run an older build
+  against a migrated store ([development](../development.md#reference-data)).
+- A transaction nested on the thread that opened it joins it, and a COMMIT that
+  fails (another process mid-read) rolls back and raises, so no later write
+  joins a transaction that can no longer commit.
 - The migration now copies tables added within a schema. The v3 and v4 paths
   never had any to copy; a v5 store's read checks would otherwise have been
   lost.

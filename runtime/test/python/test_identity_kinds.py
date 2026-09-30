@@ -5,7 +5,7 @@ from pathlib import Path
 
 from test_identity_contracts import FIXTURES, PROVENANCE, identity
 from test_identity_page import ASML, Fixture, plugin
-from pythia_identity_fixture import model, page, store  # noqa: E402
+from pythia_identity_fixture import model, page, reference_package, store  # noqa: E402
 
 RECEIPT, SHARE = "security:isin:USN070592100", "security:isin:NL0010273215"
 INDEX = "index:provisional:eodhd:catalogue:GSPC.INDX"
@@ -103,7 +103,7 @@ class StoreKindTest(Fixture):
         with self.assertRaises(ValueError):  # the store keeps registered kinds only
             migrated.put_binding(model.Binding(provider_ref=ref, subject_id="venue:pythia:x", status="candidate",
                                                authority="source_asserted", evidence_ids=(), plugin="eodhd"))
-        names = sorted(path.name for path in directory.iterdir())
+        names = sorted(path.name for path in directory.iterdir() if path.name != reference_package.MOVE_LOCK)
         self.assertEqual((len(names), names[1]), (2, "identity.sqlite3"))
         self.assertRegex(names[0], rf"^identity\.before-v{store.SCHEMA_VERSION}-[0-9a-f]{{8}}\.sqlite3$")  # the v3 file, kept
 

@@ -81,32 +81,32 @@ class IdentityStore:
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = directory / "identity.sqlite3"
         self.set_aside: str | None = None  # the file name an incompatible store was kept under, this process
-        version = self._version() if self.path.exists() else SCHEMA_VERSION
-        if version in ("3", "4", "5"):
-            try:
-                self._migrate(version)
-                version = SCHEMA_VERSION
-            except sqlite3.Error:
-                # Another process may have migrated it meanwhile; otherwise it is kept aside below like any other.
-                logger.warning("identity store schema %s could not be migrated", version, exc_info=True)
-                version = self._version()
-        if version != SCHEMA_VERSION:
-            # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
-            kept = self.path.with_name(f"identity.{'v' + version if version else 'unreadable'}-{uuid.uuid4().hex[:8]}.sqlite3")
-            for suffix in ("-journal", "-wal", "-shm"):
-                sibling = self.path.with_name(self.path.name + suffix)
-                if sibling.exists():
-                    sibling.replace(kept.with_name(kept.name + suffix))
-            self.path.replace(kept)
-            self.set_aside = kept.name
-            logger.warning("identity store schema %s is not %s: kept as %s; bindings, answers and claims start empty",
-                           version or "unreadable", SCHEMA_VERSION, kept.name)
-        if not self.path.exists():
-            self._create(lambda setup: None)
-        self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-        self.db.row_factory = sqlite3.Row
-        self.db.executescript(schema_sql(Store.IDENTITY).partition(ADDED)[2].partition("\n")[2])  # added in version
-        self._writing = threading.RLock()  # one connection serves every thread: one user of it at a time
+        with reference_package.locked(directory / reference_package.MOVE_LOCK):  # one opener at a time (`_migrate`)
+            version = self._version() if self.path.exists() else SCHEMA_VERSION
+            if version in ("3", "4", "5"):
+                try:
+                    self._migrate(version)
+                    version = SCHEMA_VERSION
+                except sqlite3.Error:  # kept aside below like any other
+                    logger.warning("identity store schema %s could not be migrated", version, exc_info=True)
+                    version = self._version()
+            if version != SCHEMA_VERSION:
+                # Never delete device state: keep the old file (and its journal) aside and start a fresh store.
+                kept = self.path.with_name(f"identity.{'v' + version if version else 'unreadable'}-{uuid.uuid4().hex[:8]}.sqlite3")
+                for suffix in ("-journal", "-wal", "-shm"):
+                    sibling = self.path.with_name(self.path.name + suffix)
+                    if sibling.exists():
+                        sibling.replace(kept.with_name(kept.name + suffix))
+                self.path.replace(kept)
+                self.set_aside = kept.name
+                logger.warning("identity store schema %s is not %s: kept as %s; bindings, answers and claims start empty",
+                               version or "unreadable", SCHEMA_VERSION, kept.name)
+            if not self.path.exists():
+                self._create(lambda setup: None)
+            self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
+            self.db.row_factory = sqlite3.Row
+            self.db.executescript(schema_sql(Store.IDENTITY).partition(ADDED)[2].partition("\n")[2])  # added in version
+        self._writing, self._depth = threading.RLock(), 0  # one connection serves every thread, one user at a time
 
     def _create(self, fill) -> None:
         """Write a fresh store beside the file, let `fill` copy rows into it, then put it in place atomically."""
@@ -128,12 +128,10 @@ class IdentityStore:
         staging.replace(self.path)
 
     def _migrate(self, version: str) -> None:
-        """v3, v4 or v5 -> the current schema keeps every row: v4 dropped the level and relation-type CHECKs and
-        named the subject's kind `kind`; v5 drops the queue-reason CHECK; v6 gives device subjects their label and
-        claims their subject and state (SQLite cannot alter a CHECK or a table's shape, so the tables are copied
-        into a fresh store that replaces the file, and a column the old one lacks takes its default). The old file
-        is kept as `identity.before-v<current>-<id>.sqlite3`. Processes share no lock: a second process that
-        starts during the migration fails its own copy and re-reads the migrated version."""
+        """v3, v4 or v5 -> the current schema keeps every row (v4: no level or relation-type CHECKs; v5: no queue-reason
+        CHECK; v6: device subjects), copied into a fresh store that replaces the file, since SQLite cannot alter a CHECK
+        or a table's shape; a column the old store lacks takes its default. The old file is kept beside it
+        (`identity.before-v6-<id>.sqlite3`). The caller holds the directory's lock, so a second process waits."""
         renamed = {**_V5_COLUMNS, **(_V3_COLUMNS if version == "3" else {})}
         added = schema_sql(Store.IDENTITY).partition(ADDED)[2]
 
@@ -179,19 +177,22 @@ class IdentityStore:
 
     @contextmanager
     def transaction(self):
-        """One atomic write: a verdict, its effect and the item it settles land together or not at all. Nested, it
-        joins the transaction this thread has open."""
+        """One atomic write: a verdict, its effect and the item it settles land together or not at all. Nested on the
+        thread that opened it (the lock is held throughout), it joins it; a COMMIT that fails rolls back and raises."""
         with self._writing:
-            if self.db.in_transaction:  # under the lock, only this thread's own
-                yield
-                return
-            self.db.execute("BEGIN IMMEDIATE")
+            self._depth += 1
             try:
+                if self._depth == 1:
+                    self.db.execute("BEGIN IMMEDIATE")
                 yield
+                if self._depth == 1:
+                    self.db.execute("COMMIT")
             except BaseException:
-                self.db.execute("ROLLBACK")
+                if self._depth == 1 and self.db.in_transaction:  # a failed COMMIT leaves it open: never join it
+                    self.db.execute("ROLLBACK")
                 raise
-            self.db.execute("COMMIT")
+            finally:
+                self._depth -= 1
 
     @_locked
     def metadata(self, key: str) -> str | None:
