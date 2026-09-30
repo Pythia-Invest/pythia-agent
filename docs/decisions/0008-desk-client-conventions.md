@@ -119,11 +119,12 @@ breadcrumb, not a title. There is no overview page.
   Credentials are fields that show a stand-in ("•••• 4f2a") and edit in
   place with an explicit Save and Remove. Provider connections belong to
   their connectors ([ADR 0034](0034-core-and-optional-features.md)), so
-  Settings has no page that connects a data source. Its Data section only
-  reports: what each enabled data plugin adds and what disabling it would take
-  away, with a way to read its catalogue now (Data sources); the installed
-  reference package and its notices (Reference data); and the issues Pythia
-  could not settle on its own (Repairs, [ADR 0044](0044-product-direction.md)).
+  Settings has no page that connects a data source. Its Data section
+  holds no credentials: a switch per enabled data plugin that pauses it, what
+  pausing it hides, and a way to read its catalogue now (Data sources); the
+  installed reference package and its notices (Reference data); and the issues
+  Pythia could not settle on its own (Repairs,
+  [ADR 0044](0044-product-direction.md)).
 - **Pages that need more than rows**: Main model (provider, then model, then
   Apply; Hermes may ask to confirm an expensive model), Accounts (connected
   sign-ins first, the rest behind a disclosure; a device sign-in shows the

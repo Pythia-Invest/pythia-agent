@@ -1,10 +1,11 @@
 "use client";
 
-import { Alert, Button } from "@pythia/ui";
+import { Alert, Badge, Button, Switch } from "@pythia/ui";
 import {
   type DataSource,
   type SyncSummary,
   useDataSources,
+  usePauseSource,
   useSyncSource,
 } from "@/client/data-sources";
 import { ListRow, RowsSkeleton } from "./primitives";
@@ -13,20 +14,60 @@ function count(value: number, one: string, many: string) {
   return `${value} ${value === 1 ? one : many}`;
 }
 
-/** What disabling a plugin would take away, before it happens (ADR 0044 A3):
- * the subjects only it supplies leave search and data, and saved ones keep
- * their names. */
-export function effectLine({ sole, saved }: DataSource) {
-  if (!sole.count) return "No subject on this device comes only from it.";
+/** The data concepts a source serves, in the investor's words. */
+const SERVES: Record<string, string> = {
+  market_data: "prices",
+  profile: "profiles",
+  filings: "filings",
+  fundamentals: "financial statements",
+  estimates: "estimates",
+  news: "news",
+  market_movers: "market movers",
+};
+
+function served(serves: string[]) {
+  const names = serves.flatMap((item) => SERVES[item] ?? []);
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+    : (names[0] ?? "");
+}
+
+/** What turning a source off hides, shown beside its switch before it is
+ * turned off (ADR 0044 A3), and once it is off what stays hidden: the
+ * subjects only it supplies leave search and data, saved entries keep their
+ * names, shown as paused, and the prices, filings or news it serves come from
+ * other sources where configured. */
+export function effectLine({ sole, saved, paused, serves }: DataSource) {
+  const data = served(serves);
+  const takeover = "other sources take over where configured";
+  if (!sole.count) {
+    if (data)
+      return paused
+        ? `It is not used for ${data} now; ${takeover}.`
+        : `Turning this off stops its ${data}; ${takeover}.`;
+    return paused
+      ? "Nothing is hidden: no subject on this device comes only from it."
+      : "No subject on this device comes only from it, so turning this off hides none.";
+  }
+  const subjects = count(sole.count, "subject", "subjects");
   const names = saved.sample.map((item) => item.name ?? item.id).join(", ");
   const more = saved.count > saved.sample.length ? ", …" : "";
-  const kept =
-    saved.count === 1
-      ? `, including one on your watchlist or cards (${names}), which keeps its name`
-      : `, including ${saved.count} on your watchlist or cards (${names}${more}), which keep their names`;
-  return `Disabling it takes ${count(sole.count, "subject", "subjects")} only it supplies out of search and data${
-    saved.count ? kept : ""
-  }.`;
+  const items = count(saved.count, "saved item", "saved items");
+  const hidden = paused
+    ? `${subjects} only it supplies ${sole.count === 1 ? "is" : "are"} hidden, and ${
+        saved.count
+          ? `${items} ${saved.count === 1 ? "shows" : "show"} as paused (${names}${more})`
+          : "no saved item is affected"
+      }.`
+    : `Turning this off hides ${subjects}; ${
+        saved.count
+          ? `${items} will show as paused (${names}${more})`
+          : "no saved item will show as paused"
+      }.`;
+  if (!data) return hidden;
+  return `${hidden} ${
+    paused ? `It is not used for ${data} now` : `It also stops its ${data}`
+  }; ${takeover}.`;
 }
 
 export function syncLine(summary: SyncSummary) {
@@ -42,29 +83,42 @@ export function syncLine(summary: SyncSummary) {
 
 function DataSourceRow({ source }: { source: DataSource }) {
   const sync = useSyncSource();
+  const pause = usePauseSource();
   return (
     <ListRow
-      title={source.label}
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          {source.label}
+          {source.paused ? <Badge>Paused</Badge> : null}
+        </span>
+      }
       description={
         <>
-          {effectLine(source)} To disable it, switch it off under Capabilities,
-          Plugins, or run{" "}
-          <code className="break-all text-xs">
-            hermes plugins disable {source.plugin}
-          </code>
+          {effectLine(source)}
+          {source.paused ? " Turn it back on to use it again." : ""}
         </>
       }
       action={
-        source.catalogue ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={sync.isPending}
-            onClick={() => sync.mutate(source.plugin)}
-          >
-            {sync.isPending ? "Syncing…" : "Sync now"}
-          </Button>
-        ) : undefined
+        <div className="flex items-center gap-3">
+          {source.catalogue && !source.paused ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={sync.isPending}
+              onClick={() => sync.mutate(source.plugin)}
+            >
+              {sync.isPending ? "Syncing…" : "Sync now"}
+            </Button>
+          ) : null}
+          <Switch
+            aria-label={`Use ${source.label}`}
+            checked={!source.paused}
+            disabled={pause.isPending}
+            onCheckedChange={(on) =>
+              pause.mutate({ plugin: source.plugin, paused: !on })
+            }
+          />
+        </div>
       }
       below={
         <>
@@ -80,22 +134,27 @@ function DataSourceRow({ source }: { source: DataSource }) {
           {sync.error ? (
             <Alert className="mt-2" tone="error" title={sync.error.message} />
           ) : null}
+          {pause.error ? (
+            <Alert className="mt-2" tone="error" title={pause.error.message} />
+          ) : null}
         </>
       }
     />
   );
 }
 
-/** The enabled plugins that read a catalogue or look identifiers up: each
- * with what disabling it would take away and, for a catalogue, a way to read
- * it now. Hermes enables and disables them. */
+/** Every source Hermes has enabled (a plugin that ships a contract), price,
+ * filings and news sources as much as catalogues: each with a switch that
+ * pauses it at once, what turning it off takes away and, for a catalogue, a
+ * way to read it now. Only a plugin Hermes has not enabled needs Hermes: its
+ * command, then a restart. */
 export function DataSourceSettings() {
   const query = useDataSources();
   return (
     <div data-slot="data-source-settings">
       <p className="m-0 mb-2 text-body text-foreground-secondary leading-ui">
-        Plugins that add subjects or look identifiers up, and what disabling one
-        would take away. Hermes enables and disables them.
+        Plugins that supply prices, filings, news or subjects. Switch one off to
+        pause it at once; its subjects and saved items stay, shown as paused.
       </p>
       {query.isPending ? <RowsSkeleton rows={2} /> : null}
       {query.error ? (
@@ -118,8 +177,15 @@ export function DataSourceSettings() {
       ))}
       {query.data && !query.data.length ? (
         <p className="text-body text-foreground-secondary">
-          No enabled plugin reads a catalogue or looks identifiers up. Enable
-          one with <code>hermes plugins enable &lt;plugin&gt;</code>.
+          No plugin enabled in Hermes supplies data.
+        </p>
+      ) : null}
+      {query.data ? (
+        <p className="mt-4 mb-0 text-body text-foreground-secondary leading-ui">
+          A switch pauses a source at once, with no restart, and turns it back
+          on the same way. A source Hermes has not enabled is not listed: enable
+          it with <code>hermes plugins enable &lt;plugin&gt;</code> and restart
+          Hermes, then it appears here.
         </p>
       ) : null}
     </div>

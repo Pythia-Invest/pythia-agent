@@ -4,13 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { busyRetry } from "./busy-retry";
 import { useDeskApi } from "./providers";
+import { deskKeys } from "./query-cache";
 
 /*
- * Core's data sources: `identity-plugin-effect` lists each enabled plugin that
- * reads a catalogue or looks identifiers up, with what disabling it would
- * take away (ADR 0044 A3); `identity-sync` reads one
- * plugin's catalogue into the device's identity store when the user asks.
- * Enabling and disabling stay Hermes's own command.
+ * Core's data sources: `identity-plugin-effect` lists each plugin Hermes has
+ * enabled that ships a contract, with what it serves, whether
+ * the investor paused it, and what pausing it hides (ADR 0044 A3);
+ * `identity-sync` reads one plugin's catalogue into the device's identity store
+ * when the user asks. Pausing is Pythia's own switch, kept in its settings and
+ * applied at once; enabling a plugin Hermes does not run stays Hermes's command.
  */
 
 const text = z.string().min(1);
@@ -21,6 +23,11 @@ export const dataSourceSchema = z.object({
   label: text,
   catalogue: z.boolean(),
   resolve: z.boolean(),
+  /** The data concepts it serves (`market_data`, `filings`, `news` ...). */
+  serves: z.array(z.string()).default([]),
+  /** The investor turned it off here: its data is out of selection, search,
+   * pages and ingest, and its subjects and saved entries keep their names. */
+  paused: z.boolean().default(false),
   /** The device subjects only this plugin supplies. */
   sole: z.object({ count: z.number().int(), sample: z.array(sample) }),
   /** The saved watchlist and card entries that name them. */
@@ -96,6 +103,20 @@ export function useSyncSource() {
           queryKey: ["plugin", SUBJECT_PLUGIN, "identity-subject"],
         }),
       ]),
+    retry: false,
+  });
+}
+
+/** Pauses or resumes one source in Pythia's own settings. Core reads the
+ * setting on every use, so nothing restarts: every plugin read (search,
+ * pages, prices, lists) is asked again. */
+export function usePauseSource() {
+  const api = useDeskApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (change: { plugin: string; paused: boolean }) =>
+      api.setPluginPaused(change.plugin, change.paused),
+    onSettled: () => client.invalidateQueries({ queryKey: deskKeys.plugins }),
     retry: false,
   });
 }

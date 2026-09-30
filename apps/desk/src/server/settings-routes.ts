@@ -104,6 +104,19 @@ export function createSettingsRoutes(settings: DeviceSettingsService) {
         return routeError(error);
       }
     },
+    async setPluginPaused(request: Request, context: RouteContext) {
+      const rejection = admitBrowserRequest(request, "mutation");
+      if (rejection) return rejection;
+      try {
+        const name = identifier((await context.params).name, "plugin name");
+        const body = await readBody(request);
+        return result(
+          await settings.setPluginPaused(name, booleanField(body, "paused")),
+        );
+      } catch (error) {
+        return routeError(error);
+      }
+    },
     async setToolsetEnabled(request: Request, context: RouteContext) {
       const rejection = admitBrowserRequest(request, "mutation");
       if (rejection) return rejection;

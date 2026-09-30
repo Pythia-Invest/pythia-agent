@@ -357,9 +357,11 @@ Today:
   search finds them, and a saved reference keeps resolving while its plugin
   is off or after it stops offering the subject, naming its source;
 - a catalogue is read, or one identifier looked up, only when the user asks,
-  from Settings or search; disabling a plugin is Hermes's command, and
-  Settings shows first which subjects only it supplies and which saved
-  entries name them;
+  from Settings or search; Settings has a switch per source that pauses it at
+  once, without a restart, and shows first which subjects only it supplies and
+  which saved entries name them; a paused source counts as disabled for data,
+  and its subjects and saved references keep resolving, labelled as paused;
+  enabling a plugin stays Hermes's command;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
   the ones it includes, and a device can remove its installed package;

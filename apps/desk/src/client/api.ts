@@ -31,6 +31,7 @@ import type {
 import type {
   DeviceSettingsSnapshot,
   DeviceSkill,
+  PluginPause,
 } from "@/server/device-settings";
 import type { HermesToolset, WidgetPresentation } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
@@ -241,6 +242,13 @@ export class DeskApi extends BrowserRequest {
         { body: JSON.stringify({ enabled }), method: "POST" },
       )
     ).toolset;
+  }
+
+  async setPluginPaused(name: string, paused: boolean) {
+    return this.json<PluginPause>(
+      `/api/settings/plugins/${encodeURIComponent(name)}`,
+      { body: JSON.stringify({ paused }), method: "POST" },
+    );
   }
 
   async createSession(title?: string) {

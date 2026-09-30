@@ -202,9 +202,12 @@ when that changes.
   back strictly. `hermes config set skills.creation_nudge_interval 10`,
   `hermes config set skills.write_approval false` and `hermes config set
   curator.enabled true` turn it back on.
-- **A data source is turned off by disabling its plugin** (`hermes plugins
-  disable <plugin>`). That stops Desk pages, the core tools and its provider tools
-  alike. Desk's "Desk tools" panel does not offer Pythia's own toolsets.
+- **A data source is turned off by pausing it in Settings → Data → Data sources, or by
+  disabling its plugin** (`hermes plugins disable <plugin>`). Either stops Desk
+  pages, the core tools and its provider tools alike. A paused plugin's provider
+  tool answers `paused`, naming the switch, where a disabled one answers that it
+  is unavailable; neither runs. Desk's "Desk tools" panel does not offer Pythia's
+  own toolsets.
 
 ## Checks
 

@@ -376,9 +376,14 @@ central curator exists.
 - **Sources are read only when asked.** A catalogue is read from Settings →
   Data sources ("Sync now"), and one identifier is looked up from search's
   "Look up in X". There is no scheduler.
-- **Disabling a plugin is Hermes's command.** Settings → Data → Data sources shows
-  first which subjects only that plugin supplies and which saved watchlist and
-  card entries name them.
+- **A source switches off at once, from Settings.** Settings → Data → Data sources
+  has a switch per source that pauses it: a paused plugin counts as disabled
+  for data, with no restart, and its subjects and saved references keep
+  resolving, labelled as paused. The section shows first which subjects only
+  that source supplies and which saved watchlist and card entries name them.
+  Enabling a plugin Hermes does not run, and disabling one for good, stay
+  Hermes's commands ([ADR 0037](0037-identity-backbone.md), amendment
+  "pausing a plugin").
 - **Installing a plugin means trusting it.** There are no trust levels: every
   enabled plugin is equal, binds onto reference or device subjects, and
   contributes evidence that counts like the package's (amendment of

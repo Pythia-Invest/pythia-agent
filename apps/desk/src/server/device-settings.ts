@@ -19,7 +19,7 @@ import {
   sleep,
   withFileLock,
 } from "./device-settings-native";
-import { resolveConfigRoot } from "./device-settings-store";
+import { resolveConfigRoot, setPausedPlugin } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
 import {
@@ -28,7 +28,7 @@ import {
 } from "./model-initialization";
 
 // Pythia's own toolsets are not agent choices: core shows `pythia-desk` and keeps every plugin operation in
-// hidden `pythia-core`. A data source is turned off by disabling its plugin (docs/architecture/agent-tools.md).
+// hidden `pythia-core`. A data source is turned off by pausing it, or disabling its plugin (docs/architecture/agent-tools.md).
 const PYTHIA_TOOLSETS = new Set(["pythia-core", "pythia-desk"]);
 const TERMINAL_RUN = new Set([
   "completed",
@@ -45,6 +45,7 @@ export {
   type DeviceSettingsService,
   type DeviceSettingsSnapshot,
   type DeviceSkill,
+  type PluginPause,
   type Readiness,
   type ServiceReadiness,
 } from "./device-settings-contract";
@@ -338,7 +339,7 @@ export function createDeviceSettingsService(
       const name = safeIdentifier(rawName, "toolset name");
       if (PYTHIA_TOOLSETS.has(name)) {
         throw new DeviceSettingsError(
-          "Pythia's own tools are not switched here; disable a data source's plugin instead.",
+          "Pythia's own tools are not switched here; pause a data source in Data sources instead.",
           409,
           "pythia_toolset",
         );
@@ -364,6 +365,15 @@ export function createDeviceSettingsService(
         ]);
         await restartHermes();
         return waitForToolset(name, enabled);
+      });
+    },
+
+    async setPluginPaused(rawName, paused) {
+      const plugin = safeIdentifier(rawName, "plugin name");
+      const file = join(resolveConfigRoot(environment), "settings.json");
+      return withFileLock(capabilityMutationLock(environment), async () => {
+        setPausedPlugin(file, plugin, paused);
+        return { plugin, paused };
       });
     },
   };

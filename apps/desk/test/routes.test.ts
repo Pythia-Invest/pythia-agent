@@ -92,6 +92,10 @@ function fakeSettings() {
       configured: true,
       tools: [],
     })),
+    setPluginPaused: vi.fn(async (plugin: string, paused: boolean) => ({
+      plugin,
+      paused,
+    })),
   } satisfies DeviceSettingsService;
 }
 
@@ -372,6 +376,22 @@ describe("Desk routes", () => {
     expect(settings.setToolsetEnabled).toHaveBeenCalledWith("example", true);
   });
 
+  it("pauses a data source from an admitted request and refuses a malformed one", async () => {
+    const settings = fakeSettings();
+    const routes = createDeskRoutes(fakeClient(), settings);
+    const pause = (body: unknown) =>
+      routes.setPluginPaused(
+        mutation("/api/settings/plugins/example", body, "T".repeat(43)),
+        { params: Promise.resolve({ name: "example" }) },
+      );
+    const response = await pause({ paused: true });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ plugin: "example", paused: true });
+    expect(settings.setPluginPaused).toHaveBeenCalledWith("example", true);
+    expect((await pause({ paused: "yes" })).status).toBe(400);
+    expect(settings.setPluginPaused).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["read", "work", "/api/sessions/s-1/work", "client.listMessages"],
     ["read", "modelOptions", "/api/models", "client.modelOptions"],
@@ -390,6 +410,12 @@ describe("Desk routes", () => {
       "setSkillEnabled",
       "/api/settings/skills/x",
       "settings.setSkillEnabled",
+    ],
+    [
+      "mutation",
+      "setPluginPaused",
+      "/api/settings/plugins/x",
+      "settings.setPluginPaused",
     ],
     ["mutation", "startUpdate", "/api/update-status", "releases.start"],
   ] as const)(

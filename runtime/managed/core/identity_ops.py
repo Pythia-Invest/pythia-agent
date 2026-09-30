@@ -338,12 +338,11 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
 
 
 def installed() -> list[page.PluginInfo]:
-    """Every installed plugin with a valid contract.json: its native enablement and configuration.
+    """Every installed plugin with a valid contract.json: its enablement, pause and configuration.
 
     A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
-    from .platform import configuration, harness
-    from .platform.access import native_plugin_enabled
+    from .platform import access, configuration, harness
     config, loaded = load_config_readonly(), []
     for key, plugin in harness.plugins().items():
         directory = Path(plugin.manifest.path) if plugin.manifest.path else None
@@ -359,7 +358,8 @@ def installed() -> list[page.PluginInfo]:
             continue
         loaded.append((key, plugin, directory, manifest))
     tools = native_operations({key for key, *_ in loaded})
-    return [page.PluginInfo(key=key, manifest=manifest, enabled=native_plugin_enabled(key, plugin, config),
+    return [page.PluginInfo(key=key, manifest=manifest, enabled=access.plugin_active(key, plugin, config),
+                            paused=access.plugin_paused(key, plugin, config),  # a paused plugin counts as disabled
                             missing=tuple(configuration.missing_at(directory)),
                             operations={name: tool for name, tool in tools.get(key, {}).items()
                                         if name in manifest.plugin_operations})

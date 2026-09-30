@@ -70,6 +70,24 @@ class PluginConfiguration(unittest.TestCase):
         self.store('secrets.json', {'example_api_token': 'two words'})
         self.assertEqual(configuration.value(self.ctx, 'example_api_token'), ('invalid', None))
 
+    def test_the_paused_plugins_are_read_fresh_from_a_private_settings_file_and_nothing_else_pauses(self):
+        self.assertEqual(configuration.paused_plugins(), frozenset())
+        settings = self.store('settings.json', {configuration.PAUSED: ['pythia-openfigi', 'pythia-sec']})
+        self.assertEqual(configuration.paused_plugins(), {'pythia-openfigi', 'pythia-sec'})
+        replacement = self.config / '.settings.tmp'  # a writer renames a new file into place: the next call sees it
+        replacement.write_text(json.dumps({'schema_version': 1, configuration.PAUSED: ['pythia-sec']}))
+        replacement.chmod(0o600)
+        os.replace(replacement, settings)
+        self.assertEqual(configuration.paused_plugins(), {'pythia-sec'})
+        for value in ('pythia-sec', ['pythia-sec', 7], {'pythia-sec': True}, None):
+            with self.subTest(value=value):
+                self.store('settings.json', {configuration.PAUSED: value})
+                self.assertEqual(configuration.paused_plugins(), frozenset())
+        self.store('settings.json', {configuration.PAUSED: ['pythia-sec']}, mode=0o644)  # loosened: never read
+        self.assertEqual(configuration.paused_plugins(), frozenset())
+        with self.assertRaises(ValueError):  # a plugin cannot declare or read the field
+            configuration.parse({'schema_version': 1, 'fields': [{**TOKEN, 'key': configuration.PAUSED}]})
+
     def test_unsafe_stores_read_as_invalid(self):
         target = self.store('elsewhere.json', {'example_api_token': 'synthetic-token'})
         (self.config / 'secrets.json').symlink_to(target)

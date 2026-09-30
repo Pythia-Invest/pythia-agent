@@ -330,6 +330,14 @@ class ProviderToolTest(AgentToolFixture):
         self.assertIn("disabled", disabled["issues"][0]["message"])
         self.assertEqual(self.ctx.calls, [])
 
+    def test_e2_a_paused_source_refuses_with_the_investors_switch_as_the_reason(self):
+        self.plugins["gleif"] = self.contract("gleif", enabled=False, paused=True)
+        self.eligible.discard("pythia_gleif_profile")  # as `eligible_tools` leaves it: a paused plugin is not active
+        paused = self.call("gleif_legal_entity", subject_id=ASML)
+        self.assertEqual(paused["issues"][0]["code"], "paused")
+        self.assertIn("paused in Settings", paused["issues"][0]["message"])
+        self.assertEqual(self.ctx.calls, [])
+
     def test_f_an_operation_not_declared_read_only_never_runs(self):
         comment = json.loads(self.schemas["pythia_sec_facts"]["parameters"]["$comment"])
         del comment["pythia_http_operation"]["read_only"]  # a hand-written marker that omits the key

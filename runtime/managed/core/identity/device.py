@@ -212,7 +212,7 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, 
     security the build holds), or the ones the user chose (`parents`, `build_questions`); a security is priced through
     its first device listing. Its identifiers are the `self` assertions on it and its parents, the device's weighed as
     `merge` does, with the reference's. `contributors` names the plugins that introduced it or state anything about
-    it, each `enabled`, `disabled` or `removed`, and `introduced_by` the one that introduced it."""
+    it, each `enabled`, `paused`, `disabled` or `removed`, and `introduced_by` the one that introduced it."""
     subject_id = current_id(ref, store, subject_id)
     row = subject_row(store, subject_id)
     if row is None:
@@ -388,6 +388,6 @@ def _contributors(store: IdentityStore, subject_ids: list[str], introducer: str 
         "SELECT plugin, MIN(state = 'not_seen'), MAX(last_seen) FROM claims WHERE subject_id IN (SELECT value FROM"
         " json_each(?)) GROUP BY plugin", (marks,))}
     return [{"plugin": name, "label": infos[name].label if name in infos else name,
-             "status": "removed" if name not in infos else "enabled" if infos[name].enabled else "disabled",
+             "status": "removed" if name not in infos else "enabled" if infos[name].enabled else "paused" if infos[name].paused else "disabled",
              "stated": stated.get(name, []), "introduced": name == introducer, "not_offered_since": placed.get(name)}
             for name in dict.fromkeys([*([introducer] if introducer else []), *sorted({*stated, *placed})])]
