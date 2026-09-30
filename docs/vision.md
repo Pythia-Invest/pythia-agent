@@ -467,7 +467,11 @@ build. The approach that follows:
   comes through `pythia_identity_questions`
   ([the agent's tools](architecture/agent-tools.md)).
 - **Saved interpretations are suggestions.** An agent's answer to an identity
-  question is a suggestion the user confirms. A saved interpretation keeps its
+  question is a suggestion the user confirms. One narrow exception is decided
+  and not yet built: a verdict of a calibrated question type, at or above its
+  threshold, will apply for read-only use, labelled and undoable, while
+  everything else stays a suggestion
+  ([ADR 0044](decisions/decisions/0044-product-direction.md#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)). A saved interpretation keeps its
   evidence, scope and dependencies, and becomes stale when they change. Saving
   it makes it repeatable, not correct: whether it may be used by a
   consequential operation depends on its evidence and that operation's
@@ -538,7 +542,7 @@ through services that are shared and cost money to operate:
   prebuilt reference snapshot, sufficient to use Pythia fully.
 - **Pythia Data (optional):**
   - frequent reference updates;
-  - a maintained answer list and corrections as they land;
+  - maintained plugin rules and corrections as they land;
   - deep datasets built from open sources, such as fundamentals as first
     reported with their filing dates, a filings index and institutional
     holdings.
@@ -570,8 +574,11 @@ and their providers.
 - identity, evidence and choices are handled separately;
 - consequential operations require validated facts and pinned choices, while
   recording uncertainty is allowed;
-- an agent's identity answer is a suggestion the user confirms, and never
-  counts as a validated fact until confirmed;
+- an agent's identity answer is a suggestion the user confirms and never
+  counts as a validated fact until confirmed, except that a calibrated verdict
+  will apply for read-only use, labelled and undoable (decided, not built);
+- plugins fix and complete their own source's data, and the device agent
+  judges what no source states;
 - introducing a subject confers no authority over it, and the absence of other
   plugins never increases a plugin's authority.
 
@@ -580,7 +587,7 @@ and their providers.
 - which reference sources get direct and prebuilt forms;
 - the exact rules that weigh kinds of evidence;
 - keeping claims with dates of validity and of learning (bitemporal claims);
-- learned source reliability and answer lists beyond Pythia's own;
+- learned source reliability and any shared answer list;
 - the content and pricing of optional paid services.
 
 ## Roadmap

@@ -197,8 +197,9 @@ The code gate maps onto them without a new field: `unsigned` is display, and
 As direction, the statement above that the builder's reference sources are
 not plugins is reversed: reference sources contribute through the same
 contract as any plugin, and trust attaches to a signed or hashed release
-rather than to a plugin's name. Reviewed answers over open data may ship as a
-Pythia-maintained answer list (ADR 0044, amendment A7). Gold labels on licensed
+rather than to a plugin's name. Reviewed answers over open data could ship as a
+Pythia-maintained answer list (ADR 0044, amendment A7, superseded for now by its
+amendment of 2026-09-30). Gold labels on licensed
 data and raw model exchanges stay on the device. Further source audits are paused until a
 strategy's universe or a second user needs them.
 

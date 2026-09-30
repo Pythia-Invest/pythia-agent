@@ -438,6 +438,28 @@ A correction follows its subject when a release or a better key re-keys it, so
 the correction: `pythia_instrument`'s `provenance` has `plugin = 'user'` and the
 correction's `id`.
 
+## How open questions get resolved (decided, not built)
+
+Today an open question stays open until the investor answers it, and the page
+shows an open data conflict linked to its repair where the held-back fact would
+be. The direction for resolving the rest is decided in
+[ADR 0044](../decisions/0044-product-direction.md#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest) and none of it is built yet, so every
+query above still describes what the stores hold:
+
+- **The plugin that owns the data fixes it.** A misread is a plugin bug, a known
+  error in a source becomes a labelled correction inside that source's plugin
+  with the original value kept visible and the error reported to the source, and
+  a missing fact is fixed by the plugin stating more. One plugin never patches
+  another's data.
+- **The device agent judges what is left, one question type at a time,** each
+  with a prompt, a gold set and a calibrated threshold. A verdict at or above the
+  threshold will apply for read-only use (search, pages, research), labelled and
+  undoable in one click, and cite its evidence. Below the threshold, or for
+  anything that touches real money, it stays a suggestion the investor confirms.
+  The verdict ledger will record the facts each decision used.
+- **Repeated decisions become plugin rules,** and opt-in reports carrying
+  identifiers and reasoning, never positions, go to the plugin's maintainer.
+
 ## What is not stored
 
 Some explanations are computed or implicit, and the stores do not record them:
