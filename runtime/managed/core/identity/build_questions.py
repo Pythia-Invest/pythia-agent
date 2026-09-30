@@ -6,8 +6,10 @@ uses it (`queue_ops.surface`). Each is asked once, and a new release supersedes 
 is an instrument's home is a choice (A5), even from an older package; a question with no candidate, whose only
 answer is "None of these" while the page already says the fact is unknown; and a malformed one.
 
-Core asks two more kinds when a subject is touched (`conflicts`): a fact confirm-level evidence contests, and a
-user's answer the installed release contradicts. They are tagged and answered like the build's.
+Core asks two more kinds when a subject is touched (`conflicts`), a subject only the device holds included: a fact
+confirm-level evidence contests (or one plugin states twice), and a user's answer the installed release contradicts.
+They are tagged and answered like the build's: `reference` first, then the plugins whose statements they are about
+(`label`), and `load_device` reads a device subject with the answers applied.
 
 An answer takes the question's one relation. The agent's answer is a suggestion that leaves the question open.
 The user's answer resolves it with a `user_attested` verdict, unless unanimous confirm-level identifier evidence
@@ -25,9 +27,9 @@ import uuid
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
-from . import device, reference_package
+from . import device, device_parents, reference_package
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
@@ -54,9 +56,16 @@ _UNREADABLE: set[str] = set()  # packages whose claims file could not be read, w
 
 
 def is_build(row: dict) -> bool:
-    """A reference build question: the tag, and no provider record (SQL: `plugins = '["reference"]' AND
-    provider_ref IS NULL`). No plugin can take the tag: `reference` is a reserved plugin name (`manifest`)."""
-    return row["plugins"] == [BUILD] and not row["provider_ref"]
+    """A question core asks from evidence, not from a provider's record: the tag first, then the plugins whose
+    statements it is about (SQL: `json_extract(plugins, '$[0]') = 'reference' AND provider_ref IS NULL`). No plugin
+    can take the tag: `reference` is a reserved plugin name (`manifest`)."""
+    return row["plugins"][:1] == [BUILD] and not row["provider_ref"]
+
+
+def label(item: dict, labels: Mapping[str, str] = {}) -> str:
+    """The source Repairs shows: the plugins whose statements a question core asked is about, else the build."""
+    names = [labels.get(name, name) for name in item["plugins"][1:]]
+    return " and ".join(names) if names else LABEL
 
 
 def asked(item: dict) -> tuple[str, VerdictRelation] | None:
@@ -68,8 +77,10 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     scheme = (item.get("scheme") or "").upper().replace("_", " ")
     values = ", ".join(f"{scheme} {value}".strip() for value in item.get("values") or ())
     own, candidates = own_identifier(item), item.get("candidate_ids") or ()
-    if own:
-        relation = SAME[own]
+    registrant = item["subject_ids"][0].startswith("issuer:cik:") and scheme == "LEI"  # asked which LEI it holds
+    named = own or (Level.SECURITY if device_parents.level(item) is Level.SECURITY else None)  # a line's ISIN: its security
+    if named:
+        relation = SAME[named]
     elif item["reason"] == "binding" and candidates and subject_kind(candidates[0]) == "issuer":
         relation = VerdictRelation.SAME_ISSUER
     fact = f"its {scheme}" if own else "which security this depositary receipt represents" \
@@ -78,8 +89,9 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
         return ("The installed reference data now gives this company its own LEI or CIK, which rules out the company "
                 "you matched it to. Your match stays applied until you answer that it is its own company.", relation)
     text = {
-        "identifier": (f"Which {scheme} is this? " if own and not issuer else
-                       "Which company is this? " if issuer else "Who issued this security? ")
+        "identifier": _registrant_link(item, values) if registrant and values else
+        (f"Which {scheme} is this? " if named and not issuer else
+         "Which company is this? " if issuer else "Who issued this security? ")
         + (f"Its sources name {values}, which does not decide it." if values else "Its sources do not decide it."),
         "binding": f"Your answer and the installed reference data now disagree about {fact}"
                    + (f" ({values})" if values else "") + ". Which is it?",
@@ -89,6 +101,18 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
                     "underlying: which is it?",
     }[item["reason"]]
     return text, relation
+
+
+def _registrant_link(item: dict, values: str) -> str:
+    """The question of a CIK-only SEC registrant whose identifier links do not decide its LEI (the builder's `_decide`):
+    several LEIs claim the CIK, or one LEI is claimed by several registrants whose names match. It names the
+    registrant and what it is tied to, so two such questions about one LEI read differently."""
+    cik = item["subject_ids"][0].split(":")[2]
+    if len(item.get("values") or ()) > 1:
+        return (f"Which company is this? CIK {cik} is tied to more than one LEI ({values}), "
+                "and nothing decides which is its own.")
+    return (f"Which company is this? CIK {cik} and at least one other SEC registrant are tied to {values}, "
+            "and their names do not settle which of them it belongs to.")
 
 
 def about(path: Path, subject_ids: Iterable[str]) -> list[QueueItem]:
@@ -137,7 +161,7 @@ def reopen(store, item_id: str, now: str, path: Path | None) -> bool:
         store.put_queue_item(replace(latest, id=_row_id(), opened_at=now) if latest else QueueItem(
             id=_row_id(), kind=row["kind"], reason=row["reason"], subject_ids=row["subject_ids"],
             candidate_ids=row["candidate_ids"], evidence_ids=row["evidence_ids"], state="open", opened_at=now,
-            plugins=(BUILD,), scheme=row["scheme"], values=row["values"]))
+            plugins=tuple(row["plugins"]), scheme=row["scheme"], values=row["values"]))
     return True
 
 
@@ -172,32 +196,49 @@ def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
 def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None, store,
                  plugins: Iterable = ()) -> dict[str, Any] | None:
     """The reference subject (`subject.load_subject`) with the device's evidence about it, at the `plugins`' levels
-    (`device.merge`), and the user's answers about its listing, security or issuer applied. An answer stays applied
-    where the installed release, at confirm level, states another value for the same fact; `contradicted` lists those
-    for `conflicts` to ask about."""
+    (`device.merge`), and the user's answers about its listing, security or issuer applied (`answered`)."""
     subject = load_reference_subject(ref, subject_id, listing_id)
     if subject is None:
         return None
     device.merge(ref, store, subject, plugins)
+    return answered(ref, store, subject)
+
+
+def load_device(ref: sqlite3.Connection | None, store, subject_id: str, plugins: Iterable = ()) -> dict[str, Any] | None:
+    """A subject only the device holds (`device.load`, through its device aliases) with the user's answers about it
+    applied, the same local override as a reference subject's, read under the parent the user chose for it."""
+    subject_id = device.current_id(ref, store, subject_id)
+    subject = device.load(ref, store, subject_id, plugins, device_parents.chosen(store, subject_id, BUILD))
+    return answered(ref, store, subject, held=True) if subject else None
+
+
+def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, held: bool = False) -> dict[str, Any]:
+    """Apply the user's resolved answers about the subject's family to it. An answer stays applied where the installed
+    release, at confirm level, states another value for the same fact; `contradicted` lists those for `conflicts` to ask
+    about. With no reference, only an answer that gives a value applies: the others name reference subjects. `held`: a
+    subject only the device holds, which `load_device` read under the parents the user chose."""
     subject["contradicted"] = []
     ids = [value for value in subject["ids"].values() if value]
     rows = store.select(
         "SELECT q.reason, q.subject_ids, q.scheme, q.contested_values, v.id, v.relation, v.chosen_id FROM queue q"
-        " JOIN verdicts v ON v.id = q.resolved_by WHERE q.plugins = ? AND q.provider_ref IS NULL"
+        " JOIN verdicts v ON v.id = q.resolved_by WHERE json_extract(q.plugins, '$[0]') = ? AND q.provider_ref IS NULL"
         " AND q.state = 'resolved' AND v.resolver = 'user' AND EXISTS"
         " (SELECT 1 FROM (SELECT value FROM json_each(q.subject_ids) UNION ALL SELECT value FROM"
         " json_each(q.candidate_ids)) WHERE value IN (SELECT value FROM json_each(?)))",
-        (json.dumps([BUILD]), json.dumps(ids)))
+        (BUILD, json.dumps(ids)))
     for reason, questions, scheme, values, verdict, relation, chosen in sorted(
             rows, key=lambda row: subject_kind(json.loads(row[1])[0]) == "issuer"):  # a security's answer first
         question = json.loads(questions)[0]
         answer = {"question": question, "reason": reason, "scheme": scheme, "verdict": verdict, "chosen": chosen}
-        if relation == VerdictRelation.SAME_ISSUER:
+        if ref is not None and relation == VerdictRelation.SAME_ISSUER:
             _issuer(ref, subject, answer)
-        elif relation == VerdictRelation.DEPOSITARY_RECEIPT_OF:
+        elif ref is not None and relation == VerdictRelation.DEPOSITARY_RECEIPT_OF:
             _receipt(ref, subject, answer)
-        if own_identifier({"reason": reason, "scheme": scheme, "subject_ids": [question]}):
+        shape = {"reason": reason, "scheme": scheme, "subject_ids": [question]}
+        if own_identifier(shape):
             _value(subject, answer, json.loads(values))
+        elif held and device_parents.level(shape):
+            device_parents.apply(subject, answer, json.loads(values))
     weighing.show(subject)
     return subject
 
@@ -207,9 +248,10 @@ def replace_answer(store, row: dict, relation: str, now: str) -> None:
     relation), which is superseded and kept as history. Called inside the answer's transaction."""
     store.db.execute(
         "UPDATE queue SET state = 'superseded', updated_at = ? WHERE id IN (SELECT q.id FROM queue q JOIN verdicts v"
-        " ON v.id = q.resolved_by WHERE q.plugins = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND q.id <> ?"
-        " AND json_extract(q.subject_ids, '$[0]') = ? AND q.scheme IS ? AND v.relation = ?)",
-        (now, json.dumps([BUILD]), row["id"], row["subject_ids"][0], row["scheme"], relation))
+        " ON v.id = q.resolved_by WHERE json_extract(q.plugins, '$[0]') = ? AND q.provider_ref IS NULL"
+        " AND q.state = 'resolved' AND q.id <> ? AND json_extract(q.subject_ids, '$[0]') = ? AND q.scheme IS ?"
+        " AND v.relation = ?)",
+        (now, BUILD, row["id"], row["subject_ids"][0], row["scheme"], relation))
 
 
 def _index(items: list[dict]) -> dict[str, list[QueueItem]]:
@@ -257,7 +299,8 @@ def _unasked(store, items: Iterable[QueueItem]) -> list[QueueItem]:
 def _contradicted(subject: dict, answer: dict, release: str | None, values: tuple[str, ...] = ()) -> None:
     """Note an answer the installed release contradicts: at confirm level it names the subject `release` for the
     same fact (with `values`, the answer's value and the release's)."""
-    if release is not None and release != answer["chosen"] and subject["trust"] == weighing.CONFIRM:
+    confirmed = subject.get("trust", weighing.CONFIRM) == weighing.CONFIRM  # a device subject has no package level
+    if release is not None and release != answer["chosen"] and confirmed:
         subject["contradicted"].append({**answer, "release": release, "values": list(values)})
 
 
@@ -310,7 +353,8 @@ def _value(subject: dict, answer: dict, values: list[str]) -> None:
     value = next((value for value in values if subject_id(level, {scheme: value}) == answer["chosen"]), None)
     if value is None:
         return
-    release = subject["values"].get(scheme)  # the one value the release's evidence agrees on, if any
+    stated = {item.value for item in subject["evidence"] if str(item.scheme) == scheme}
+    release = next(iter(stated)) if len(stated) == 1 else None  # the one value the evidence agrees on, if any
     if release not in (None, value):
         _contradicted(subject, answer, subject_id(level, {scheme: release}), (value, release))
     subject["values"][scheme] = value

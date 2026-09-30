@@ -34,6 +34,7 @@ import { InstrumentHeader, InstrumentPageSkeleton } from "./instrument-header";
 import { FilingsRead } from "./filings-view";
 import { LiveMarketView } from "./live-view";
 import {
+  NoDataNote,
   SectionFailure,
   SectionLoading,
   SectionPlaceholder,
@@ -158,10 +159,7 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
         ))}
       </div>
       {view.sections.length === 0 ? (
-        <p className="text-body text-foreground-secondary">
-          No installed plugin can show data for this{" "}
-          {view.subject.level.replaceAll("_", " ")} yet.
-        </p>
+        <NoDataNote level={view.subject.level} />
       ) : null}
     </article>
   );
