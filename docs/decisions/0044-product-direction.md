@@ -393,7 +393,10 @@ central curator exists.
   contradicting itself), are asked when an instrument is opened, watched or
   used by the agent, and the user's answer is a local override
   ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
-  "questions and overrides for plugin-introduced subjects").
+  "questions and overrides for plugin-introduced subjects"). While a question
+  is open, the page shows an open data conflict linked to its repair where the
+  fact it holds back would be, never a blank (amendment "open data conflicts on
+  the page").
 - **The investor can correct the catalogue.** From an instrument's page they
   set or remove an identifier and pin the source that prices a line or
   security; the agent can only propose the same, and the investor confirms it
