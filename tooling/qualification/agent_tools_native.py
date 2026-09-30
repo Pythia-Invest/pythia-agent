@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 
 CORE = ["pythia_answer_identity_question", "pythia_desk_view", "pythia_document", "pythia_filings", "pythia_find",
-        "pythia_identity_questions", "pythia_instrument", "pythia_prices"]
+        "pythia_identity_questions", "pythia_instrument", "pythia_prices", "pythia_propose_identity_correction"]
 PROVIDERS = {"sec_company_facts", "sec_fundamentals", "esef_fundamentals", "esef_company_facts", "gleif_legal_entity",
              "eodhd_news", "eodhd_fundamentals", "yahoo_finance", "coinmarketcap_coin_info", "openfigi_identifiers",
              "hyperliquid_live_market"}

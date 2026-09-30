@@ -16,7 +16,8 @@ The user's answer resolves it with a `user_attested` verdict, unless unanimous i
 (`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an
 issuer answer gives the security that issuer, a receipt answer adds a `related` entry, and an answer to a contested
 identifier gives the subject that value. It stays applied until the user reopens the question (`reopen`) or answers a
-later conflict about the same fact (`replace_answer`).
+later conflict about the same fact (`replace_answer`). The user's direct corrections (`corrections`) are applied last,
+above these answers.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import device, device_parents, reference_package
+from . import corrections, device, device_parents, reference_package
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
@@ -239,6 +240,7 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
             _value(subject, answer, json.loads(values))
         elif held and device_parents.level(shape):
             device_parents.apply(subject, answer, json.loads(values))
+    corrections.apply(store, subject)  # the investor's own corrections have the last word (`corrections`)
     weighing.show(subject)
     return subject
 

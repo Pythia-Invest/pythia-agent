@@ -2,9 +2,9 @@
 
 A release never rewrites a saved ID: it records each re-key in `id_aliases`, and a device subject's better key is a
 `device_aliases` row (`device`). On first use of a release, `rekey` re-points every row of identity.sqlite3 that
-names a subject (bindings, queue items, verdicts, resolve misses, read checks, and the device subjects with their
-parents, assertions, relations and placed claims) through those chains, once, in one transaction recorded against
-the release ID; after writing device aliases, core runs it `again` (with no release installed, for device aliases
+names a subject (bindings, queue items, verdicts, resolve misses, read checks, the investor's corrections, and the
+device subjects with their parents, assertions, relations and placed claims) through those chains, once, in one
+transaction recorded against the release ID; after writing device aliases, core runs it `again` (with no release installed, for device aliases
 alone). Each step also follows the provisional IDs contracts alias to the subjects they address
 (`declared.aliases`), so a row saved under a coin plugin's provisional ID follows its curated asset although the
 package names no provider. A new release that holds a device subject under another ID (a line a plugin introduced,
@@ -20,7 +20,7 @@ from collections import defaultdict
 from dataclasses import replace
 from typing import Callable, Mapping
 
-from . import device
+from . import corrections, device
 from .model import ProviderRef
 from .subject import _assertion, load_subject
 from .resolution import question_key
@@ -74,6 +74,7 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *,
             (subject, item["evidence_ids"]) for item in queue for subject in item["subject_ids"] + item["candidate_ids"]],
             moved) if ref is not None else {}
         evidence.update(device.repoint(store, moved))
+        corrections.repoint(store, moved)
         retag = lambda ids: [evidence.get(value, value) for value in ids]  # noqa: E731
         changed = 0
         for row in bindings:

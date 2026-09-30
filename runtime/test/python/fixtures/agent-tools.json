@@ -517,6 +517,38 @@
     }
   },
   {
+    "name": "pythia_propose_identity_correction",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["identifier", "price_source"]
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 370
+        },
+        "scheme": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 400
+        }
+      },
+      "required": ["kind", "subject_id"],
+      "additionalProperties": false
+    },
+    "description": "Propose a fix to an identifier or price source. The investor confirms it in Repairs; nothing changes until then. identifier: `value` for `scheme` on the subject at that scheme's level (isin on the security, lei or cik on the issuer, figi on the listing); empty removes it. price_source: `value` is the source. Say why in `note`."
+  },
+  {
     "name": "sec_company_facts",
     "description": "Reported financial facts (revenue, net income) from SEC. Named XBRL concepts of one taxonomy (us-gaap, ifrs-full, dei, srt) for a US-listed or foreign SEC filer, such as Revenues, NetIncomeLoss or Assets, keeping periods, filing revisions and units. Use sec_fundamentals for the standard annual set; pythia_filings lists the filings.",
     "parameters": {

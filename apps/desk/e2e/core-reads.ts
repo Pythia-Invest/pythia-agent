@@ -10,6 +10,7 @@ const EMPTY: Record<string, Record<string, unknown>> = {
   },
   "market-movers": { outcome: "empty", data: null },
   "identity-queue": { outcome: "empty", data: { items: [] } },
+  "identity-corrections": { outcome: "ok", data: { items: [] } },
   "reference-status": {
     outcome: "empty",
     data: { installed: null, refused: null },

@@ -64,9 +64,10 @@ def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, bool]], as_of: st
 def show(subject: dict[str, Any]) -> None:
     """The view's identifier fields from the subject's values: a contested scheme shows none, and the view lists
     each contested scheme's values with their sources (labelled as the page names sources) and what a disabled plugin
-    stated, with its source. `provenance` names where each identifier shown comes from: the first assertion stating it, or the
-    user where their answer decided a contested value (`build_questions`). Its contributor is the plugin that stated
-    it on the device (`contributed`, by evidence ID), else the reference package."""
+    stated, with its source. `provenance` names where each identifier shown comes from: the first assertion stating it,
+    or the user where their answer decided a contested value (`build_questions`) or their correction set it
+    (`corrections`, with its ID). Its contributor is the plugin that stated it on the device (`contributed`, by
+    evidence ID), else the reference package."""
     from .page import LABELS  # page composition reads subjects: imported when used
     values, view = subject["values"], subject["view"]
     listing = subject["listing"]
@@ -83,7 +84,10 @@ def show(subject: dict[str, Any]) -> None:
     view["provenance"] = {}
     for scheme, value in view["identifiers"].items():
         item = next((item for item in stated if item.scheme == scheme and item.value == value), None)
-        if item is not None:
+        if scheme in subject.get("corrected", ()):  # the investor's correction, whoever else states the value
+            view["provenance"][scheme] = {"source": "user", "plugin": "user", "authority": str(Authority.USER_ATTESTED),
+                                          "correction": subject["corrected"][scheme]}
+        elif item is not None:
             view["provenance"][scheme] = {
                 "source": item.provenance.source,
                 "plugin": subject.get("contributed", {}).get(item.evidence_id, PACKAGE),

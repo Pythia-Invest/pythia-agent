@@ -34,6 +34,7 @@ tool gives and from which source.
 | `pythia_document` | A listed filing's outline, a bounded section or search passages, each with a citation ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md), the document reader amendment). | external read, then local: core caches the extracted text |
 | `pythia_identity_questions` | Open identity questions in Repairs. | local read; with `subject_id`, queues the build's questions about it |
 | `pythia_answer_identity_question` | The agent's suggested answer to one question; it takes effect when the investor confirms it in Repairs. | local write |
+| `pythia_propose_identity_correction` | The agent's proposed fix to an identifier (set or remove) or a subject's price source; it applies to nothing until the investor confirms it in Repairs. | local write |
 | `pythia_desk_view` | The Desk page the investor is looking at. | local read |
 
 **What `pythia_instrument` says about uncertainty.** This implements the
@@ -41,7 +42,9 @@ vision's "What the agent sees". The subject's listing in use
 (`subject.listing`) is the default. `provenance` gives each identifier shown
 its `source` (the record it comes from, such as `esma_firds`), the contributing
 `plugin` (`reference` for the reference package), its `authority` (the kind of
-evidence, or `user_attested` where the user's answer decided it). `flags` is a list of
+evidence, or `user_attested` where the user's answer or correction decided it,
+with the correction's `correction` ID). `corrections` lists the investor's active
+corrections and the agent's proposals still waiting for them. `flags` is a list of
 `{code, detail}` from a closed vocabulary (`core/identity/flags.py`), derived
 only from what composing the page already loads:
 

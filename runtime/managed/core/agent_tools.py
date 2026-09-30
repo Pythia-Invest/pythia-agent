@@ -14,8 +14,8 @@ import logging
 from functools import partial
 from typing import Any, Callable
 
-from . import identity_ops, queue_ops
-from .identity import page
+from . import correction_ops, identity_ops, queue_ops
+from .identity import corrections, page
 from .identity.page import Section
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,22 @@ def answer_schema() -> dict:
             "description": "Answer an open identity question in Repairs. Read it in full first with "
                            "pythia_identity_questions. "
                            + queue_ops.VERDICT_SCHEMA["description"].split(". ", 1)[1]}
+
+
+def propose_schema() -> dict:
+    """The agent's correction proposal: the Desk identity-correction's arguments without its HTTP operation marker,
+    its action (the investor's) and its id, and only the kinds core reads (see answer_schema)."""
+    properties = {key: copy.deepcopy(value) for key, value in correction_ops.CORRECTION_SCHEMA["parameters"]["properties"].items()
+                  if key not in ("action", "id")}
+    properties["kind"]["enum"] = list(corrections.READ)
+    properties["subject_id"] = {key: value for key, value in SUBJECT.items() if key != "description"}  # the bytes are the cache's
+    return {"name": "pythia_propose_identity_correction",
+            "parameters": {"type": "object", "properties": properties, "required": ["kind", "subject_id"],
+                           "additionalProperties": False},
+            "description": "Propose a fix to an identifier or price source. The investor confirms it in Repairs; nothing "
+                           "changes until then. identifier: `value` for `scheme` on the subject at that scheme's level "
+                           "(isin on the security, lei or cik on the issuer, figi on the listing); empty removes it. "
+                           "price_source: `value` is the source. Say why in `note`."}
 
 
 def questions_schema() -> dict:
@@ -312,6 +328,10 @@ def answer(arguments: dict, **context: Any) -> str:
     return encode(json.loads(queue_ops.submit_verdict(identity(), arguments, **context)))
 
 
+def propose(arguments: dict, **context: Any) -> str:
+    return encode(json.loads(correction_ops.submit(identity(), arguments, **context)))
+
+
 def questions(arguments: dict, **context: Any) -> str:
     return encode(json.loads(queue_ops.read_queue(identity(), arguments, **context)))
 
@@ -333,7 +353,7 @@ def register(ctx: Any) -> None:
         (FIND, guarded(find)), (INSTRUMENT, guarded(instrument)), (PRICES, guarded(partial(prices, ctx))),
         (FILINGS, guarded(partial(filings, ctx))), (DOCUMENT, guarded(partial(document, ctx))),
         (questions_schema(), guarded(questions)),
-        (answer_schema(), guarded(answer))]
+        (answer_schema(), guarded(answer)), (propose_schema(), guarded(propose))]
     for schema, handler in tools:
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"].split(". ")[0])

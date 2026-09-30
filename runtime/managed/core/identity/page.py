@@ -50,6 +50,7 @@ SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Conc
           Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",)),
           Section.LIVE: (Concept.MARKET_DATA, ("live",))}
 SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section.FILINGS)
+PRICED = (Section.QUOTE, Section.CHART, Section.LIVE)  # the sections a source the investor pinned leads (`corrections`)
 LABELS = {"yahoo": "Yahoo Finance", "eodhd": "EODHD", "coinmarketcap": "CoinMarketCap", "coingecko": "CoinGecko",
           "gleif": "GLEIF", "xbrl-filings": "filings.xbrl.org", "sec": "SEC EDGAR", "openfigi": "OpenFIGI",
           "hyperliquid": "Hyperliquid", "nsm": "UK FCA NSM", "esma_firds": "ESMA FIRDS", "defillama": "DeFiLlama"}
@@ -262,10 +263,16 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
             "verified_at": check["verified_at"] if check else None, "unverified": check["note"] if check else None}
 
 
+def pin_first(section: Section, order: tuple[str, ...], pinned: str | None) -> tuple[str, ...]:
+    """The investor's order with the source they pinned for this subject first, in a price section only."""
+    return (pinned, *order) if pinned and section in PRICED else tuple(order)
+
+
 def answers(subject: dict, plugins: list[PluginInfo], section: Section, *, order: tuple[str, ...] = (),
-            **lookups: Any) -> list[dict]:
-    """Every declaring plugin's answer for one section, in the investor's order, then core's default order."""
-    return [answer for info in ordered(plugins, section, order)
+            pinned: str | None = None, **lookups: Any) -> list[dict]:
+    """Every declaring plugin's answer for one section, in the investor's order (a pinned price source first), then
+    core's default order."""
+    return [answer for info in ordered(plugins, section, pin_first(section, order, pinned))
             if (answer := evaluate(info, section, subject, **lookups)) is not None]
 
 
@@ -299,9 +306,9 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
     """One section per concept a plugin can serve for the subject: the chosen source, the other eligible sources
     as alternatives and every other declaring source as skipped with its reason. Filings combine one source per
     authority into one core read. Pure: the lookups are in-memory, so composition does no I/O."""
-    order = tuple(lookups.get("order", ()))
     sections = []
     for section in SECTIONS:
+        order = pin_first(section, tuple(lookups.get("order", ())), lookups.get("pinned"))
         found = answers(subject, plugins, section, **lookups)
         own = core_section(subject, section is Section.QUOTE, found)  # says why no source can serve it
         if not own and not any(answer["status"] not in ABSENT for answer in found):

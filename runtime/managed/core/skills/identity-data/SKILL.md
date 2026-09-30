@@ -2,7 +2,7 @@
 name: identity-data
 title: Where Pythia's data comes from
 description: Trace where an identifier, link, price source, plugin contribution or user answer in Pythia's identity data comes from, by reading its two SQLite stores read-only.
-version: 0.2.0
+version: 0.3.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
@@ -37,3 +37,8 @@ to do then.
 
 A row is evidence that a source said something, not proof that it is right. Say
 which source, record and time you read, and what the stores do not record.
+
+When the stores show a wrong identifier or price source and the investor agrees,
+propose the fix with `pythia_propose_identity_correction`. It applies to nothing
+until the investor confirms it in Repairs, and a correction they made already
+(in `corrections`) outranks every source.

@@ -240,6 +240,23 @@ WHERE q.state = 'open'
 ORDER BY q.opened_at;
 ```
 
+## Which corrections apply?
+
+The investor's own fixes (`kind = 'identifier'`, a NULL `value` removes one, or
+`'price_source'`, `value` a plugin's contract name) apply only while `state` is
+`active`: they win over the reference, every plugin and the answers above, and
+change no row the sources wrote. `proposed` is an agent's suggestion that applies
+to nothing until the investor confirms it in Repairs; `undone` was undone,
+declined or replaced (`replaces`). Look under the subject's current ID.
+
+```sql
+-- example: corrections
+SELECT id, kind, subject_id, scheme, value, state, proposed_by, note, decided_at, ended_at, replaces
+FROM corrections
+WHERE subject_id IN (SELECT value FROM json_each(:family))
+ORDER BY created_at;
+```
+
 ## What the stores do not record
 
 - Which source serves now, and a derived address: computed on every read from

@@ -399,3 +399,91 @@ describe("a GLEIF profile", () => {
     expect(markup).not.toContain("TOYOTA OLD NAME");
   });
 });
+
+describe("the investor's corrections on an instrument page", () => {
+  const page = (fields: Record<string, unknown>) =>
+    subjectPageSchema.parse({
+      subject: {
+        id: "security:isin:XS0000000009",
+        level: "security",
+        name: "Example plc",
+      },
+      security: { id: "security:isin:XS0000000009", name: "Example plc" },
+      identifiers: { isin: "XS0000000017" },
+      ...fields,
+    });
+  const removed = {
+    id: "c2",
+    kind: "identifier",
+    subject_id: "security:isin:XS0000000009",
+    scheme: "isin",
+    value: null,
+    state: "active",
+  };
+
+  it("labels a corrected identifier, and one the investor removed stays listed to undo", () => {
+    const corrected = renderToStaticMarkup(
+      <InstrumentHeader
+        page={page({ corrections: [{ ...removed, value: "XS0000000017" }] })}
+        subjectId="security:x"
+      />,
+    );
+    expect(corrected).toContain("Corrected by you");
+    const gone = renderToStaticMarkup(
+      <InstrumentHeader
+        page={page({ identifiers: {}, corrections: [removed] })}
+        subjectId="security:x"
+        onCorrect={async () => ""}
+      />,
+    );
+    expect(gone).toMatch(/<dt[^>]*>ISIN<\/dt><dd[^>]*>none<\/dd>/u);
+    expect(gone).toContain("Removed by you");
+    expect(gone).toContain('aria-label="Undo the correction of ISIN"');
+  });
+
+  it("does not list an agent's waiting proposal as a correction", () => {
+    const markup = renderToStaticMarkup(
+      <InstrumentHeader
+        page={page({ corrections: [{ ...removed, state: "proposed" }] })}
+        subjectId="security:x"
+      />,
+    );
+    expect(markup).not.toContain("Corrected by you");
+    expect(markup).not.toContain("Removed by you");
+  });
+
+  it("offers Always use beside Back for a source picked once, and Undo for a pin", () => {
+    const picked = section({
+      alternatives: [],
+      sources: [
+        { source: "Yahoo Finance", plugin: "pythia-yahoo", provider: "yahoo" },
+      ],
+    });
+    const using = renderToStaticMarkup(
+      <SourcesLine
+        section={picked}
+        chosen="pythia-yahoo"
+        onUse={() => {}}
+        onAlways={() => {}}
+      />,
+    );
+    expect(using).toMatch(/Back<\/button>.*Always use<\/button>/su);
+    const pinned = renderToStaticMarkup(
+      <SourcesLine section={picked} pinned onUnpin={() => {}} />,
+    );
+    expect(pinned).toContain("Corrected by you");
+    expect(pinned).toMatch(/Undo<\/button>/u);
+    // Used once, the page is not yet the pinned one: no Undo beside "Using".
+    expect(
+      renderToStaticMarkup(
+        <SourcesLine
+          section={picked}
+          chosen="pythia-yahoo"
+          pinned
+          onUnpin={() => {}}
+          onUse={() => {}}
+        />,
+      ),
+    ).not.toContain("Corrected by you");
+  });
+});

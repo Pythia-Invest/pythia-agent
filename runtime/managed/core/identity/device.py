@@ -261,10 +261,11 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, 
 # ---- lifecycle ---------------------------------------------------------------------------------------------------
 
 def named(store: IdentityStore) -> set[str]:
-    """Every subject ID the device tables name."""
+    """Every subject ID the device tables name, the investor's corrections included."""
     return {value for (value,) in store.select(
         "SELECT id FROM subjects UNION SELECT parent_id FROM subjects UNION SELECT subject_id FROM device_assertions"
-        " UNION SELECT from_id FROM relations UNION SELECT to_id FROM relations UNION SELECT subject_id FROM claims")
+        " UNION SELECT from_id FROM relations UNION SELECT to_id FROM relations UNION SELECT subject_id FROM claims"
+        " UNION SELECT subject_id FROM corrections")
         if value}
 
 

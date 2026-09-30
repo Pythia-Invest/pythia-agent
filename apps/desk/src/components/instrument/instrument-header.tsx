@@ -5,6 +5,8 @@ import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
 import { Menu, Skeleton } from "@pythia/ui";
 import { Check, ChevronDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import type { CorrectFn } from "@/client/corrections";
+import { IdentifierCorrection } from "./identifier-correction";
 import { instrumentHref } from "./instrument-href";
 import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
 import { RelatedLinks } from "./related-links";
@@ -29,15 +31,30 @@ function currentListing(page: SubjectPage): SubjectListing | undefined {
   );
 }
 
+/** The subject an identifier's scheme identifies, where the investor's
+ * correction of it is recorded: the security for an ISIN, the issuer for an
+ * LEI or CIK, the priced listing for a FIGI or CAIP-19. */
+function correctionSubject(page: SubjectPage, key: string) {
+  if (key === "isin") return page.security?.id ?? null;
+  if (key === "lei" || key === "cik") return page.issuer?.id ?? null;
+  return (
+    page.subject.listing ??
+    (page.subject.level === "listing" ? page.subject.id : null)
+  );
+}
+
 /** The page is the instrument; `subjectId` is its route subject and `page`
  * its composition, so the kind badge, name and identifiers stay the
- * instrument's while the selector follows the chosen listing. */
+ * instrument's while the selector follows the chosen listing. With
+ * `onCorrect`, each identifier can be corrected in place. */
 export function InstrumentHeader({
   page,
   subjectId,
+  onCorrect,
 }: {
   page: SubjectPage;
   subjectId: string;
+  onCorrect?: CorrectFn | undefined;
 }) {
   const ids = page.identifiers;
   const identifiers = IDENTIFIERS.flatMap(([key, label]) => {
@@ -46,7 +63,18 @@ export function InstrumentHeader({
       (key === "isin" ? page.security?.isin : undefined) ??
       (key === "lei" || key === "cik" ? page.issuer?.[key] : undefined);
     const contested = page.contested[key] ?? [];
-    return value || contested.length ? [{ key, label, value, contested }] : [];
+    // The investor's correction of this identifier, which a removal leaves
+    // without a value to show.
+    const corrected =
+      page.corrections.find(
+        (item) =>
+          item.kind === "identifier" &&
+          item.state === "active" &&
+          item.scheme === key,
+      ) ?? null;
+    return value || contested.length || corrected
+      ? [{ key, label, value, contested, corrected }]
+      : [];
   });
   const issuer =
     page.issuer && page.issuer.name !== page.subject.name
@@ -93,19 +121,32 @@ export function InstrumentHeader({
           data-slot="instrument-identifiers"
           className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
         >
-          {identifiers.map(({ key, label, value, contested }) => (
-            <div key={key} className="flex min-w-0 max-w-full gap-1.5">
+          {identifiers.map(({ key, label, value, contested, corrected }) => (
+            <div
+              key={key}
+              className="flex min-w-0 max-w-full flex-wrap gap-x-1.5 gap-y-1"
+            >
               <dt className="text-foreground-secondary">{label}</dt>
               {contested.length ? (
                 <ContestedValues values={contested} />
-              ) : (
+              ) : value ? (
                 <dd
-                  title={value ?? undefined}
+                  title={value}
                   className="truncate font-mono text-foreground tabular-nums"
                 >
                   {value}
                 </dd>
+              ) : (
+                <dd className="text-foreground-secondary">none</dd>
               )}
+              <IdentifierCorrection
+                label={label}
+                scheme={key}
+                value={value}
+                subjectId={correctionSubject(page, key)}
+                corrected={corrected}
+                onCorrect={onCorrect}
+              />
             </div>
           ))}
         </dl>
