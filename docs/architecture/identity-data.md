@@ -80,6 +80,21 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | `venues` | ISO 10383 venues |
 | `chains` | Blockchains crypto deployments name |
 
+Search's index is built from these tables once per reference file, with the
+device's subjects laid over it. A security or listing whose `status` is
+`inactive` is in the index, and one whose own status is `inactive` (a delisted line,
+as the price guards read it) is marked `delisted`; an active line under an inactive
+security is live and unmarked, and stays out of the page's lines. It is found by
+name, ticker and identifier, ranked below live lines (a company with a live line
+before one with only delisted lines, and within a company its live lines first),
+and hidden only when a search asks for `include_delisted: false`. The page's
+listing selector and the line a security page prices through leave out delisted
+lines and lines under an inactive security, as before. A security none of whose lines has a ticker is in the index
+as one row through its primary line (else the first by id), marked `no_ticker`,
+found by name and identifier and ranked below lines that have a ticker; it too
+stays out of the page's listings. A line with no ticker of a security that has
+one is not a row.
+
 ### The identity store
 
 | Table | Holds |
@@ -104,7 +119,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | An identifier of a reference subject | `ref.assertions` | `source` | `source_record` names the link or rule for a derived value; a plain read has none | `retrieved_at` is the build's read; file dates are in `ref.release` | `authority`; the rule is in `source_record` |
 | A relation in the build | `ref.relations` | `source` | `source_record` | `retrieved_at` | `authority`; the rule is in `source_record` |
 | An identifier a plugin stated | `device_assertions` | `plugin` | `native_scope` and `native_id`, which key its `claims` row | `retrieved_at` | always a plugin's own statement |
-| A plugin's record and its placement | `claims` | `plugin` | `native_scope` and `native_id`; the `claim` JSON holds the record's own provenance, `source_record` and `adapter_version` included | `first_seen`, `last_seen` | `state`: joined, introduced, conflict, unmatched or not_seen; for an unmatched record the plugin's own reason, where it gives one, is `attributes.venue_note` in the `claim` JSON |
+| A plugin's record and its placement | `claims` | `plugin` | `native_scope` and `native_id`; the `claim` JSON holds the record's own provenance, `source_record` and `adapter_version` included | `first_seen`, `last_seen` | `state`: joined, introduced, conflict, unmatched or not_seen; for an unmatched record the plugin's own reason, where it gives one, is `attributes.venue_note` in the `claim` JSON. Search reads the record's `attributes.aliases` from it beside `name`: other names for the subject the record is placed on, findable while its plugin is enabled and the record is not a conflict |
 | A plugin relation | `relations` | `plugin`, `source` | `source_record`, `source_version`, `adapter_version` | `retrieved_at` | `authority` |
 | A subject a plugin introduced, and its parent | `subjects` | `introduced_by` | its `claims` rows (`subject_id`) | `first_seen`, `last_seen` | the claim's `state` |
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
@@ -190,7 +205,8 @@ operating MIC `XJPX` is `7203.T` for a plugin that maps `XJPX` to `.T`), and a
 plugin that does not list the venue skips the line as not addressable. A line
 whose `status` is `inactive` is never addressed by ticker, since the ticker may
 name another company now; a confirmed ticker binding on it is kept and
-suspended. The order and the plugins' state are in the files named
+suspended. Search still finds it (next section), so a delisted instrument can be
+opened and read, but its page gets no live price through that ticker. The order and the plugins' state are in the files named
 [above](#where-the-data-is).
 
 ### Who says this identifier belongs to this subject?
@@ -229,19 +245,29 @@ A contested fact is one single-valued scheme whose current values differ
 between sources. Core applies none of the values and asks the user once the
 subject is opened ([ADR 0044](../decisions/0044-product-direction.md), A2). The
 query applies the same tests: only values inside their validity dates count,
-two or more sources must disagree, and `ticker_mic` is an attribute that never
-contests. One source's own several values are not a contest: OpenFIGI states two
-composite FIGIs for some composites (10,288 in the 2026-09-28 build), and they
-stay separate rows that this query does not return.
+each source's set of values is compared, and `ticker_mic` is an attribute that
+never contests. One source's own several values are not a contest, and neither
+is several sources stating the identical set: OpenFIGI states two composite
+FIGIs for some composites (10,288 in the 2026-09-28 build), and a plugin that
+states the same two beside the package contests nothing. Sets that differ at
+all do contest, a subset included, because every scheme but `ticker_mic` is
+single-valued.
 
 ```sql
 -- example: contested
-SELECT subject_id, scheme, group_concat(DISTINCT value) AS vals, group_concat(DISTINCT source) AS sources
-FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
-      UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
-WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
-  AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))
-GROUP BY subject_id, scheme HAVING COUNT(DISTINCT value) > 1 AND COUNT(DISTINCT source) > 1;
+WITH stated AS (
+  SELECT DISTINCT subject_id, scheme, value, source
+  FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
+        UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
+  WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
+    AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))),
+sets AS (  -- each source's values, in order
+  SELECT subject_id, scheme, source, group_concat(value) AS stated_values
+  FROM (SELECT * FROM stated ORDER BY value) GROUP BY subject_id, scheme, source)
+SELECT subject_id, scheme, (SELECT group_concat(DISTINCT value) FROM stated s
+                            WHERE s.subject_id = sets.subject_id AND s.scheme = sets.scheme) AS vals,
+       group_concat(source) AS sources
+FROM sets GROUP BY subject_id, scheme HAVING COUNT(DISTINCT stated_values) > 1;
 ```
 
 ### Why is this listing under that security, and that security under that issuer?
@@ -353,6 +379,16 @@ WHERE v.resolver = 'user' AND q.state IN ('resolved', 'dismissed')
               WHERE value IN (SELECT value FROM json_each(:family)))
 ORDER BY v.created_at;
 ```
+
+A receipt has the issuer the user chose for the share it represents
+(ESMA Q&A 1503: a receipt's issuer is its underlying's), unless the user
+answered the receipt's own issuer ("none of these" included). The receipt's page shows it, and its
+`issuer` carries `inherited_from` (the share and the user's verdict). It applies
+only where a source states the underlying (`relations` with `authority =
+'source_asserted'`; not one the builder derived from the issuer) or the user
+answered it, and no enabled plugin contradicts it. The share's answer is the row
+above, so include the share in `:family` to see it; undoing it undoes the
+inheritance.
 
 The agent's answers are suggestions and stay in `verdicts` (`resolver = 'agent'`,
 `outcome = 'suggested'`) until the user confirms. A binding the user made

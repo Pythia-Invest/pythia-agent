@@ -7,22 +7,18 @@ export {
 export {
   SearchPanel,
   type SearchPanelProps,
-  type LookupState,
   type PanelStatus,
 } from "./search-panel";
 export {
   searchQueryKey,
-  transportLookup,
   transportSearch,
   useDirectorySearch,
-  type LookupRunner,
   type SearchBackend,
 } from "./controller";
 export {
   searchOptions,
   KIND_LABELS,
   TYPE_FILTERS,
-  type RowSource,
   type SearchOption,
   type TypeFilter,
 } from "./search-model";

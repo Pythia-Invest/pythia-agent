@@ -52,14 +52,11 @@ export const ROW_LABELS: Record<InstrumentKind, string> = {
   token: "Crypto",
 };
 
-export type RowSource = "directory" | "lookup";
-
 /** One selectable entry in panel order: a listing row of a group, or the
  * group's toggle between its relevant listings and all of them. */
 export type SearchOption = {
   key: string;
   group: SearchGroup;
-  source: RowSource;
   /** The listing a choice opens; absent on the toggle. */
   row?: SearchRow | undefined;
 };
@@ -69,7 +66,6 @@ export type SearchOption = {
  * `full` holds the group reads of expanded groups, by group id. */
 export function searchOptions(
   groups: readonly SearchGroup[],
-  source: RowSource,
   expanded: ReadonlySet<string> = new Set(),
   full: ReadonlyMap<string, readonly SearchRow[]> = new Map(),
 ): SearchOption[] {
@@ -82,13 +78,12 @@ export function searchOptions(
       ? [...group.rows, ...all.filter((row) => !shown.has(row.id))]
       : group.rows;
     const options: SearchOption[] = rows.map((row) => ({
-      key: `${source}:${group.id}:${row.id}`,
+      key: `${group.id}:${row.id}`,
       group,
-      source,
       row,
     }));
     if (group.listings > group.rows.length)
-      options.push({ key: `${source}:${group.id}:toggle`, group, source });
+      options.push({ key: `${group.id}:toggle`, group });
     return options;
   });
 }

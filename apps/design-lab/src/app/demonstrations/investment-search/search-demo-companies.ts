@@ -266,6 +266,40 @@ export const demoCompanies: readonly Company[] = [
       ),
     ],
   },
+  // A line that no longer trades: found, marked, and ranked below live ones.
+  {
+    id: "security:isin:NL0009508712",
+    name: "Milkiland",
+    kind: "ordinary",
+    rows: [
+      line("listing:isin:NL0009508712:XWAR:EUR", "MLK", "Milkiland", "Warsaw", {
+        mic: "XWAR",
+        country: "PL",
+        currency: "EUR",
+        delisted: true,
+      }),
+    ],
+  },
+  // A security none of whose lines has a ticker: one row, found by name or ISIN.
+  {
+    id: "security:isin:BG1100087987",
+    name: "Aroma",
+    kind: "ordinary",
+    rows: [
+      line(
+        "listing:isin:BG1100087987:XBUL:EUR",
+        null,
+        "Aroma",
+        "Bulgarian Stock Exchange",
+        {
+          mic: "XBUL",
+          country: "BG",
+          currency: "EUR",
+          no_ticker: true,
+        },
+      ),
+    ],
+  },
   {
     id: "index:demo:AEX",
     name: "AEX Index",

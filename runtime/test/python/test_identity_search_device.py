@@ -6,7 +6,6 @@ subjects alone and a saved instrument opens as a labelled stub. Removing the pac
 nothing and retires no question. Search writes nothing and calls no provider. Device rows are written through the
 store's API, as ingest writes them.
 """
-import contextvars
 import json
 import sqlite3
 import sys
@@ -21,7 +20,6 @@ from test_identity_installed import PluginCase, identity, identity_ops, page, re
 from test_reference_package import make_package
 from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_installed loaded)
 from pythia_core_queue_fixture.identity import device, lifecycle, search, search_device, search_index  # noqa: E402
-from pythia_core_queue_fixture.platform.request_context import usage  # noqa: E402
 
 NOW = "2026-09-30T10:00:00Z"
 ASML, ASML_SECURITY = "listing:isin:NL0010273215:XAMS:EUR", "security:isin:NL0010273215"
@@ -29,6 +27,7 @@ ASML_XETRA = "listing:isin:NL0010273215:XETR:EUR"  # FIRDS lists it with no tick
 ASML_GROUP = "issuer:lei:724500Y6DUVHQD6OXN27"
 SAP, SAP_XETRA = "security:isin:DE0007164600", "listing:isin:DE0007164600:XETR:EUR"
 POOL, PROTOCOL = "market:provisional:poolsource:pool:usdc-navi", "protocol:provisional:poolsource:protocol:navi"
+MILK = "listing:isin:NL0009508712:XWAR:EUR"  # delisted in Warsaw: its security and line are inactive
 GLOBEX, GLOBEX_TSX = "listing:provisional:fixture:line:globex", "listing:provisional:lister:line:globex"
 RIGHTS = {"licence": "open", "cache": "unlimited", "hostable": False}
 LISTER = page.PluginInfo(key="pythia-lister", operations={"resolve": "lister_resolve"}, manifest=identity.validate_manifest({
@@ -52,13 +51,14 @@ def pools(provider: str, status: str = "unsigned") -> page.PluginInfo:
 POOLS = pools("poolsource")
 
 
-def place(at, info, native_id, subject, *, scope=None, state="introduced", name=None, stated=()):
+def place(at, info, native_id, subject, *, scope=None, state="introduced", name=None, aliases=(), stated=()):
     """One record of `info` kept and placed on `subject` as ingest places it, with the identifiers it states
-    (`stated`: (subject, scheme, value)), then a new generation."""
+    (`stated`: (subject, scheme, value)) and the aliases it gives, then a new generation."""
     manifest = info.manifest
     ref = identity.ProviderRef(manifest.provider, native_id, scope or manifest.native[0].native_scope)
+    attributes = {**({"name": name} if name else {}), **({"aliases": list(aliases)} if aliases else {})}
     at.put_claim(manifest.plugin, manifest.provider, {"level": identity.subject_kind(subject), "native_ref": ref.wire(),
-                                                      "attributes": {"name": name} if name else {}})
+                                                      "attributes": attributes})
     device.place_claim(at, manifest.plugin, ref, subject, state)
     for owner, scheme, value in stated:
         device.put_assertion(at, owner, scheme, value, plugin=manifest.plugin, ref=ref)
@@ -74,10 +74,10 @@ def introduce_sap(at) -> None:
           stated=[(SAP, "isin", "DE0007164600"), (SAP_XETRA, "ticker_mic", "SAP@XETR")])
 
 
-def introduce_pool(at, info=POOLS, native_id="usdc-navi", name="USDC lending on Navi", rank=None) -> str:
+def introduce_pool(at, info=POOLS, native_id="usdc-navi", name="USDC lending on Navi", rank=None, status="active") -> str:
     """A lending pool the DeFi source introduced, and its protocol."""
     pool = identity.provisional_id(identity.Kind.MARKET, info.manifest.provider, "pool", native_id)
-    device.put_subject(at, pool, plugin=info.manifest.plugin, name=name,
+    device.put_subject(at, pool, plugin=info.manifest.plugin, name=name, status=status,
                        attributes={"asset_class": "crypto", **({"rank": rank} if rank else {})})
     place(at, info, native_id, pool, name=name)
     return pool
@@ -97,6 +97,13 @@ class DeviceSearch(PluginCase):
                        " (?, ?, 'XETR', 'XETR', 'EUR', 'EUR')", (ASML_XETRA, ASML_SECURITY))
             db.execute("INSERT INTO securities (id, name, asset_class, kind, rank) VALUES"
                        " ('security:provisional:fixture:id:globex', 'Globex Corporation', 'equity', 'ordinary', 5000)")
+            db.execute("INSERT INTO securities (id, name, asset_class, kind, status) VALUES"
+                       " ('security:isin:NL0009508712', 'Milkiland', 'equity', 'ordinary', 'inactive')")
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, status) VALUES"
+                       " (?, 'security:isin:NL0009508712', 'XWAR', 'XWAR', 'MLK', 'EUR', 'inactive')", (MILK,))
+            db.execute("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, authority, source, plugin,"
+                       " adapter_version, retrieved_at) VALUES ('ev:milk', 'security:isin:NL0009508712', 'security', 'isin',"
+                       " 'NL0009508712', 'source_asserted', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')")
             db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency) VALUES"
                        " (?, 'security:provisional:fixture:id:globex', 'XNYS', 'XNYS', 'GBX', 'USD')", (GLOBEX,))
         self.package = make_package(self.root / "package", source=self.reference)
@@ -112,12 +119,8 @@ class DeviceSearch(PluginCase):
         self.addCleanup(lambda: ops._store and ops._store.db.close())
         return ops
 
-    def search(self, query, ops=None, desk=False):
-        """The search answer, as the agent reads it, or with `desk` as the Desk does."""
-        context = contextvars.copy_context()
-        if desk:
-            context.run(usage.set, "dashboard")
-        return json.loads(context.run((ops or self.ops).search, {"query": query}))
+    def search(self, query, ops=None, **arguments):
+        return json.loads((ops or self.ops).search({"query": query, **arguments}))
 
     def groups(self, query, ops=None):
         return [group["id"] for group in self.search(query, ops)["data"]["groups"]]
@@ -144,6 +147,24 @@ class FoundTest(DeviceSearch):
                           PROTOCOL: ("protocol", "Navi", None, "poolsource")})
         # The reference's own lines carry no plugin label.
         self.assertNotIn("source", self.search("asml")["data"]["groups"][0]["rows"][0])
+
+    def test_a_plugins_aliases_are_found_like_its_name_for_its_own_subject_and_a_reference_one(self):
+        # An alias is another name the plugin states for the subject it placed the record on: its own pool, and ASML's
+        # listing, which the reference holds.
+        pool = introduce_pool(self.ops.store, name="USDC lending on Navi")
+        place(self.ops.store, POOLS, "usdc-navi", pool, name="USDC lending on Navi", aliases=["Stable Vault", "sUSDC"])
+        place(self.ops.store, LISTER, "ASML-AMS", ASML, state="joined", name="ASML Holding NV", aliases=["Veldhoven Litho"])
+        self.assertEqual((self.groups("stable vault"), self.groups("susdc"), self.groups("veldhoven")),
+                         ([pool], [pool], [ASML_GROUP]))
+        self.assertEqual(self.search("stable vault")["data"]["groups"][0]["name"], "USDC lending on Navi")  # the name leads
+        self.plugins = [LISTER, replace(POOLS, enabled=False)]  # a disabled plugin's aliases leave with its subjects
+        self.assertEqual((self.groups("stable vault"), self.groups("veldhoven")), ([], [ASML_GROUP]))
+        self.plugins = [replace(LISTER, enabled=False), POOLS]
+        self.assertEqual((self.groups("stable vault"), self.groups("veldhoven")), ([pool], []))
+
+    def test_the_aliases_of_a_record_kept_as_a_conflict_name_nothing(self):
+        place(self.ops.store, LISTER, "ASML-AMS", ASML, state="conflict", aliases=["Veldhoven Litho"])
+        self.assertEqual(self.groups("veldhoven"), [])
 
     def test_a_disabled_plugins_subjects_leave_search_and_their_pages_still_open(self):
         introduce_sap(self.ops.store)
@@ -234,7 +255,7 @@ class ReadOnlyTest(DeviceSearch):
             self.assertEqual(renew.call_count, 2)
         self.assertIs(search._cache["current"][1], built)
 
-    def test_search_writes_nothing_and_calls_no_provider_and_offers_lookups(self):
+    def test_search_writes_nothing_calls_no_provider_and_offers_no_lookup(self):
         introduce_sap(self.ops.store)
         introduce_pool(self.ops.store)
         self.ops.reference_path()  # the release's first use carries local rows to it (Lifecycle A), not search
@@ -242,20 +263,34 @@ class ReadOnlyTest(DeviceSearch):
         registry = types.ModuleType("tools.registry")
         registry.registry = mock.Mock()
         with mock.patch.dict(sys.modules, {"tools": types.ModuleType("tools"), "tools.registry": registry}):
-            answers = {query: self.search(query, desk=True)
-                       for query in ("sap", "navi", "NL0010273215", "DE0007164600", "asml")}
+            answers = {query: self.search(query) for query in ("sap", "navi", "NL0010273215", "DE0007164600", "asml")}
             json.loads(self.ops.search({"group": ASML_GROUP}))
         registry.registry.dispatch.assert_not_called()
         self.assertEqual(list(self.ops.store.db.iterdump()), before)
-        # An identifier the lister's resolve takes offers its lookup on the Desk, found or not; text, the agent and a
-        # disabled plugin get none.
-        offer = [{"plugin": "pythia-lister", "label": "lister"}]
-        self.assertEqual({query: body["data"]["lookup"] for query, body in answers.items()},
-                         {"sap": [], "navi": [], "NL0010273215": offer, "DE0007164600": offer, "asml": []})
-        self.assertEqual(self.search("NL0010273215000", desk=True)["data"]["lookup"], [])  # not an ISIN
-        self.assertEqual(self.search("NL0010273215")["data"]["lookup"], [])  # the agent cannot run a Desk lookup
-        self.plugins = [replace(LISTER, enabled=False), POOLS]
-        self.assertEqual(self.search("NL0010273215", desk=True)["data"]["lookup"], [])
+        # An ISIN the lister's resolve takes is answered from local data alone: no lookup is offered or run.
+        self.assertTrue(all("lookup" not in body["data"] for body in answers.values()))
+
+
+class DelistedTest(DeviceSearch):
+    """Search is a read of local data, and a delisted line is part of it (ADR 0044, amendment of 2026-09-30)."""
+
+    def test_a_delisted_reference_line_is_found_flagged_and_the_filter_hides_it(self):
+        for query in ("milkiland", "MLK", "NL0009508712"):
+            with self.subTest(query=query):
+                group, = self.search(query)["data"]["groups"]
+                self.assertEqual([(row["id"], row.get("delisted")) for row in group["rows"]], [(MILK, True)])
+        self.assertEqual(self.search("milkiland", include_delisted=False)["data"]["groups"], [])
+        self.assertEqual(self.search("milkiland", include_delisted=True)["data"]["groups"][0]["rows"][0]["id"], MILK)
+        group = {"group": "security:isin:NL0009508712"}  # its group's listings read, as the Desk's "All listings"
+        self.assertEqual(json.loads(self.ops.search(group))["data"]["groups"][0]["rows"][0]["delisted"], True)
+        self.assertEqual(json.loads(self.ops.search({**group, "include_delisted": False}))["data"]["groups"], [])
+
+    def test_a_subject_a_plugin_marks_inactive_is_found_flagged_and_ranks_below_a_live_one(self):
+        live = introduce_pool(self.ops.store, name="Navi USDC lending", native_id="live")
+        dead = introduce_pool(self.ops.store, name="Navi USDC lending closed", native_id="dead", status="inactive", rank={"tvl_usd": 9e9})
+        groups = self.search("navi usdc")["data"]["groups"]
+        self.assertEqual([(group["id"], group["rows"][0].get("delisted")) for group in groups], [(live, None), (dead, True)])
+        self.assertEqual([group["id"] for group in self.search("navi usdc", include_delisted=False)["data"]["groups"]], [live])
 
 
 class OverlayTest(DeviceSearch):

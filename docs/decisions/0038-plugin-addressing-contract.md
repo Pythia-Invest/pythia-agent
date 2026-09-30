@@ -55,8 +55,9 @@ not a registry: deleting the package removes the declaration.
   the user picked. Each plugin enforces its provider's other terms itself.
 - **`resolve`** is an optional lookup from global identifiers to a native
   reference. It declares its input schemes and the schemes an answer merely
-  echoes from the query; echoes are never evidence. "Look up in X" calls exactly
-  one plugin's `resolve`.
+  echoes from the query; echoes are never evidence. A lookup in X calls exactly
+  one plugin's `resolve`, from that plugin's own row in Settings, never from
+  search.
 
 Every native scope must be producible by a bulk catalogue, a `resolve` or the
 MIC table. **Provider `search` is not part of the contract**; search is core's
@@ -278,6 +279,20 @@ beside native scopes at `market` and `protocol`. Its protocol scope uses
 DefiLlama's protocol id rather than its slug, because a rename changes the slug
 ([source record](../sources/defillama.md)).
 
+The NAVI plugin declares the same shape (`market` scope `reserve`, `protocol`,
+`listing` by CAIP-19). It keys each lending reserve by the object id of its
+`Pool<T>`, states one protocol, `navi-lending`, and names each reserve's coin
+by CAIP-19 ([source record](../sources/navi.md)). A coin type is the one
+identifier two DeFi sources share, so tokens join across them while pools and
+protocols do not: DefiLlama states no on-chain address for either, and `market`
+and `protocol` take no open identifier. A NAVI reserve and a DefiLlama pool for
+one coin stay two subjects, adjacent on the token's page, and the two "NAVI
+Lending" protocols stay two. Nothing fuses them by name, symbol or "same
+protocol and coin", which would be wrong where a coin has up to nine reserves.
+Fusing them takes a deliberate bridge, either `protocol` as a curated kind or a
+core rule over markets that share a joined protocol and one coin; that is the
+founder's decision and is not built.
+
 - **`addressing.subjects`** maps a subject core keys, by an open identifier
   or a Pythia key, to the plugin's own reference for it. The native scope must
   be one the contract declares at the subject's kind; a provisional ID is not
@@ -379,13 +394,15 @@ one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
   `protocols` scope lists first), so the order is the plugin's to declare. It
   answers the counts: joined, introduced, conflicts, unmatched, rejected and
   not seen, with the pages read.
-- **`identity-lookup {plugin, query}`** is the "Look up in X" backend: the
+- **`identity-lookup {plugin, query}`** is the backend of a plugin's lookup
+  (amended 2026-09-30: no longer a search action): the
   query's identifier (ISIN, FIGI, LEI or CIK, as search classifies it) is sent
   once to the plugin's resolve under a scheme it accepts (a FIGI under the
   first FIGI scheme it takes), and every record it answers is ingested. It
   answers the counts and the subjects placed; no match is an empty answer with
-  zero counts, a failure an issue with no data. The search bar's "Look up in
-  X" invokes it, then shows the directory's groups holding what it placed.
+  zero counts, a failure an issue with no data. The lookup form on the plugin's
+  row in Settings → Data → Data sources invokes it and shows the counts and the
+  subjects placed; search offers and runs none.
 - **`identity-resolve`** stores its answer through the same ingest before
   deciding its binding.
 - Only an enabled, configured plugin is called. Sync and lookup are Desk

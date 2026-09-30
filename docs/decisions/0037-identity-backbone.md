@@ -1507,14 +1507,15 @@ nothing showed what search and saved references do without one.
   regroups it.
 - **Enabled plugins' evidence adds to the reference's lines.** A plugin's
   ticker fills a line that has none (a FIRDS line becomes findable) and its
-  other tickers are search names, as are the names its placed records give
-  (never those of a record kept as a conflict). Its identifiers are weighed
-  with the package's, each at its contributor's trust level (amendment
-  "evidence counts by kind and trust level"): a contested identifier indexes
-  neither value, so search never presents one as a fact, and a display-level
-  plugin's other value never displaces the package's. The line stays findable
-  by its name and ticker. A contest inside the package alone still indexes one
-  value, as before.
+  other tickers are search names, as are the names and aliases its placed
+  records give (`RecordAttributes.aliases`: other names for the subject, such
+  as a product's own label; never those of a record kept as a conflict). Its
+  identifiers are weighed with the package's, each at its contributor's trust
+  level (amendment "evidence counts by kind and trust level"): a contested
+  identifier indexes neither value, so search never presents one as a fact, and
+  a display-level plugin's other value never displaces the package's. The line
+  stays findable by its name and ticker. A contest inside the package alone
+  still indexes one value, as before.
 - **One ranking for every line.** Every line is built by one function in the
   shape of the reference's listing join and scored by the same code. A plugin
   record's rank signals (its `*_usd` amounts: market cap, total value locked)
@@ -1543,12 +1544,12 @@ nothing showed what search and saved references do without one.
 - **With no package installed,** search reads the device's subjects alone. An
   answer with no results still says why there is no reference data, and after
   a removal it says the package was removed.
-- **Lookup offers.** A Desk search answer's `lookup` lists the enabled,
-  configured plugins whose declared resolve takes the identifier the query is
-  (an ISIN, a LEI, a CIK, or a FIGI in any FIGI scheme;
-  `search_device.identifier`, which `identity-lookup` uses too). A text query
-  offers none, and the agent's search none: the lookup is the investor's Desk
-  action (amendment "ingest"). Offering calls nothing.
+- **Lookup offers** (superseded 2026-09-30, see
+  [ADR 0044](0044-product-direction.md), amendment "search is local data
+  only"): a Desk search answer used to list the plugins whose resolve takes the
+  identifier the query is. Search now offers and runs no lookup; the lookup is
+  a form on the plugin's own row in Settings, and `search_device.identifier`
+  stays as `identity-lookup`'s rule.
 - **The search contract** (`packages/market-data/src/search.ts`) gains the
   kinds `market` and `protocol`, a nullable `ticker` and an optional `source`.
   The Crypto type filter includes pools and protocols.
@@ -1644,8 +1645,8 @@ a plugin would take away.
 - **`identity-plugin-effect {plugin}`** is a local read of what disabling a
   plugin would take away: the device subjects only it supplies, by search's
   own rule (no other enabled plugin has a record still offered on them, or
-  one that states their identifiers; they are not inactive; and no installed
-  reference package holds them), which leave search and data while it is off,
+  one that states their identifiers, and no installed reference package holds
+  them; an inactive subject counts, since search finds it flagged delisted), which leave search and data while it is off,
   and the markets overview's saved entries (`markets_watchlist`,
   `markets_cards`) that name them, through their aliases; each as a count with
   a short sample. Without `plugin` it answers every enabled plugin that
@@ -1946,6 +1947,61 @@ immediate.
 - **Hiding a paused plugin's tools from the model:** a refusal that names the
   switch tells the agent what to do, without the tool list changing in the
   middle of a conversation.
+
+## Amendment (2026-09-30): identical value sets are no contest, and a receipt has its underlying's issuer
+
+**Context.** Two rules turned out wrong on the founder's device (the conflict
+root-cause review). `evidence.disagree` counted (plugin, source) pairs, so two
+contributors that state the identical set of values contested it: the package
+(`openfigi`) and `pythia-openfigi` both state BBG000BK4828 and BBG000THYRF7 for
+`composite:isin:JP3633400001:DE`. Up to 10,288 composites, every one OpenFIGI
+gives two FIGIs, would contest as soon as a second source states them. And the
+Nestlé ADR's issuer question was open although the user had already answered
+the ordinary share it represents (CH0038863350, Nestlé S.A.); FIRDS fills a
+receipt's field 5 with the venue's or a programme operator's LEI when the
+issuer did not request admission, and ESMA Q&A 1503 says a receipt's issuer is
+its underlying's.
+
+**Ruling.**
+
+- **Contested means different sources state different sets of values.** Each
+  source's values for the scheme are compared as a set. Identical sets never
+  contest, and one source's several values still contest nothing (the ruling
+  of "evidence counts by kind and trust level", unchanged). Sets that differ at
+  all contest, a subset included: the model has one cardinality for every scheme
+  but `ticker_mic` (`SINGLE_VALUED`), so a source that leaves out another's
+  second value cannot be told from one that denies it (a set-valued exception
+  for `composite_figi` belongs with the first second source that states only
+  one of OpenFIGI's two), and a false contest costs one shown row where a
+  false agreement would pick a value silently. A self-contradiction of one
+  source stays a separate question (`conflicts.restated`). `values` takes the
+  first value, as before.
+- **A receipt inherits the answered issuer of its underlying.** Where the user
+  answered who issued the underlying share, a receipt that represents it has
+  that issuer: the page and filings route to it, the receipt's own question is
+  not queued, and one already open is superseded when the user answers the
+  underlying (or, for an answer given earlier, at the next touch). The
+  receipt's `issuer` carries `inherited_from` (the share and the user's
+  verdict), so it shows in the raw data, and no `binding` question is raised
+  for the release's differing issuer. It applies only where the underlying is
+  settled: the user answered it, or a source states it (a `source_asserted`
+  relation, never the builder's issuer rule, which derives it from the issuer)
+  and no enabled plugin contradicts it. The user's answer about the receipt's
+  own issuer always wins, "none of these" included, and reopening the share's
+  answer ends the inheritance on the next read, when the receipt's question is
+  asked again.
+
+**Rejected alternatives.**
+
+- **Contested only when the sources share no value:** it would hide a real
+  disagreement over a second value, and it would make the unanimity the user's
+  answer is checked against mean "some source states it".
+- **Writing a resolved question for the receipt:** a second answer to undo, and
+  it would hold the share's answer twice. The inheritance is computed on read
+  from the one answer.
+- **Inheriting through the builder's issuer rule relation:** that relation is
+  derived from the receipt's own issuer, so the inheritance would be circular.
+
 
 ## Amendment (2026-09-30): open data conflicts on the page
 

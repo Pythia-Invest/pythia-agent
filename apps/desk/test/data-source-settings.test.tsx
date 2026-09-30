@@ -3,7 +3,11 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
-import { dataSourceSchema, syncSchema } from "@/client/data-sources";
+import {
+  dataSourceSchema,
+  lookupSchema,
+  syncSchema,
+} from "@/client/data-sources";
 import {
   DataSourceSettings,
   effectLine,
@@ -13,6 +17,8 @@ import {
 const state = vi.hoisted(() => ({
   plugins: [] as unknown[],
   sync: null as unknown,
+  found: null as unknown,
+  lookup: vi.fn(),
   mutate: vi.fn(),
   pause: vi.fn(),
 }));
@@ -32,6 +38,12 @@ vi.mock("@/client/data-sources", async (original) => {
       data: state.sync,
       mutate: state.mutate,
     }),
+    useLookupSource: () => ({
+      isPending: false,
+      error: null,
+      data: state.found,
+      mutate: state.lookup,
+    }),
     usePauseSource: () => ({
       isPending: false,
       error: null,
@@ -47,7 +59,7 @@ const defi = {
   enabled: true,
   paused: false,
   catalogue: true,
-  resolve: false,
+  lookup: [],
   serves: [],
   sole: {
     count: 1204,
@@ -69,7 +81,7 @@ const lookup = {
   plugin: "pythia-openfigi",
   label: "OpenFIGI",
   catalogue: false,
-  resolve: true,
+  lookup: ["isin"],
   sole: { count: 0, sample: [] },
   saved: { count: 0, sample: [] },
 };
@@ -80,14 +92,16 @@ const prices = {
   ...lookup,
   plugin: "pythia-yahoo-discovery",
   label: "Yahoo Finance",
-  resolve: false,
+  lookup: [],
   serves: ["market_data", "profile", "news"],
 };
 
 beforeEach(() => {
   state.plugins = [defi, lookup];
   state.sync = null;
+  state.found = null;
   state.pause.mockReset();
+  state.lookup.mockReset();
 });
 
 it("shows what turning each source off hides, beside its switch, and no trust level", () => {
@@ -195,6 +209,100 @@ it("shows what a sync placed, and why it stopped", () => {
   expect(html).toContain(
     "Read: 3 joined, 2 new, 1 conflict, 4 unmatched (stopped before the end). DeFiLlama&#x27;s catalogue stopped",
   );
+});
+
+it("puts a plugin's own lookup on its row, only while it is on, and never anywhere else", () => {
+  const html = renderToStaticMarkup(<DataSourceSettings />);
+  // OpenFIGI takes an ISIN; DeFiLlama has no resolve, so no form.
+  expect(html.match(/data-slot="source-lookup"/gu)).toHaveLength(1);
+  expect(html).toContain('aria-label="Look up ISIN in OpenFIGI"');
+  state.plugins = [{ ...lookup, enabled: false, paused: true }];
+  expect(renderToStaticMarkup(<DataSourceSettings />)).not.toContain(
+    "source-lookup",
+  );
+});
+
+it("sends the typed identifier to that plugin alone and shows how its records were placed", async () => {
+  (
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  state.plugins = [defi, lookup];
+  state.found = {
+    summary: lookupSchema.parse({
+      joined: 1,
+      introduced: 2,
+      conflicts: 0,
+      unmatched: 0,
+      rejected: 0,
+      subjects: ["listing:figi:BBG000A", "listing:figi:BBG000B"],
+    }),
+    issue: null,
+  };
+  await act(async () => root.render(<DataSourceSettings />));
+  const input = host.querySelector<HTMLInputElement>(
+    'input[aria-label="Look up ISIN in OpenFIGI"]',
+  );
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set?.call(input, " NL0010273215 ");
+    input?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () =>
+    host
+      .querySelector<HTMLFormElement>('[data-slot="source-lookup"] form')
+      ?.requestSubmit(),
+  );
+  expect(state.lookup).toHaveBeenCalledExactlyOnceWith({
+    plugin: "pythia-openfigi",
+    query: "NL0010273215",
+  });
+  const answer = host.querySelector(
+    '[data-slot="source-lookup"] [role="status"]',
+  );
+  expect(answer?.textContent).toBe(
+    "Stored: 1 joined, 2 new, 0 conflicts, 0 unmatched. Placed on listing:figi:BBG000A, listing:figi:BBG000B.",
+  );
+  expect(answer?.querySelector("a")?.getAttribute("href")).toBe(
+    "/instrument/listing%3Afigi%3ABBG000A",
+  );
+  // A lookup whose every record was refused says so, not "Stored: 0 ...".
+  state.found = {
+    summary: lookupSchema.parse({
+      joined: 0,
+      introduced: 0,
+      conflicts: 0,
+      unmatched: 0,
+      rejected: 2,
+      subjects: [],
+    }),
+    issue: null,
+  };
+  await act(async () => root.render(<DataSourceSettings />));
+  expect(
+    host.querySelector('[data-slot="source-lookup"] [role="status"]')
+      ?.textContent,
+  ).toBe("Stored: 0 joined, 0 new, 0 conflicts, 0 unmatched, 2 rejected.");
+  // No match is an answer with no counts, and says why.
+  state.found = {
+    summary: lookupSchema.parse({
+      joined: 0,
+      introduced: 0,
+      conflicts: 0,
+      unmatched: 0,
+      subjects: [],
+    }),
+    issue: "OpenFIGI found no match.",
+  };
+  await act(async () => root.render(<DataSourceSettings />));
+  expect(
+    host.querySelector('[data-slot="source-lookup"] [role="status"]')
+      ?.textContent,
+  ).toBe("OpenFIGI found no match.");
+  await act(async () => root.unmount());
 });
 
 it("lists the saved entries it names, and says when there are more", () => {

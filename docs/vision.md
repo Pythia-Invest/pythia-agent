@@ -490,7 +490,7 @@ amendment of 2026-09-30).
   each identifier's source. A plugin that is wrong and uncontradicted is
   believed until one of those.
 - **Defaults are a product choice, not a level.** Plugins that Pythia has not
-  audited (DeFiLlama, Hyperliquid and the FCA National Storage Mechanism) ship
+  audited (DeFiLlama, NAVI, Hyperliquid and the FCA National Storage Mechanism) ship
   off, and turning one on is the opt-in. A plugin contract's `signoff` field
   records Pythia's own audit under the
   [source onboarding](architecture/source-onboarding.md) standard; no code

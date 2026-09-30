@@ -72,11 +72,14 @@ class RecordAttributes:
 
     def __post_init__(self) -> None:
         _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
+        _require(isinstance(self.aliases, (list, tuple)), "record attributes: aliases are a list of names")
         object.__setattr__(self, "aliases", tuple(self.aliases))
         checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
                   (self.country, COUNTRY))
         _require(all(value is None or bool(pattern.match(value)) for value, pattern in checks),
                  "record attributes: malformed ticker, MIC, currency or country")
+        _require(len(self.aliases) <= 32 and all(isinstance(name, str) and 0 < len(name) <= 512 for name in self.aliases),
+                 "record attributes: aliases are at most 32 names of at most 512 characters")
         _require(all(isinstance(key, str) and isinstance(value, (int, float)) for key, value in self.rank.items()),
                  "record attributes: rank signals are numeric")
 

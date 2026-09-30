@@ -421,7 +421,7 @@ levels into the code gate.
   reason, and binding by level.
 - **Kept:** a plugin's own record binds the device subject it introduced (rule
   `introduced@1`), and every enabled plugin may bind like it. Fresh profiles
-  leave DeFiLlama, Hyperliquid and the FCA NSM plugin off, because each
+  leave DeFiLlama, NAVI, Hyperliquid and the FCA NSM plugin off, because each
   payload entry says so (`enabledByDefault: false`), not because of its
   `signoff`.
 - **Source selection** is ADR 0040's: the investor's order, then core's

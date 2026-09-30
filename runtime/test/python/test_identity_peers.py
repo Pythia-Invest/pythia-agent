@@ -106,7 +106,7 @@ class PeersFixture(unittest.TestCase):
             key: types.SimpleNamespace(manifest=types.SimpleNamespace(path=str(path))) for key, path in self.dirs.items()}))
         self.enterContext(mock.patch.object(access, "native_plugin_enabled", lambda key, *_: key not in self.disabled))
         self.enterContext(mock.patch.object(identity_ops, "native_operations", lambda keys: {
-            key: {operation: f"{key}.{operation}" for operation in ("catalogue", "latest")} for key in keys}))
+            key: {operation: f"{key}.{operation}" for operation in ("catalogue", "latest", "resolve")} for key in keys}))
         self.device("device")
 
     def device(self, name):
@@ -434,6 +434,25 @@ class PluginEffectTest(PeersFixture):
         self.assertEqual([item["plugin"] for item in self.effect()], ["pythia-meridian", "quotes"])
         body = json.loads(self.plugin_effect.effect(self.ops, {"plugin": "nobody"}))
         self.assertEqual(body["issues"][0]["message"], "Unknown plugin.")
+
+
+    def test_it_says_which_identifiers_a_plugin_can_look_up_and_counts_an_inactive_subject_search_still_finds(self):
+        self.meridian()
+        directory = self.install("finder", {"contract_version": 2, "plugin": "finder", "provider": "finder",
+                                            "addressing": {"native": [{"native_scope": "line", "level": "listing"}]},
+                                            "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": []},
+                                            "introduces": {"listing": ["figi"]}, "rights": RIGHTS,
+                                            "signoff": {"status": "grandfathered"}})
+        self.assertEqual({item["plugin"]: item["lookup"] for item in self.effect()},
+                         {"pythia-meridian": [], "finder": ["isin"]})
+        # A pool its source marks inactive is still found in search, flagged delisted, so disabling the plugin hides it.
+        self.pages[("tidepool", "pools")] = pools()
+        self.tidepool()
+        self.sync("tidepool-community")
+        before = self.effect("tidepool-community")[0]["sole"]["count"]
+        self.ops.store.db.execute("UPDATE subjects SET status = 'inactive' WHERE id = ?", (POOL,))
+        self.ops.store.db.commit()
+        self.assertEqual(self.effect("tidepool-community")[0]["sole"]["count"], before)
 
 
 if __name__ == "__main__":

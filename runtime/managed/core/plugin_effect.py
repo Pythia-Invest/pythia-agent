@@ -1,8 +1,8 @@
 """What disabling or pausing a plugin would take away, shown before it happens (ADR 0044 A3).
 
 `identity-plugin-effect {plugin}` is a local read. It answers the device subjects only that plugin supplies, by search's
-own rule: an offered record of no other enabled plugin is placed on them or states their identifiers, they are not
-inactive, and no reference package holds them. While the plugin is off they leave search and keep only their label
+own rule: an offered record of no other enabled plugin is placed on them or states their identifiers, and no
+reference package holds them (an inactive subject is found in search too, flagged delisted). While the plugin is off they leave search and keep only their label
 (ADR 0037, amendment "device subjects"). It also answers the saved entries of
 the markets overview (`markets_watchlist`, `markets_cards`) that name them, through their aliases, each as a count with
 a short sample, and the concepts it serves (`serves`: market data, filings, news ...). Without
@@ -41,7 +41,7 @@ SCHEMA = {
 _SUPPLIED = ("WITH offered AS (SELECT subject_id, plugin FROM claims WHERE subject_id IS NOT NULL AND state IN (SELECT"
              " value FROM json_each(?1)) UNION SELECT a.subject_id, a.plugin FROM device_assertions a JOIN claims c ON"
              " c.plugin = a.plugin AND c.native_scope = a.native_scope AND c.native_id = a.native_id WHERE c.state IN"
-             " (SELECT value FROM json_each(?1))) SELECT id, name FROM subjects WHERE status <> 'inactive' AND id IN"
+             " (SELECT value FROM json_each(?1))) SELECT id, name FROM subjects WHERE id IN"
              " (SELECT subject_id FROM offered WHERE plugin = ?2) AND id NOT IN (SELECT subject_id FROM offered WHERE"
              " plugin IN (SELECT value FROM json_each(?3))) ORDER BY name IS NULL, name, id")
 
@@ -78,6 +78,13 @@ def effect(identity: Identity, arguments: dict, **_context: Any) -> str:
     return _envelope("ok", {"plugins": found})
 
 
+def _lookup(info) -> list[str]:
+    """The identifier schemes the plugin's resolve takes: what Settings → Data → Data sources lets the investor look up in
+    it (`identity-lookup`), none for a plugin with no resolve core can call."""
+    resolve = info.manifest.resolve
+    return [str(scheme) for scheme in resolve.input_schemes] if resolve and resolve.operation in info.operations else []
+
+
 def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dict[str, Any]:
     """One plugin's sole subjects and the saved entries that name them."""
     plugin = info.manifest.plugin
@@ -87,7 +94,7 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     named = [{"id": item, "name": sole[current], "setting": setting} for setting, items in saved.items()
              for item in items if (current := device.current_id(ref, store, item)) in sole]
     return {"plugin": info.key, "label": info.label, "enabled": info.enabled, "paused": info.paused,
-            "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "resolve": info.manifest.resolve is not None,
+            "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "lookup": _lookup(info),
             "serves": [str(concept) for concept in info.manifest.concepts],
             "sole": {"count": len(sole), "sample": [{"id": key, "name": sole[key]} for key in list(sole)[:SAMPLE]]},
             "saved": {"count": len(named), "sample": named[:SAMPLE]}}

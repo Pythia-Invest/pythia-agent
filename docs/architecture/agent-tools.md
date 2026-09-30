@@ -27,7 +27,7 @@ tool gives and from which source.
 
 | Tool | Gives | Effect |
 | --- | --- | --- |
-| `pythia_find` | Which investment a name, ticker, ISIN, LEI, CIK or FIGI means; rows carry the subject id. | local read |
+| `pythia_find` | Which investment a name, ticker, ISIN, LEI, CIK or FIGI means; rows carry the subject id, and a delisted line is flagged `delisted` and ranked last. | local read |
 | `pythia_instrument` | Identifiers with their provenance, issuer, listings, the home listing (`unknown` unless core decided a primary; never inferred from listing order, R2; an `unknown` home carries a short `home_note`: the listing in use is Pythia's default, so the agent says which listing it used and labels a home-market claim from memory or the web as unverified), typed `flags`, the source of each concept, and the provider tools that can serve this investment. | local read; queues the reference build's questions about it |
 | `pythia_prices` | Latest quote, daily or intraday bars with a summary, or a period's return (1D to 5Y, from daily closes; 6M, YTD and 1Y match the Desk chart). | external read; a lookup may record a binding; queues the build's questions about it |
 | `pythia_filings` | A company's filings from one source per filing authority (core's combined read), by kind, form and date. | external read; a lookup may record a binding; queues the build's questions about it |

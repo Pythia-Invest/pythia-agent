@@ -2,7 +2,7 @@
 
 `identity-sync {plugin}` pages one plugin's declared bulk catalogue, scope by scope in the order its contract lists
 them, within a page and time bound. `identity-lookup {plugin, query}` sends one identifier the query names to the
-plugin's resolve (the "Look up in X" backend). Both run only when asked, on one plugin at a time, with no scheduler,
+plugin's resolve (the lookup form on the plugin's row in Settings → Data sources; search offers none). Both run only when asked, on one plugin at a time, with no scheduler,
 and store every record through `identity.ingest`, answering its counts. `identity-resolve` stores its answer the same
 way (`keep`). They are Desk operations: the agent's tool list has no room for them (test_agent_surface.py's budget).
 """
