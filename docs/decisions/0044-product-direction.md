@@ -367,14 +367,17 @@ exists:
   ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
   Holdings, forecasts and operations join as triggers in stage 1.
 - Subjects come only from the reference build and core's curated tables.
-  The store and reads for device subjects exist, and pages work for them with
-  no reference package; plugins introduce them once ingest lands in W3-ingest
-  ([ADR 0037](0037-identity-backbone.md), amendment "device subjects").
+  The store, reads and search for device subjects exist, and pages and search
+  work for them with no reference package; plugins introduce them once ingest
+  lands in W3-ingest ([ADR 0037](0037-identity-backbone.md), amendments
+  "device subjects" and "search over reference and device").
 - Reference sources are builder adapters. A build can leave out any of them
   (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
-  crypto table are always in. A device cannot yet remove an installed
-  package.
+  crypto table are always in. A device can remove its installed package:
+  search and pages then read the device's subjects alone, and saved
+  references open as labelled stubs ([ADR 0037](0037-identity-backbone.md),
+  amendment "search over reference and device").
 - Trust follows a digest of each plugin's files, never its name: Pythia's
   release grants confirm its signed-off and grandfathered plugins, and the
   user's own grants may confirm another or demote one (ADR 0042, amendment of

@@ -272,6 +272,7 @@ one by hand:
 just reference-snapshot                  # build a package (network; see tooling/reference-builder)
 just reference-install <package>         # verify its checksum and format, then install it
 just reference-status                    # what is installed, and the last refusal
+just reference-remove                    # set it aside: search and pages read the device's subjects alone
 ```
 
 ## Optional Tailscale access

@@ -10,7 +10,9 @@
  */
 import { z } from "zod";
 
-/** Instrument kinds of the identity vocabulary (ADR 0037). */
+/** Instrument kinds of the identity vocabulary (ADR 0037), and the subjects
+ * outside the instrument hierarchy a plugin may introduce: a market (a
+ * lending pool, a vault) and a DeFi protocol. */
 export const INSTRUMENT_KINDS = [
   "ordinary",
   "preferred",
@@ -23,12 +25,15 @@ export const INSTRUMENT_KINDS = [
   "coin",
   "token",
   "other",
+  "market",
+  "protocol",
 ] as const;
 export type InstrumentKind = (typeof INSTRUMENT_KINDS)[number];
 
 const text = (max: number) => z.string().min(1).max(max);
 
-/** One listing of a search group, or a crypto asset. */
+/** One listing of a search group, a crypto asset, or a subject a plugin
+ * introduced (a pool or protocol is its own group). */
 export const searchRowSchema = z.object({
   /** Subject id of the listing (crypto: of the asset). The instrument page
    * shows its price; it is never a provider symbol. */
@@ -37,7 +42,8 @@ export const searchRowSchema = z.object({
    * share it folds into), which the instrument page is; absent when unknown,
    * as for an explicit lookup's answer. */
   instrument: text(256).nullish(),
-  ticker: text(64),
+  /** Absent for a subject that has none, such as a pool or a protocol. */
+  ticker: text(64).nullable(),
   /** The listed security's own name (a share class, registry shares). */
   name: text(512),
   /** The listed security's kind: registry shares read as a receipt. */
@@ -48,6 +54,9 @@ export const searchRowSchema = z.object({
   /** ISO 3166 country of the venue. */
   country: z.string().length(2).nullable(),
   currency: text(16).nullable(),
+  /** The plugin that introduced the subject, as its label; absent for the
+   * reference's own subjects. */
+  source: text(128).nullish(),
 });
 export type SearchRow = z.infer<typeof searchRowSchema>;
 

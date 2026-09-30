@@ -42,7 +42,7 @@ function python(paths, args) {
 }
 
 /**
- * Run core's installer: `install <package>` or `status`. An install first moves
+ * Run core's installer: `install <package>`, `status` or `remove`. An install first moves
  * a reference an earlier Pythia installed in the core plugin's data directory,
  * as core does on first use, so installing never leaves that copy behind.
  */

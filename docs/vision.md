@@ -353,11 +353,12 @@ A genuinely new kind is a rare addition to core. New subjects never are.
 Today:
 
 - subjects come only from the reference build and core's curated tables, and
-  plugins contribute data but not subjects: the store and pages for subjects
-  on the device exist, and plugins can add them once their ingest lands;
+  plugins contribute data but not subjects: the store, pages and search for
+  subjects on the device exist, and plugins can add them once their ingest
+  lands;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
-  the ones it includes, but a device cannot yet remove an installed package;
+  the ones it includes, and a device can remove its installed package;
 - only confirm-level plugins bind, onto reference or device subjects, and a
   display plugin binds only a subject it introduced;
 - the build's open questions are queued only when an instrument is opened,

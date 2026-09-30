@@ -1,12 +1,13 @@
-"""Local search (ADR 0037): the directory derived from the reference file, and its search groups.
+"""Local search (ADR 0037): the directory of the reference file and the device's subjects, and its search groups.
 
 Search is one local read: no provider call, no identity write, no reconciliation.
-The directory is an in-memory FTS5 index built once per reference file and
-rebuilt when the file changes; `ranking` scores its lines. Each line knows its
-instrument (`inst`: a security with what `fold` relations fold into it, such as
-its depositary receipts) and its search group (`grp`: the company for its
-equity, the product itself for a fund, ETF or note, the asset for crypto).
-Results are search groups, each with its relevant listings first.
+The directory is an in-memory FTS5 index built once per reference file and device
+state (`search_device`) and rebuilt when either changes; `ranking` scores its lines,
+whatever their origin. Each line knows its instrument (`inst`: a security with what
+`fold` relations fold into it, such as its depositary receipts) and its search group
+(`grp`: the company for its equity, the product itself for a fund, ETF or note, the
+asset for crypto, a pool or protocol its own). Results are search groups, each with
+its relevant listings first.
 """
 from __future__ import annotations
 
@@ -14,12 +15,16 @@ import logging
 import re
 import sqlite3
 import threading
+from itertools import chain
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
 from . import ranking
+from .evidence import level
 from .model import fold_roots
 from .ranking import logrank, norm, tnorm
+from .search_device import Additions, empty_reference
+from .trust import CONFIRM
 from .vocabulary import ISSUER_INTERESTS
 
 logger = logging.getLogger(__name__)
@@ -29,7 +34,8 @@ US_LISTED = ("XNAS", "XNYS", "XCBO")
 # Which listing represents an instrument, unless the query names one (settings.json `search_listing_preference`).
 PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
-KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
+KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other",
+         "market", "protocol")
 SHOWN = 3  # relevant listing rows a search group carries
 GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
@@ -58,18 +64,18 @@ DOC = """CREATE TABLE doc (
   id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER)"""
+  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER, trust INTEGER, source TEXT)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg liq").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg liq trust source").split()
 
 
 class Directory:
-    """The search directory of one reference file."""
+    """The search directory of one reference file (an empty one when none is installed) and what `device` adds."""
 
-    def __init__(self, reference: sqlite3.Connection):
+    def __init__(self, reference: sqlite3.Connection, device: Additions | None = None):
         self.db = sqlite3.connect(":memory:", check_same_thread=False)
         self.db.execute(DOC)
-        self._load(reference)
+        self._load(reference, device or Additions())
         self.db.execute("CREATE VIRTUAL TABLE fts USING fts5(ticker, names, content='doc', content_rowid='id',"
                         " tokenize=\"unicode61 remove_diacritics 2\", prefix='2 3 4')")
         self.db.execute("INSERT INTO fts(rowid, ticker, names) SELECT id, coalesce(ticker, ''), names FROM doc")
@@ -85,7 +91,7 @@ class Directory:
         self.db.commit()
         self.lock = threading.Lock()
 
-    def _load(self, ref: sqlite3.Connection) -> None:
+    def _load(self, ref: sqlite3.Connection, device: Additions) -> None:
         def many(sql: str) -> dict[str, list[str]]:
             out: dict[str, list[str]] = {}
             for key, value in ref.execute(sql):
@@ -101,10 +107,12 @@ class Directory:
         regulated = ({mic for mic, category, country in ref.execute("SELECT mic, category, country FROM venues")
                       if category == "RMKT" or (category == "NSPD" and country not in ranking.EEA)}
                      | set(US_LISTED)) if categorised else set()
-        issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
+        issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")} | device.issuers
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
-                   " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
+                   " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')") | device.ids
         names = many("SELECT subject_id, name FROM names")
+        for subject, named in device.names.items():  # the names plugins' records give
+            names.setdefault(subject, []).extend(named)
         units, odd = fold_roots(ref.execute("SELECT type, from_id, to_id FROM relations"))
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
@@ -112,11 +120,13 @@ class Directory:
             "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
             " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM listings l"
             " JOIN securities s ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
-        docs = []
-        for index, row in enumerate(rows, 1):
-            (listing, security, composite, mic, operating, ticker, currency, chain, primary, issuer, name, kind,
+        docs, package = [], int(level(ref) == CONFIRM)
+        for index, row in enumerate(chain(rows, device.rows), 1):  # the device's lines are ranked as the reference's
+            (listing, security, composite, mic, operating, ticker, currency, _chain, primary, issuer, name, kind,
              asset_class, rank, liquid) = row
-            if not ticker:
+            own, stated = device.lines.get(listing), device.tickers.get(listing, [])
+            ticker = ticker or next(iter(stated), None)  # a plugin's ticker makes a ticker-less line findable
+            if not ticker and own is None:
                 continue
             values = {item.split(":", 1)[0]: item.split(":", 1)[1] for key in (listing, security, composite, issuer)
                       for item in ids.get(key or "", [])}
@@ -128,7 +138,8 @@ class Directory:
             op = operating or mic
             isin = values.get("isin")
             primary_names = [name, issuer_name, *names.get(listing, [])]
-            aliases = [*names.get(issuer or "", []), *names.get(security, [])]
+            aliases = [*names.get(issuer or "", []), *names.get(security, []), 
+                       *(item for item in stated if item != ticker)]
             label = " | ".join(dict.fromkeys(filter(None, primary_names)))
             label += " || " + " | ".join(dict.fromkeys(filter(None, aliases))) if aliases else ""
             # A foreign company's receipt or OTC line ranks below its other lines; its own shares listed on a US
@@ -139,12 +150,13 @@ class Directory:
                                   or (not issuer_country and op in US_LISTED and not isin))
             docs.append(dict(zip(DOC_COLUMNS, (
                 index, security if crypto else listing, security, issuer, None, kind, int(crypto),
-                ticker, tnorm(ticker), (issuer_name if not crypto else None) or name, label, isin, values.get("lei"),
+                ticker, tnorm(ticker) or None, (issuer_name if not crypto else None) or name, label, isin, values.get("lei"),
                 (values.get("cik") or "").lstrip("0") or None, figis, op if not crypto else None,
                 venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
-                int(foreign_us), logrank(rank),
-                security, kind, int(mic in regulated or op in regulated & set(US_LISTED)), int(bool(liquid))))))
+                int(foreign_us), logrank(rank) if own is None else own["size"],
+                security, kind, int(mic in regulated or op in regulated & set(US_LISTED)), int(bool(liquid)),
+                package if own is None else own["trust"], own and own["source"]))))
         # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
         # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
@@ -283,11 +295,11 @@ class Directory:
         for score, line, key in self.lines(query, prefer, suffixes, venues):
             if not _allowed(line, allowed):
                 continue
-            group = groups.setdefault(line["grp"], [score, {}])
-            group[0] = max(group[0], score)
+            group = groups.setdefault(line["grp"], [(score, line["trust"]), {}])  # trust breaks a tie, never origin
+            group[0] = max(group[0], (score, line["trust"]))
             group[1].setdefault(line["security"], []).append((score, key, line))
         out = []
-        for key, (_score, securities) in sorted(groups.items(), key=lambda item: -item[1][0])[:limit]:
+        for key, (_score, securities) in sorted(groups.items(), key=lambda item: item[1][0], reverse=True)[:limit]:
             # The lead is the best line of the best instrument (receipts folded in), then the main share's
             # primary listing (only a flagged one) and a line of each other matched security (receipts,
             # classes): one the query names, else that security's own primary listing.
@@ -343,7 +355,8 @@ def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
             "rows": [{"id": line["listing"], "instrument": line["inst"], "ticker": line["ticker"],
                       "name": line["name"] if line["inst"] == lead["inst"] and line["grp"] != line["inst"] else
                       _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
-                      "venue": line["venue"], "country": line["country"], "currency": line["currency"]}
+                      "venue": line["venue"], "country": line["country"], "currency": line["currency"],
+                      **({"source": line["source"]} if line["source"] else {})}  # a plugin's subject names it
                      for line in lines]}
 
 
@@ -367,17 +380,19 @@ _cache: dict[str, tuple[tuple, Directory]] = {}
 _cache_lock = threading.Lock()
 
 
-def directory(path: Path, open_reference: Callable[[Path], sqlite3.Connection]) -> Directory:
-    """The directory for a reference file, rebuilt when the file changes."""
-    info = Path(path).stat()
-    stamp = (str(path), info.st_mtime_ns, info.st_size)
+def directory(path: Path | None, open_reference: Callable[[Path], sqlite3.Connection],
+              device: Callable[[sqlite3.Connection], Additions] = lambda _ref: Additions(), key: tuple = ()) -> Directory:
+    """The directory for the installed reference file (None: none) and what `device` adds from the device state `key`
+    names (`search_device.key`), rebuilt when either changes."""
+    info = Path(path).stat() if path else None
+    stamp = ((str(path), info.st_mtime_ns, info.st_size) if info else None, key)
     with _cache_lock:
         cached = _cache.get("current")
         if cached and cached[0] == stamp:
             return cached[1]
-        reference = open_reference(path)
+        reference = open_reference(path) if path else empty_reference()
         try:
-            built = Directory(reference)
+            built = Directory(reference, device(reference))
         finally:
             reference.close()
         _cache["current"] = (stamp, built)

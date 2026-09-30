@@ -35,6 +35,8 @@ export const KIND_LABELS: Record<InstrumentKind, string> = {
   coin: "Crypto",
   token: "Token",
   other: "Other",
+  market: "Market",
+  protocol: "Protocol",
 };
 
 /** The plain type a result row shows; a receipt on its own reads as a stock. */

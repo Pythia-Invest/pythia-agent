@@ -1140,9 +1140,10 @@ reference package installed every page said so.
   "binding by trust level"). The user's answer may choose a device subject.
 
 Not built yet: core's ingest of plugin records, which writes device subjects,
-joins records by identifier and places claims (roadmap stage 0, W3-ingest), and
-search over device subjects (W3-search). Until ingest lands, device evidence
-about a subject the reference holds is not merged into that subject's page.
+joins records by identifier and places claims (roadmap stage 0, W3-ingest).
+Until ingest lands, device evidence about a subject the reference holds is not
+merged into that subject's page. Search over device subjects is built
+(amendment "search over reference and device").
 
 **Rationale.** One store keeps a device subject's label, identifiers, bindings
 and answers in one transaction, as the original ruling chose for claims.
@@ -1274,3 +1275,105 @@ provisional-coin aliases until its next format". In [ADR 0042](0042-source-onboa
   store, not every device.
 - **Keeping the provider tables for the drift check:** `just
   canonical-assets-drift` reads the contracts.
+
+## Amendment (2026-09-30): search over reference and device
+
+**Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin
+introduce subjects, and roadmap stage 0 asks that they appear in search. Search
+read the reference file alone: with no package it found nothing, a subject a
+plugin introduced was never a result, a FIRDS line without a ticker stayed
+unfindable whatever a plugin said about it, and "Look up in X" was never
+offered. A device could also not remove its package (ADR 0044's Today list), so
+nothing showed what search and saved references do without one.
+
+**Ruling.**
+
+- **The directory holds the reference's lines and the device's**
+  (`identity/search_device.py`). A device subject is in it while at least one
+  enabled plugin has a placed claim or an assertion about it. A listing is a
+  line; a pool, a protocol or another subject outside the instrument hierarchy
+  is a line and its own search group, like a fund. Issuers, securities and
+  composites are not lines, as in the reference. A device listing under a
+  security the reference holds joins that security's company group.
+- **Enabled plugins' evidence adds to the reference's lines.** A plugin's
+  ticker fills a line that has none (a FIRDS line becomes findable) and its
+  other tickers are search names, as are the names its placed records give
+  (never those of a record kept as a conflict). Its identifiers are weighed
+  with the package's, each at its contributor's trust level (amendment
+  "evidence counts by kind and trust level"): a contested identifier indexes
+  neither value, so search never presents one as a fact, and a display-level
+  plugin's other value never displaces the package's. The line stays findable
+  by its name and ticker.
+- **One ranking for every line.** A device line is built in the shape of the
+  reference's listing join and scored by the same code. A plugin record's rank
+  signals (its `*_usd` amounts: market cap, total value locked) map onto the
+  reference rank's notability scale, $1M to 0 and $1T to 1. Between groups
+  with the same score, a confirm-level contributor comes before a display-level
+  one. Origin never counts: a subject is not ranked lower for being a device
+  subject.
+- **A row names the plugin that introduced its subject** (`source`, the
+  plugin's label); the reference's own rows name none.
+- **A disabled plugin adds nothing.** Its subjects leave search at once and
+  come back when it is enabled again, with nothing re-read; their pages still
+  open by ID (amendment "device subjects").
+- **The directory is rebuilt only when what it reads changes:** the reference
+  file, the identity store's `generation`, or the enabled plugins and their
+  trust levels. Every writer of device rows bumps the generation.
+- **With no package installed,** search reads the device's subjects alone. An
+  answer with no results still says why there is no reference data.
+- **Lookup offers.** A search answer's `lookup` lists the enabled, configured
+  plugins whose declared resolve takes the identifier the query is (an ISIN, a
+  LEI, a CIK, or a FIGI in any FIGI scheme). A text query offers none. Offering
+  calls nothing; the lookup itself is the explicit single-plugin
+  `identity-lookup` that core's ingest adds (roadmap stage 0, W3-ingest).
+- **The search contract** (`packages/market-data/src/search.ts`) gains the
+  kinds `market` and `protocol`, a nullable `ticker` and an optional `source`.
+- **Removing the package.** `reference_package.py remove` (`just
+  reference-remove`) sets the install record aside as `removed.json`, so no
+  package is active ([reference packages](../architecture/reference-package.md#removing)).
+  A saved reference to a reference subject then opens as a labelled stub: its
+  own ID, named by the latest record a plugin placed on it, the identifiers the
+  device's plugins state, and a line saying why there is no more. It is never
+  `UNKNOWN_SUBJECT` and never another subject. Device evidence stays.
+  Installing the same package again gives the same release key, so nothing is
+  re-keyed and no question is retired.
+
+**Rationale.** Building device lines in the reference's shape keeps one
+ranking, so origin cannot enter it by accident, and one index keeps a search a
+single read. The store's generation counter exists for exactly this cache.
+Weighing identifiers as pages weigh them keeps search from answering a
+contested identifier as if it were settled. Setting the install record aside is
+one atomic rename that a later install undoes; it touches no device state.
+
+**Consequences.**
+
+- Measured on the 2026-09-28 build (211 MB, 92,941 lines): building the
+  directory takes 2.0 s before and after this change with no device rows, and
+  2.15 s with 6,300 device lines plus 1,500 statements about reference subjects
+  (reading them takes 0.05 s). Queries take 0.2 to 1.1 ms before and after;
+  one that matches thousands of device lines takes longer ("lending", matching
+  3,000 pools: 4.6 ms). A search checks the cache key (the generation and the
+  enabled plugins) and otherwise reuses the directory. Every search now lists
+  the installed plugins (`installed()`) for that key and for the lookup offers.
+- An instrument's page lists the device lines of its security (a line a plugin
+  introduced under a security the build holds), and the listing selector may
+  price through one.
+- Development startup installs the checkout's builder output again after a
+  removal; a stack meant to run without a package points
+  `PYTHIA_DEV_REFERENCE_PACKAGE` at a directory without one.
+- Superseded in the original ruling: "builds the directory in memory (FTS5)
+  from the installed reference package" (it also holds the device's subjects)
+  and "notability from each security's source `rank`" (a plugin record's rank
+  signals count too).
+
+**Rejected alternatives.**
+
+- **Ranking device subjects below the reference's on an equal text match** (an
+  earlier design): ranking by origin, which A1 rules out.
+- **Showing both values of a contested identifier:** it needs multi-valued
+  identifier columns, and no search row shows an identifier; showing neither is
+  the simpler reading of "never a fact".
+- **A second index for device subjects, merged per query:** two rankings to
+  reconcile on every keystroke.
+- **Deleting the package's files on removal:** it would lose the verified copy
+  for nothing, since the next install replaces them anyway.

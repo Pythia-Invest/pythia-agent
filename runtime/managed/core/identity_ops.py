@@ -1,11 +1,10 @@
 """Core identity operations on the native tool registry: search, subject and resolve.
 
-`identity-search` and `identity-subject` are local reads of the reference file,
-identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
-`identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item. `reference-status`
-describes the installed reference package. The resolution-queue operations live
-in `queue_ops`.
+`identity-search` and `identity-subject` are local reads of the reference file, identity.sqlite3 and the installed
+plugins' contracts; neither calls a provider. With no reference package, search finds the device's subjects and a
+saved instrument opens as a labelled stub (`stub`). `identity-resolve` runs one plugin's declared resolve tool, bounded
+by a short timeout, and stores the decided binding or queue item. `reference-status` describes the installed reference
+package. The resolution-queue operations live in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -27,7 +26,7 @@ from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, device, flags, trust
+from .identity import declared, device, flags, search_device, stub, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -123,17 +122,17 @@ class Identity:
         group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
-            if (path := self.reference_path()) is None:
-                return _envelope("empty", empty, issue=no_reference(self.data_dir))
-            directory = search.directory(path, store.open_reference)
-            kinds = arguments.get("kinds")
+            path, plugins = self.reference_path(), installed()  # with no package, the device's subjects alone
+            directory, kinds = self.directory(path, plugins), arguments.get("kinds")
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
                                           suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
+            data["lookup"] = search_device.offers(query, plugins) if query and not group else []
         except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
-        return _envelope("ok" if data["groups"] else "empty", data)
+        issue = None if path or data["groups"] else no_reference(self.data_dir)
+        return _envelope("ok" if data["groups"] else "empty", data, issue=issue)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
         data = {**reference_package.status(self.data_dir), "both_present": location.both_present(self.data_dir)}
@@ -148,7 +147,7 @@ class Identity:
         except (sqlite3.Error, OSError) as error:
             logger.warning("identity subject unavailable", exc_info=True)
             view, issue = None, location.reason(error)
-        return _envelope("ok", view) if view else _envelope("empty", None, issue=issue)
+        return _envelope("ok" if view else "empty", view, issue=issue)  # a stub says why it is one
 
     def resolve(self, arguments: dict, **_context: Any) -> str:
         subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("plugin")
@@ -222,22 +221,21 @@ class Identity:
                 "named": named, "unaudited": unaudited, "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
-        path, subject, lookups, issue = self._load(subject_id)
-        if subject is None:
-            return None, issue
-        security = subject["ids"].get(Level.SECURITY)
-        view = subject["view"]
+        (path, subject, lookups, issue), plugins = self._load(subject_id), installed()
+        if subject is None:  # a saved instrument while no package is read: its stub, never another subject
+            return (None if issue == UNKNOWN_SUBJECT else stub.view(self.store, subject_id, plugins, issue)), issue
+        security, view = subject["ids"].get(Level.SECURITY), subject["view"]
         view["other_securities"] = []
         if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
             view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
         if subject["asset_class"] == "equity" and security and path:  # the instrument's lines, receipts folded in
-            directory = search.directory(path, store.open_reference)
+            directory = self.directory(path, plugins)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
             view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
-        sections = page.compose(subject, installed(), **lookups)
+        sections = page.compose(subject, plugins, **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
@@ -273,16 +271,17 @@ class Identity:
                            for plugin, reason in identity_store.misses(target).items()},
                 "order": self.order(), **read_checks.lookups(self, subject_ids)}
 
-    @staticmethod
-    def _default_listing(path: Path, subject: dict) -> str | None:
+    def directory(self, path: Path | None, plugins: list | None = None) -> search.Directory:  # with what plugins add
+        return search_device.directory(path, self.store, installed() if plugins is None else plugins)
+
+    def _default_listing(self, path: Path, subject: dict) -> str | None:
         """The line an equity security or issuer subject is priced through: the first of the instrument's own
         lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
         and market-data reads agree with the selector. None for a listing subject or anything else."""
         security = subject["ids"].get(Level.SECURITY)
         if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
             return None
-        own = [line for line in search.directory(path, store.open_reference).instrument_listings(security)
-               if not line["folded"]]
+        own = [line for line in self.directory(path).instrument_listings(security) if not line["folded"]]
         return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:

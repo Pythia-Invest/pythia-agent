@@ -71,6 +71,52 @@ describe("search transport", () => {
     });
   });
 
+  it("accepts a subject a plugin introduced: its own kind, no ticker, the plugin's label", async () => {
+    const pool = {
+      id: "market:provisional:defillama:pool:usdc-navi",
+      instrument: "market:provisional:defillama:pool:usdc-navi",
+      ticker: null,
+      name: "NAVI Lending USDC",
+      kind: "market",
+      mic: null,
+      venue: null,
+      country: null,
+      currency: null,
+      source: "DefiLlama",
+    } as const;
+    const found: SearchResponse = {
+      groups: [
+        {
+          id: pool.id,
+          name: pool.name,
+          kind: "market",
+          listings: 1,
+          rows: [pool],
+        },
+        {
+          id: "protocol:provisional:defillama:protocol:navi",
+          name: "NAVI",
+          kind: "protocol",
+          listings: 1,
+          rows: [
+            {
+              ...pool,
+              id: "protocol:provisional:defillama:protocol:navi",
+              instrument: "protocol:provisional:defillama:protocol:navi",
+              name: "NAVI",
+              kind: "protocol",
+            },
+          ],
+        },
+      ],
+      lookup: [{ plugin: "pythia-openfigi", label: "OpenFIGI" }],
+    };
+    const { value } = transport({ outcome: "ok", data: found });
+    await expect(
+      transportSearch(value)({ query: "navi", limit: 20 }, signal),
+    ).resolves.toEqual(found);
+  });
+
   it("rejects failed or malformed results instead of showing them", async () => {
     const failed = transport({ outcome: "error", issues: [] }).value;
     await expect(

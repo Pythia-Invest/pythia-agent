@@ -33,6 +33,8 @@ class OlderFormatTest(TrustCase):
     def test_a_newer_package_says_to_update_pythia_and_none_says_none_is_installed(self):
         data, newer = self.root / "data", reference_package.FORMAT_VERSION + 1
         ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=data)
+        self.enterContext(mock.patch.object(identity_ops, "installed", list))  # no plugins: nothing on the device
+        self.addCleanup(lambda: ops._store and ops._store.db.close())
         self.assertEqual(json.loads(ops.search({"query": "ASML"}))["issues"][0]["message"], queue_ops.NO_REFERENCE)
         with mock.patch.object(reference_package, "FORMAT_VERSION", newer):  # installed by a later Pythia
             reference_package.install(make_package(self.root / "package", format_version=newer), data, trust.CONFIRM)
