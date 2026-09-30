@@ -36,7 +36,7 @@ disablement. Pythia does not add a parallel extension registry.
 
 Core owns canonical investment identity: subject levels, claims, the
 resolution queue, the identity stores and local search
-([ADR 0037](../decisions/0037-identity-backbone.md)) and the data concepts with
+([ADR 0037](../decisions/0037-identity-backbone.md); [where a fact comes from](identity-data.md)) and the data concepts with
 their source selection ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)).
 Plugins contribute claims and declare what they can address and serve in
 `contract.json` ([ADR 0038](../decisions/0038-plugin-addressing-contract.md)). The

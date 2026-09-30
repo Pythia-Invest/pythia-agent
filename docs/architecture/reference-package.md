@@ -19,7 +19,9 @@ questions open:
 
 - `reference-<YYYYMMDD>.sqlite3` is the versioned reference database. Its
   layout is core's `identity/sql/reference.sql`, and its `release` table
-  records `schema_version` and the build ID (`release`).
+  records `schema_version` and the build ID (`release`). Each table and column
+  is explained by a comment in its `CREATE` statement, and
+  [identity data](identity-data.md) shows how to read the file.
 - `package.json` is the manifest that describes the database.
 - `questions-<YYYYMMDD>.json`, named by `claims`, lists what the build could
   not decide from its sources.

@@ -53,4 +53,17 @@ def schema_sql(store: Store | str) -> str:
     return (Path(__file__).parent / "sql" / f"{Store(store).value}.sql").read_text(encoding="utf-8")
 
 
+# Columns added to a table within a schema version: nullable, so a database made before one still reads. The DDL declares
+# them too; SQLite has no `ADD COLUMN IF NOT EXISTS`, so each open adds what an older database lacks (`add_columns`).
+ADDED_COLUMNS = {Store.IDENTITY: (("relations", "source_record TEXT"), ("relations", "source_version TEXT"),
+                                  ("relations", "adapter_version TEXT"), ("bindings", "decided_at TEXT"))}
+
+
+def add_columns(db, store: Store | str) -> None:
+    """Add to `db`, an open database of `store`, the `ADDED_COLUMNS` it lacks. The caller holds the store's lock."""
+    for table, column in ADDED_COLUMNS.get(Store(store), ()):
+        if column.split()[0] not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+
+
 __all__ = [name for name in dir() if not name.startswith("_") and name not in {"annotations", "Path", "StrEnum"}]

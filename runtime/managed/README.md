@@ -43,7 +43,8 @@ Core's `desk_view.py` exposes bounded recent structured Desk context through
 settings and native deferred tool discovery remain authoritative. The operating
 section `[PYTHIA_WORKSPACE_GUIDANCE_V1]` explains native memory, files, sessions
 and skills, and asks for web citations as Markdown links right after the claim
-they support, which Desk renders as source pills; `investment-memory` carries research discipline using native files.
+they support, which Desk renders as source pills; `investment-memory` carries research discipline using native files, and core's
+`pythia:identity-data` tells the agent how to read the identity stores read-only.
 No new index, memory-provider integration or mandatory retrieval procedure exists.
 
 Fresh seeds use one workspace with optional strategy briefs. Existing Basic
