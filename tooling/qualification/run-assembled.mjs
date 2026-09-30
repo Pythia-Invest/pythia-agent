@@ -128,7 +128,7 @@ function qualifyAgentTools(stack) {
   );
   assert(
     result.status === 0,
-    `Agent tool qualification failed: ${(result.stderr || result.error?.message || "").slice(-2000)}`,
+    `Agent tool qualification failed: ${(result.stderr || result.error?.message || "").slice(-7000)}`, // TEMP-DIAGNOSTIC
   );
 }
 

@@ -87,7 +87,21 @@ manager._hooks["pre_tool_call"].append(lambda tool_name="", **_: {"action": "app
 asked = json.loads(model_tools.handle_function_call("skills_list", {}, session_id="probe", task_id="probe"))
 core = manager._plugins["pythia"].module
 agent_tools = sys.modules[core.__name__ + ".agent_tools"]
-http = json.loads(core.platform.http.execute("pythia", "identity-queue", {}, None, lambda: False))
+try:
+    http = json.loads(core.platform.http.execute("pythia", "identity-queue", {}, None, lambda: False))
+except Exception:  # TEMP-DIAGNOSTIC
+    from tools.registry import registry as _r
+    _owners = core.platform.access.native_tool_owners()
+    set_session_vars(platform="api_server")
+    _elig = core.platform.access.eligible_tools()
+    print("DIAG " + json.dumps({"plugin_errors": {k: p.error for k, p in manager._plugins.items() if p.error},
+        "plugins": {k: [p.enabled, len(p.tools_registered)] for k, p in manager._plugins.items()},
+        "registered": sorted(n for n in _r.get_all_tool_names() if n.startswith("pythia")),
+        "owned": sorted(n for n in _owners if n.startswith("pythia")),
+        "eligible": sorted(n for n in _elig if n.startswith("pythia")),
+        "decl": {n: (core.platform.operations.declaration(_r.get_schema(n) or {}) or {}).get("operation") for n in _r.get_all_tool_names()
+                 if n.startswith("pythia_identity")}}, default=str), file=sys.stderr)
+    raise
 set_session_vars(platform="api_server")  # the HTTP path binds and clears its own caller context
 declared = {}
 for name, (key, _plugin) in core.platform.access.native_tool_owners().items():
