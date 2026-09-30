@@ -19,6 +19,11 @@ import {
 
 type JsonStore = Record<string, unknown> & { schema_version?: unknown };
 
+// Core's reserved settings.json field (platform/configuration.py `PAUSED`): the
+// plugins the investor paused in Settings → Data sources.
+const PAUSED_PLUGINS = "pythia_paused_plugins";
+const MAX_PAUSED_PLUGINS = 64;
+
 export function privateDirectory(path: string) {
   if (!existsSync(path)) mkdirSync(path, { recursive: true, mode: 0o700 });
   const info = lstatSync(path);
@@ -121,4 +126,25 @@ export function resolveConfigRoot(
     503,
     "settings_not_configured",
   );
+}
+
+/** Adds or removes one plugin in settings.json's paused list, keeping every
+ * other field. Core reads the file on each use, so the change is immediate. */
+export function setPausedPlugin(path: string, plugin: string, paused: boolean) {
+  const store = requireStore(path);
+  const stored = store[PAUSED_PLUGINS];
+  const current = Array.isArray(stored)
+    ? stored.filter((item): item is string => typeof item === "string")
+    : [];
+  const next = paused
+    ? [...new Set([...current, plugin])].sort()
+    : current.filter((item) => item !== plugin);
+  if (next.length > MAX_PAUSED_PLUGINS) {
+    throw new DeviceSettingsError(
+      "Too many plugins are paused.",
+      409,
+      "too_many_paused_plugins",
+    );
+  }
+  atomicWriteStore(path, { ...store, [PAUSED_PLUGINS]: next });
 }

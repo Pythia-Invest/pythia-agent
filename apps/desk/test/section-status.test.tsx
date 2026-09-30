@@ -324,6 +324,9 @@ describe("a subject a plugin introduced", () => {
 
   it("names its source, and says when that source is off or no longer offers it", () => {
     expect(header({})).toContain("From Tidepool</p>");
+    expect(header({ status: "paused" })).toContain(
+      "From Tidepool, which is paused",
+    );
     expect(header({ status: "disabled" })).toContain(
       "From Tidepool, which is disabled",
     );

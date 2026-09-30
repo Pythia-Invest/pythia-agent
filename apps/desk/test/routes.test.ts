@@ -92,6 +92,10 @@ function fakeSettings() {
       configured: true,
       tools: [],
     })),
+    setPluginPaused: vi.fn(async (plugin: string, paused: boolean) => ({
+      plugin,
+      paused,
+    })),
   } satisfies DeviceSettingsService;
 }
 
@@ -391,6 +395,24 @@ describe("Desk routes", () => {
       ).status,
     ).toBe(403);
     expect(settings.setSkillEnabled).not.toHaveBeenCalled();
+
+    const hostilePause = new Request(`${origin}/api/settings/plugins/example`, {
+      body: JSON.stringify({ paused: true }),
+      headers: {
+        "content-type": "application/json",
+        host: "attacker.example:43121",
+        origin: "https://attacker.example",
+      },
+      method: "POST",
+    });
+    expect(
+      (
+        await routes.setPluginPaused(hostilePause, {
+          params: new Promise(() => undefined),
+        })
+      ).status,
+    ).toBe(403);
+    expect(settings.setPluginPaused).not.toHaveBeenCalled();
   });
 
   it("admits read-only update status and rejects hostile callers first", async () => {
@@ -427,5 +449,21 @@ describe("Desk routes", () => {
       toolset: { name: "example", enabled: true, configured: true, tools: [] },
     });
     expect(settings.setToolsetEnabled).toHaveBeenCalledWith("example", true);
+  });
+
+  it("pauses a data source from an admitted request and refuses a malformed one", async () => {
+    const settings = fakeSettings();
+    const routes = createDeskRoutes(fakeClient(), settings);
+    const pause = (body: unknown) =>
+      routes.setPluginPaused(
+        mutation("/api/settings/plugins/example", body, "T".repeat(43)),
+        { params: Promise.resolve({ name: "example" }) },
+      );
+    const response = await pause({ paused: true });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ plugin: "example", paused: true });
+    expect(settings.setPluginPaused).toHaveBeenCalledWith("example", true);
+    expect((await pause({ paused: "yes" })).status).toBe(400);
+    expect(settings.setPluginPaused).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,6 +12,8 @@ export type DeviceSkill = HermesSkill & {
   mutable: boolean;
 };
 
+export type PluginPause = { plugin: string; paused: boolean };
+
 export type DeviceSettingsSnapshot = {
   workspace: {
     root: string | null;
@@ -40,6 +42,11 @@ export interface DeviceSettingsService {
   snapshot(): Promise<DeviceSettingsSnapshot>;
   setSkillEnabled(name: string, enabled: boolean): Promise<DeviceSkill>;
   setToolsetEnabled(name: string, enabled: boolean): Promise<HermesToolset>;
+  /**
+   * Pause or resume a data source in Pythia's own settings (Settings → Data
+   * sources). Core reads the file on every use, so neither needs a restart.
+   */
+  setPluginPaused(name: string, paused: boolean): Promise<PluginPause>;
 }
 
 export type CommandRunner = (args: string[]) => Promise<{ stdout: string }>;

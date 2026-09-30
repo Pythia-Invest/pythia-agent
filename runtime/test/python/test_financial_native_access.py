@@ -10,6 +10,7 @@ import importlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -122,6 +123,26 @@ class NativeAccessTests(unittest.TestCase):
         self.add_plugin('finance/replacement', 'replacement', 'synthetic_search')
         self.assertNotIn('synthetic_search', contributions.eligible_tools())
         self.manager._registration_order[-1].active = False
+        self.assertIn('synthetic_search', contributions.eligible_tools())
+
+    def test_a_paused_source_loses_its_tools_at_once_and_only_a_source_with_a_contract_can_be_paused(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        config = root / 'config'
+        config.mkdir(mode=0o700)
+        self.enterContext(patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': str(config)}))
+        (root / 'contract.json').write_text('{}')  # a data source ships a contract
+        self.manager._plugins[self.provider_key].manifest.path = str(root)
+
+        def pause(*keys):  # a settings write renames a new file into place
+            temporary = config / '.settings.tmp'
+            temporary.write_text(json.dumps({'schema_version': 1, 'pythia_paused_plugins': list(keys)}))
+            temporary.chmod(0o600)
+            os.replace(temporary, config / 'settings.json')
+        pause()
+        self.assertEqual({'synthetic_search', definition.TOOL_NAME}, contributions.eligible_tools())
+        pause(self.provider_key, self.feature_key)  # no cache to clear; the feature backend has no contract
+        self.assertEqual({definition.TOOL_NAME}, contributions.eligible_tools())
+        pause()
         self.assertIn('synthetic_search', contributions.eligible_tools())
 
     def test_specialist_annotation_cannot_claim_another_enabled_plugin(self):

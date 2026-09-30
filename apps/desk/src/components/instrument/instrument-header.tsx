@@ -115,12 +115,13 @@ export function InstrumentHeader({
 }
 
 /** Where a subject a plugin introduced comes from, and whether that plugin
- * is still on and still offers it. Its page, and a saved reference to it,
- * stay readable either way (ADR 0044 A3). */
+ * is still on (neither paused nor disabled) and still offers it. Its page, and
+ * a saved reference to it, stay readable either way (ADR 0044 A3). */
 export function SourceLine({ page }: { page: SubjectPage }) {
   const source = page.contributors.find((item) => item.introduced);
   if (!source) return null;
   const clauses = [
+    ...(source.status === "paused" ? ["is paused"] : []),
     ...(source.status === "disabled" ? ["is disabled"] : []),
     ...(source.status === "removed" ? ["is no longer installed"] : []),
     ...(source.not_offered_since

@@ -10,8 +10,7 @@ granted confirm. Only when core cannot derive the address is the section `resolv
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
 `apply_resolve` decides with the one authority rule.
 
-A `market` subject (a perp) comes from core's maintained table (`markets.py`);
-its page needs no reference file.
+A `market` subject (a perp) comes from core's maintained table (`markets.py`); its page needs no reference file.
 """
 from __future__ import annotations
 
@@ -69,7 +68,8 @@ class PluginInfo:
 
     key: str                                   # native plugin id: the `plugin` of Desk requests
     manifest: Manifest
-    enabled: bool = True
+    enabled: bool = True                       # enabled in Hermes and not paused: core serves it
+    paused: bool = False                       # enabled in Hermes, but the investor paused it (Settings → Data sources)
     missing: tuple[Mapping[str, str], ...] = ()  # required configuration not configured
     operations: Mapping[str, str] = field(default_factory=dict)  # plugin operation -> the native tool declaring it
 
@@ -227,7 +227,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     queued = next((item for item in queue if item["plugin"] == info.manifest.plugin), None)
     conflict = queued if queued and queued.get("kind", "conflict") == "conflict" else None
     if not info.enabled:
-        return {**answer, "status": "disabled", "reason": f"{info.label} is disabled"}
+        return {**answer, "status": "disabled", "reason": f"{info.label} is {'paused' if info.paused else 'disabled'}"}
     if missing:
         return {**answer, "status": "needs_configuration",
                 "reason": f"{info.label} needs configuration: add {missing['key']} to {missing['file']}"}

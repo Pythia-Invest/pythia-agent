@@ -5,7 +5,7 @@ registered (in core's hidden `pythia-core` toolset). The agent tool is a native 
 in a toolset named after the plugin, so Hermes shows it directly or behind Tool Search like any plugin or MCP tool.
 Its schema is the operation tool's parameters without Pythia's markers; `native_ref` (or the parameter named after
 the plugin's native scope, such as Yahoo's `symbol`) is replaced by `subject_id`. Core fills that reference with
-the same page composition Desk uses, so a disabled, unconfigured or conflicting source refuses here too, then runs
+the same page composition Desk uses, so a disabled, paused, unconfigured or conflicting source refuses here too, then runs
 the operation tool through `may_run` and bounds the result. Nothing runs that its declaration does not mark
 read-only. See docs/architecture/agent-tools.md.
 """
@@ -116,6 +116,9 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
     from .platform.operations import declaration
     info = next((item for item in identity_ops.installed() if item.key == plugin_key), None)
     schema = registry.get_schema(tool) or {}
+    if info is not None and info.paused:  # the investor's switch: say so, as may_run alone would say only "unavailable"
+        return encode(failure("paused", f"{info.label} is paused in Settings → Data sources; the investor can turn it "
+                                        "back on there."))
     if not read_only(schema) or may_run(plugin_key, (declaration(schema) or {}).get("operation")) != tool:
         return encode(failure("unavailable", f"{name} is not available in this profile."))
     if info is not None and info.missing:

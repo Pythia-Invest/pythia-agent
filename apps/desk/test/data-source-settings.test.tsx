@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 import { dataSourceSchema, syncSchema } from "@/client/data-sources";
@@ -11,6 +14,7 @@ const state = vi.hoisted(() => ({
   plugins: [] as unknown[],
   sync: null as unknown,
   mutate: vi.fn(),
+  pause: vi.fn(),
 }));
 vi.mock("@/client/data-sources", async (original) => {
   const actual = await original<typeof import("@/client/data-sources")>();
@@ -28,6 +32,11 @@ vi.mock("@/client/data-sources", async (original) => {
       data: state.sync,
       mutate: state.mutate,
     }),
+    usePauseSource: () => ({
+      isPending: false,
+      error: null,
+      mutate: state.pause,
+    }),
   };
 });
 
@@ -36,6 +45,7 @@ const defi = {
   plugin: "pythia-defillama",
   label: "DeFiLlama",
   enabled: true,
+  paused: false,
   level: "display",
   catalogue: true,
   resolve: false,
@@ -68,18 +78,67 @@ const lookup = {
 beforeEach(() => {
   state.plugins = [defi, lookup];
   state.sync = null;
+  state.pause.mockReset();
 });
 
-it("shows each source's trust level and what disabling it would take away", () => {
+it("shows each source's trust level and what turning it off hides, beside its switch", () => {
   const html = renderToStaticMarkup(<DataSourceSettings />);
   expect(html).toContain("DeFiLlama");
   expect(html).toContain("Display only");
   expect(html).toContain(
-    "Disabling it takes 1204 subjects only it supplies out of search and data, including one on your watchlist or cards (Navi USDC), which keeps its name.",
+    "Turning this off hides 1204 subjects; 1 saved item will show as paused (Navi USDC).",
   );
-  expect(html).toContain("hermes plugins disable pythia-defillama");
   expect(html).toContain("Confirms identity");
-  expect(html).toContain("No subject on this device comes only from it.");
+  expect(html).toContain(
+    "No subject on this device comes only from it, so turning this off hides none.",
+  );
+  expect(html.match(/role="switch"/gu)).toHaveLength(2);
+  expect(html).toContain('aria-label="Use DeFiLlama"');
+});
+
+it("says a source Hermes has not enabled needs Hermes's command and a restart", () => {
+  const html = renderToStaticMarkup(<DataSourceSettings />);
+  expect(html).toContain("hermes plugins enable");
+  expect(html).toContain("restart");
+});
+
+it("shows a paused source as off, with what stays hidden, and no Sync now", () => {
+  state.plugins = [{ ...defi, enabled: false, paused: true }];
+  const html = renderToStaticMarkup(<DataSourceSettings />);
+  expect(html).toContain("Paused");
+  expect(html).toContain(
+    "1204 subjects only it supplies are hidden, and 1 saved item shows as paused (Navi USDC).",
+  );
+  expect(html).toContain("Turn it back on to use it again.");
+  expect(html).not.toContain("Sync now");
+  expect(html).toMatch(/role="switch"[^>]*aria-checked="false"/u);
+});
+
+it("pauses an on source and resumes a paused one from its switch", async () => {
+  (
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  const toggle = async () => {
+    const control = host.querySelector<HTMLElement>('[role="switch"]');
+    await act(async () => control?.click());
+  };
+  state.plugins = [defi];
+  await act(async () => root.render(<DataSourceSettings />));
+  await toggle();
+  expect(state.pause).toHaveBeenLastCalledWith({
+    plugin: "pythia-defillama",
+    paused: true,
+  });
+  state.plugins = [{ ...defi, paused: true }];
+  await act(async () => root.render(<DataSourceSettings />));
+  await toggle();
+  expect(state.pause).toHaveBeenLastCalledWith({
+    plugin: "pythia-defillama",
+    paused: false,
+  });
+  await act(async () => root.unmount());
 });
 
 it("offers Sync now only for a plugin with a catalogue", () => {
@@ -122,7 +181,10 @@ it("lists the saved entries it names, and says when there are more", () => {
     },
   });
   expect(effectLine(source)).toBe(
-    "Disabling it takes 9 subjects only it supplies out of search and data, including 7 on your watchlist or cards (listing:figi:X, …), which keep their names.",
+    "Turning this off hides 9 subjects; 7 saved items will show as paused (listing:figi:X, …).",
+  );
+  expect(effectLine({ ...source, sole: { count: 1, sample: [] } })).toContain(
+    "hides 1 subject;",
   );
   expect(
     syncLine(
