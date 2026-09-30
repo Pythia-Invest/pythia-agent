@@ -27,11 +27,12 @@ issues the asset, plus ETH on rollups through their canonical bridge.
   the form `normalize_identifier` gives the coin type.
 - **Provider ids.** CoinGecko ids and CoinMarketCap ids were cross-checked on
   name, symbol and active status in CoinGecko `/coins/list` and CoinMarketCap
-  `/v1/cryptocurrency/map` and `/v2/cryptocurrency/info`. They are bindings,
-  not evidence of identity.
+  `/v1/cryptocurrency/map` and `/v2/cryptocurrency/info`. They are addresses,
+  not evidence of identity, and since 2026-09-30 each plugin declares its own
+  in its contract (`addressing.subjects`, chain ids in `addressing.chain_codes`).
 - **Drift check.** `just canonical-assets-drift` reported no findings for
   either provider. Provider responses were not kept. The Sui row adds a Sui
-  chain for each provider (`sui` for CoinGecko, `coin:20947:sui-network` for
+  chain to each coin plugin's `addressing.chain_codes` (`sui` for CoinGecko, `coin:20947:sui-network` for
   CoinMarketCap, whose platform is named "Sui Network"). Run offline against
   CoinGecko's `/coins/list` and CoinMarketCap's `/v2/cryptocurrency/info`
   answers of 2026-09-26, the check found no drift for USDC: both list the

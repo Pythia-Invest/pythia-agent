@@ -1,10 +1,11 @@
-"""Typed claims plugins emit into the backbone, and the emission API connectors call.
+"""Typed claims plugins return to the backbone (a resolve answer, a catalogue page) and their mechanical checks.
 
 Plugins describe their own records; they never reconcile. A record or relation
-claim names subjects only by global identifiers, and a record may bind only the
-emitting provider's own native references. Pythia subject IDs appear only in
-resolver verdicts on the core's queue (see resolution.py), never in claims.
-Plugins never choose an evidence tier: the core assigns it at ingest.
+claim names subjects by global identifiers or by the emitting plugin's own
+declared native references, and a record may bind only those references.
+Pythia subject IDs appear only in resolver verdicts on the core's queue (see
+resolution.py), never in claims. Plugins never choose an evidence tier: the
+core assigns it at ingest.
 """
 from __future__ import annotations
 
@@ -12,12 +13,13 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Level, Scheme, normalize_identifier,
+    CAIP2, COUNTRY, CURRENCY, INSTRUMENT_KINDS, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Kind, Level, Scheme,
+    normalize_identifier,
 )
 from .vocabulary import (
     AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
@@ -103,9 +105,12 @@ class RecordClaim:
     deployments as the provider names them, and `native_of` (the provider chain id
     it is the native asset of) only where the provider states that as identity; a
     chain's fee or gas coin is not identity.
+
+    A record of a kind outside the instrument hierarchy (a market, a protocol) is keyed
+    by its native reference alone and carries no identifiers.
     """
 
-    level: Level
+    level: Level | Kind
     identifiers: tuple[IdentifierValue, ...]
     provenance: Provenance
     attributes: RecordAttributes = field(default_factory=RecordAttributes)
@@ -115,13 +120,15 @@ class RecordClaim:
     native_of: str | None = None
 
     def __post_init__(self) -> None:
-        _coerce(self, level=Level, provenance=Provenance, attributes=RecordAttributes, native_ref=ProviderRef,
-                validity=Validity)
+        _coerce(self, provenance=Provenance, attributes=RecordAttributes, native_ref=ProviderRef, validity=Validity)
+        object.__setattr__(self, "level", Level(self.level) if self.level in set(Level) else Kind(self.level))
         object.__setattr__(self, "identifiers", tuple(
             item if isinstance(item, IdentifierValue) else IdentifierValue(**item) for item in self.identifiers))
         object.__setattr__(self, "deployments", tuple(
             item if isinstance(item, Deployment) else Deployment(**item) for item in self.deployments))
         _require(bool(self.identifiers) or self.native_ref is not None, "record: identifiers or a native ref required")
+        _require(self.level in INSTRUMENT_KINDS or (self.native_ref is not None and not self.identifiers),
+                 f"record: a {self.level} record is keyed by its native ref alone")
         _require(self.level is Level.SECURITY or not (self.deployments or self.native_of),
                  "record: only a crypto asset record carries deployments or native_of")
         _require(self.native_of is None or (isinstance(self.native_of, str) and 0 < len(self.native_of) <= 128),
@@ -137,22 +144,35 @@ class RecordClaim:
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
 
 
+def _endpoint(value: Any) -> IdentifierValue | ProviderRef:
+    """A relation end: a global identifier, or (on the wire, an object with `native_scope`) a native reference."""
+    if isinstance(value, (IdentifierValue, ProviderRef)):
+        return value
+    if isinstance(value, Mapping):
+        return ProviderRef(**value) if "native_scope" in value else IdentifierValue(**value)
+    raise TypeError("relation claim: an endpoint is a global identifier or a native reference")
+
+
 @dataclass(frozen=True, slots=True)
 class RelationClaim:
-    """A typed edge between subjects named by global identifiers."""
+    """A typed edge between subjects, each named by a global identifier or by the emitting plugin's own declared
+    native reference (a pool's protocol, a market's asset). `check_batch` checks a native reference like a binding
+    and the relation's kinds against the scopes its contract declares."""
 
     type: RelationType
-    from_key: IdentifierValue
-    to_key: IdentifierValue
+    from_key: IdentifierValue | ProviderRef
+    to_key: IdentifierValue | ProviderRef
     provenance: Provenance
     validity: Validity = field(default_factory=Validity)
     ratio: str | None = None
 
     def __post_init__(self) -> None:
-        _coerce(self, type=RelationType, from_key=IdentifierValue, to_key=IdentifierValue, provenance=Provenance,
-                validity=Validity)
+        _coerce(self, type=RelationType, provenance=Provenance, validity=Validity)
+        object.__setattr__(self, "from_key", _endpoint(self.from_key))
+        object.__setattr__(self, "to_key", _endpoint(self.to_key))
         _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
-        check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio)
+        if isinstance(self.from_key, IdentifierValue) and isinstance(self.to_key, IdentifierValue):
+            check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio)
 
 
 Claim = RecordClaim | RelationClaim
@@ -182,16 +202,6 @@ class EmitReceipt:
     residuals: int
     conflicts: int
     rejected: tuple[tuple[int, str], ...] = ()  # (claim index, reason) for claims the core refused
-
-
-class ClaimEmitter(Protocol):
-    """Connector entry point, exposed by the loaded core as `identity.emitter()`.
-
-    `emit` validates with `check_batch`, joins at ingest and returns promptly; it
-    never calls a provider. A rejected batch raises ClaimError and stores nothing.
-    """
-
-    def emit(self, batch: ClaimBatch) -> EmitReceipt: ...
 
 
 class ClaimError(ValueError):
@@ -226,6 +236,27 @@ def check_batch(batch: ClaimBatch, manifest: Manifest) -> None:
             if key in seen:
                 raise _fail(index, "duplicate native reference in batch")
             seen.add(key)
+        if isinstance(claim, RelationClaim) and ProviderRef in (type(claim.from_key), type(claim.to_key)):
+            starts, ends = (_kinds(end, manifest, index) for end in (claim.from_key, claim.to_key))
+            if not any(_links(claim, start, end) for start in starts for end in ends):
+                raise _fail(index, f"{claim.type} cannot link these subjects")
+
+
+def _kinds(end: IdentifierValue | ProviderRef, manifest: Manifest, index: int) -> set[str]:
+    """The kinds a relation end may name: an identifier's level, or each kind its plugin declares the scope at."""
+    if isinstance(end, IdentifierValue):
+        return {end.level}
+    if end.provider != manifest.provider or manifest.native_scope(end.native_scope) is None:
+        raise _fail(index, "a plugin names only its own declared native references")
+    return {scope.level for scope in manifest.native if scope.native_scope == end.native_scope}
+
+
+def _links(claim: RelationClaim, start: str, end: str) -> bool:
+    try:
+        check_relation(claim.type, start, end, claim.ratio)
+    except ValueError:
+        return False
+    return True
 
 
 def batch_to_json(batch: ClaimBatch) -> dict[str, Any]:

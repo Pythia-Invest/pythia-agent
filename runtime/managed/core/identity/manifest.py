@@ -1,16 +1,14 @@
-"""Plugin contract (ADR 0038 and its contract-v1 amendment): `contract.json` and its validator.
+"""Plugin contract (ADR 0038 and its contract-version amendments): `contract.json` and its validator.
 
-A plugin ships a static `contract.json` at its package root, beside `plugin.yaml`
-and its `configuration.json`. The core evaluates it without running plugin code,
-so addressing and source selection work for disabled plugins too. Native Hermes
-stays the authority for discovery and enablement.
+A plugin ships a static `contract.json` at its package root, beside `plugin.yaml` and its `configuration.json`. The
+core evaluates it without running plugin code, so addressing and source selection work for disabled plugins too.
+Native Hermes stays the authority for discovery and enablement.
 
-Version 1 declares, per core data concept (ADR 0040), the plugin operation that
-serves each concept operation, its coverage and its qualities from core's closed
-vocabulary, plus the provider terms core must know (`rights`), the source's
-onboarding sign-off (`signoff`, ADR 0042) and optional published limits.
-Contracts name plugin operations, never Hermes tools; the Hermes adapter maps an
-operation to the tool that declares it.
+It declares, per core data concept (ADR 0040), the plugin operation that serves each concept operation, its coverage
+and qualities from core's closed vocabulary, the provider terms core must know (`rights`), the source's onboarding
+sign-off (`signoff`, ADR 0042), optional published limits and, from version 2, the subjects the plugin introduces and
+its own addresses of core-keyed subjects (`declared.py`). Contracts name plugin operations, never Hermes tools; the
+Hermes adapter maps an operation to the tool that declares it.
 """
 from __future__ import annotations
 
@@ -20,12 +18,13 @@ from enum import StrEnum
 from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
+from .declared import DeclaredRef, parse as declarations
 from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
 from .trust import CONFIRM
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
-CONTRACT_VERSION = 1  # the newest contract shape this core reads
+CONTRACT_VERSION = 2  # the newest contract shape this core reads (version 1 is still read)
 RESERVED = frozenset({"reference"})  # tags the reference build's own questions in core's queue (build_questions)
 OPERATION = re.compile(r"^[a-z][a-z0-9_-]{0,63}\Z")  # a plugin operation name, as `declare_operation` accepts
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
@@ -51,7 +50,7 @@ class SignOff(StrEnum):
 @dataclass(frozen=True, slots=True)
 class NativeScope:
     native_scope: str
-    level: Level | Kind  # a kind outside the hierarchy (a market) is addressed through core's curated table
+    level: Level | Kind  # a kind outside the hierarchy (a market) is addressed through the contract's `subjects`
     asset_classes: tuple[AssetClass, ...]
 
 
@@ -128,6 +127,9 @@ class Manifest:
     limits: Limits | None = None
     contract_version: int = CONTRACT_VERSION
     venue_codes: Mapping[str, str] = field(default_factory=dict)  # the provider's venue code -> operating MIC ("NMS": "XNAS")
+    subjects: Mapping[str, DeclaredRef] = field(default_factory=dict)  # v2: its own reference for a core-keyed subject
+    introduces: Mapping[Kind, tuple[str, ...]] = field(default_factory=dict)  # v2: kind -> key schemes, or `native`
+    chain_codes: Mapping[str, str] = field(default_factory=dict)  # v2: the provider's chain id -> CAIP-2 chain
 
     @property
     def unaudited(self) -> bool:
@@ -335,8 +337,9 @@ def validate_manifest(document: Any) -> Manifest:
     if version > CONTRACT_VERSION:
         raise ManifestNeedsUpdate(version)
     body = _object(document, "manifest", {"contract_version", "plugin", "provider", "addressing", "rights", "signoff"},
-                   {"concepts", "catalogue", "resolve", "limits"})
-    addressing = _object(body["addressing"], "addressing", set(), {"native", "schemes", "mic_table", "venue_codes"})
+                   {"concepts", "catalogue", "resolve", "limits", "introduces"})
+    addressing = _object(body["addressing"], "addressing", set(),
+                         {"native", "schemes", "mic_table", "venue_codes", "subjects", "chain_codes"})
     native = []
     if not isinstance(addressing.get("native", []), list):
         raise ManifestError("addressing.native: list required")
@@ -346,8 +349,7 @@ def validate_manifest(document: Any) -> Manifest:
         native.append(NativeScope(_match(NAMESPACE, entry["native_scope"], f"{path}.native_scope"),
                                   _place(entry["level"], f"{path}.level"),
                                   _enums(AssetClass, entry.get("asset_classes", []), f"{path}.asset_classes")))
-    # One native scope may also address subjects outside the hierarchy (Yahoo's `symbol` names listings and
-    # curated indexes alike), but each place only once.
+    # One native scope may address several places (Yahoo's `symbol` names listings and indexes), each only once.
     if len({(item.native_scope, item.level) for item in native}) != len(native):
         raise ManifestError("addressing.native: duplicate native_scope")
     schemes = {}
@@ -381,8 +383,9 @@ def validate_manifest(document: Any) -> Manifest:
         resolve = Resolve(_match(OPERATION, entry["operation"], "resolve.operation"),
                           _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
                           _enums(Scheme, entry["echoes"], "resolve.echoes"))
+    declared = declarations(version, body, addressing, native)
     for index, item in enumerate(native):
-        # A kind outside the hierarchy (a market) takes its refs from core's curated table (markets.json).
+        # A kind outside the hierarchy (a market) takes its refs from `subjects`, or introduces them (version 2).
         if not (bulk or resolve or (item.level is Level.LISTING and mic_table) or not isinstance(item.level, Level)):
             raise ManifestError(f"addressing.native[{index}]: no catalogue, resolve or MIC table produces these refs")
 
@@ -394,4 +397,4 @@ def validate_manifest(document: Any) -> Manifest:
                     _match(NAMESPACE, body["provider"], "manifest.provider"),
                     tuple(native), schemes, mic_table, concepts, mode, operation, scopes, resolve,
                     _rights(body["rights"]), *_signoff(body["signoff"]),
-                    _limits(body["limits"]) if "limits" in body else None, version, venue_codes)
+                    _limits(body["limits"]) if "limits" in body else None, version, venue_codes, **declared)

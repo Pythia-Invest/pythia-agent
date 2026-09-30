@@ -5,7 +5,7 @@ Read-only and local; page composition (`page`) and search build on it.
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+from typing import Any, Mapping
 
 from . import evidence as weighing
 from .model import IdentifierAssertion
@@ -13,14 +13,19 @@ from .schemes import INSTRUMENT_KINDS, Level, subject_kind, subject_level
 from .vocabulary import RELATIONS, Grouping, stored_authority
 
 
-def current_id(ref: sqlite3.Connection, subject_id: str) -> str:
-    """The ID this reference gives a subject: `id_aliases` followed to its end. A cycle is a release defect: its
-    IDs stay as they are."""
+def current_id(ref: sqlite3.Connection, subject_id: str, declared: Mapping[str, str] = {}) -> str:
+    """The ID this reference gives a subject: `id_aliases` followed to its end, each step also through `declared`, the
+    provisional IDs confirm-level contracts alias to the subjects they address (`declared.aliases`). A cycle is a
+    defect: its IDs stay as they are."""
+    def step(old: str) -> str | None:
+        row = ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (old,)).fetchone()
+        return row[0] if row else declared.get(old)
+
     seen = [subject_id]
-    while alias := ref.execute("SELECT new_id FROM id_aliases WHERE old_id = ?", (seen[-1],)).fetchone():
-        if alias[0] in seen:
+    while (new := step(seen[-1])) is not None:
+        if new in seen:
             return subject_id
-        seen.append(alias[0])
+        seen.append(new)
     return seen[-1]
 
 

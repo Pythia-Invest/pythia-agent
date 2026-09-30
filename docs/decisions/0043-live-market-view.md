@@ -105,3 +105,23 @@ already models); a second curated table (two rules and loaders for one idea);
 new asset classes for indexes, pairs and rates (they would also describe no
 security); EODHD codes in the table before EODHD declares coverage for these
 kinds.
+
+## Amendment (2026-09-30): each plugin declares its own reference
+
+[ADR 0038](0038-plugin-addressing-contract.md), amendment "contract version
+2", moves the native references out of `markets.json`: a table keyed by
+provider name confirmed an address by the provider's name, which ADR 0044 A4
+rules out.
+
+- `markets.json` stays Pythia's maintained list of these subjects, with their
+  underlyings and display text. It names no provider.
+- Each serving plugin declares its reference for a subject in its own contract
+  (`addressing.subjects`): Yahoo's for the 22 indexes, futures, pairs and
+  yields, Hyperliquid's for the BTC perp. Page composition derives the address
+  under `declared_ref@1`, confirmed only when the plugin's files are granted
+  confirm. The perp's address is therefore `derived`: Hyperliquid ships
+  unsigned.
+
+This supersedes "the native reference of each plugin that serves it" and
+"core's curated table supplies the reference" above. Adding a perp is one
+entry in `markets.json` plus one in the serving plugin's contract.

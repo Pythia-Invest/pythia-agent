@@ -1034,6 +1034,47 @@ and stores working without a schema bump.
   40% of today's listings contested, and flag them to the agent, when no two
   sources disagree.
 
+## Amendment (2026-09-30): coin ids live in the coin plugins' contracts
+
+[ADR 0038](0038-plugin-addressing-contract.md), amendment "contract version
+2", ends provider columns in core's tables. The crypto-keys amendment put each
+provider's coin id and chain ids in `canonical_assets.json`, and core read the
+package's `canonical_assets` table to address a curated asset as a confirmed
+binding. That made the address depend on a provider's name in a core table.
+
+- **The curated table names no provider.** `canonical_assets.json` keeps the
+  assets, their canonical and same-security deployments, wrapped links, names
+  and chains. The CoinGecko and CoinMarketCap contracts each declare their coin
+  id for every curated asset (`addressing.subjects`, keyed
+  `security:caip19:<canonical deployment>`) and their chain ids
+  (`addressing.chain_codes`).
+- **Addressing follows the plugin's trust, not its name.** Core derives a coin
+  plugin's reference for an asset under `declared_ref@1`: `confirmed` when its
+  files are granted confirm, `derived` and labelled otherwise. A renamed copy
+  of CoinGecko serves Bitcoin exactly as CoinGecko does once its files are
+  granted. Core no longer reads the package's `canonical_assets` or
+  `provider_chains` tables.
+- **Provisional coin IDs alias through confirm-level declarations.** A saved
+  `security:provisional:coingecko:coin:bitcoin` resolves to Bitcoin's key
+  because a confirm-level contract declares `bitcoin` for it; `current_id`
+  follows that alias with the package's own, on reads. Lifecycle A still
+  follows only the package's aliases when it re-points stored rows. Only a
+  confirm-level declaration, a confirm-level canonical-issuance claim or the
+  user may alias a provisional coin; a display plugin's declaration gives an
+  address, never an alias.
+
+Superseded in the crypto-keys amendment: "each provider's coin id, as a
+binding" in the table's row, and "the build writes each of its provider IDs to
+`id_aliases`" as the way an old coin ID keeps resolving. Superseded in the
+evidence amendment above: "a package's provider coin ids at the package's
+level", "addresses from core's market table are `derived` until plugins declare
+their own" and "its coin addresses show as derived". A coin or market address
+now follows the declaring plugin's trust, whatever the package's level. Until the reference
+format drops them, the builder still fills the package's provider tables and
+coin aliases from the two contracts, and `just canonical-assets-drift` checks
+the coin ids and chain ids the contracts declare. The default price source for
+Bitcoin is unchanged: CoinGecko, then CoinMarketCap once its key is set.
+
 ## Amendment (2026-09-30): device subjects
 
 **Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin

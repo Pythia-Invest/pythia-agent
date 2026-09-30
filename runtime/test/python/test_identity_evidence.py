@@ -139,9 +139,9 @@ class AnswerTest(BuildQuestionFixture):
                 view = self.page(ASML)
                 self.assertEqual(view["identifiers"]["isin"], A)
                 self.assertEqual("shown" in view, level == "display")
+                # A coin address is the coin plugin's own declaration: its trust decides, not the package's.
                 quote = next(item for item in self.page(BTC)["sections"] if item["section"] == "quote")
-                self.assertEqual((quote["status"], quote["binding_status"]),
-                                 ("ready", "derived" if level == "display" else "confirmed"))
+                self.assertEqual((quote["status"], quote["binding_status"]), ("ready", "confirmed"))
                 _path, subject, _lookups, _issue = self.ops._load(ASML)  # as identity-resolve reads it
                 batch = core.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
                                               "origin": "resolve", "claims": [RECORD]})

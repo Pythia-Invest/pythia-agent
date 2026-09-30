@@ -20,7 +20,7 @@ movers = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(movers)
 
 SP500 = "index:pythia:sp500"
-LOOKUPS = {"stored": lambda target, provider: None, "coins": lambda provider, caip19: None, "queue": []}
+LOOKUPS = {"stored": lambda target, provider: None, "queue": []}
 
 
 def quote(symbol="NVDA", **fields):
@@ -43,7 +43,7 @@ class CuratedSubjectTest(unittest.TestCase):
         quote_section = sections["quote"]
         self.assertEqual((quote_section["plugin"], quote_section["binding"], quote_section["binding_status"]),
                          ("pythia-yahoo-discovery", {"provider": "yahoo", "native_id": "^GSPC", "native_scope": "symbol"},
-                          "derived"))  # core's table names the address; no contributor's evidence states it
+                          "confirmed"))  # Yahoo's own contract declares it, and Yahoo's files are confirm-level
         self.assertEqual(set(sections), {"quote", "chart"})  # no profile or filings for an index
 
     def test_a_pair_without_an_asset_class_is_served_where_a_plugin_addresses_it(self):
