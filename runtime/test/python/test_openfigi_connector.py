@@ -1,6 +1,8 @@
 """Synthetic mapping jobs shaped by https://www.openfigi.com/api/documentation.
 
-ZZ-prefixed ISINs and BBGZZ FIGIs below are fabricated identifiers, not securities.
+ZZ-prefixed ISINs and BBGZZ FIGIs below are fabricated identifiers, not securities. The Toyota answer is built by hand
+in the shape OpenFIGI gave on 2026-09-30 (country composite lines beside venue lines, one share-class FIGI); only its
+ISIN is real, and no provider response is kept.
 """
 import importlib
 import importlib.util
@@ -15,6 +17,7 @@ from urllib.error import HTTPError
 
 from market_data_fixture import connector, platform_module, wire
 from native_plugin_fixtures import without_market_data
+from test_plugin_contracts import checked_batch, identity
 
 ROOT = Path(__file__).resolve().parents[2] / 'managed/plugins/openfigi'
 spec = importlib.util.spec_from_file_location('openfigi_fixture', ROOT / '__init__.py', submodule_search_locations=[str(ROOT)])
@@ -55,6 +58,34 @@ class Opener:
 
 def found(jobs):
     return [{'data': [candidate(index)]} for index, _ in enumerate(jobs)]
+
+
+def figi(stem):
+    """A fabricated FIGI with the check digit core verifies."""
+    for digit in '0123456789':
+        try:
+            return identity.normalize_identifier('figi', stem + digit)
+        except ValueError:
+            pass
+
+
+TOYOTA = 'JP3633400001'
+SHARE_CLASS, OTHER_CLASS = figi('BBGZZ0000S0'), figi('BBGZZ0000S2')
+JP, JT, JN, GR, GF, GS, X1, GM = (figi(stem) for stem in ('BBGZZ0000C1', 'BBGZZ0000L1', 'BBGZZ0000L2', 'BBGZZ0000C2',
+                                                          'BBGZZ0000L3', 'BBGZZ0000L4', 'BBGZZ0000L5', 'BBGZZ0000L6'))
+
+
+def line(exch, number, composite, ticker, share_class=SHARE_CLASS):
+    return {'figi': number, 'compositeFIGI': composite, 'shareClassFIGI': share_class, 'ticker': ticker,
+            'exchCode': exch, 'name': 'TOYOTA MOTOR CORP', 'securityType': 'Common Stock', 'marketSector': 'Equity',
+            'securityType2': 'Common Stock', 'securityDescription': ticker}
+
+
+# The Japan (JP) and Germany (GR) composites, Tokyo (JT), Frankfurt (GF) and Stuttgart (GS) lines, a Japanese line on
+# a code the contract maps to no venue (JN), and a line without a share-class FIGI (X1).
+TOYOTA_LINES = [line('JP', JP, JP, '7203'), line('JT', JT, JP, '7203'), line('JN', JN, JP, '7203'),
+                line('GR', GR, GR, 'TOM'), line('GF', GF, GR, 'TOM'), line('GS', GS, GR, 'TOM/A'),
+                line('X1', X1, figi('BBGZZ0000C3'), '7203USD', share_class=None)]
 
 
 def resolver(opener, key=('missing', None)):
@@ -155,9 +186,55 @@ class OpenFigiResolve(unittest.TestCase):
         transport._pace(lambda: False, deadline=107.0)
 
 
+class OpenFigiClaims(unittest.TestCase):
+    """Core's single-ISIN lookup (ADR 0044, note of 2026-09-30): an ISIN's lines as listing claims."""
+
+    def setUp(self):
+        governor._owners.clear()
+
+    def claims(self, lines):
+        result = resolver(Opener([[{'data': lines}]])).invoke({'identifiers': {'isin': TOYOTA}}, operation='resolve')
+        self.assertEqual(result['outcome'], 'ok', result)
+        return {claim.native_ref.native_id: claim for claim in checked_batch('openfigi', result).claims}
+
+    def test_every_venue_line_is_a_figi_keyed_listing_claim_under_the_isin(self):
+        claims = self.claims(TOYOTA_LINES)
+        # The country composites are not venue lines; each venue line carries its composite FIGI instead.
+        self.assertEqual(set(claims), {JT, JN, GF, GS, X1})
+        tokyo = claims[JT]
+        self.assertEqual({(item.scheme, item.value, item.role) for item in tokyo.identifiers},
+                         {('figi', JT, 'self'), ('composite_figi', JP, 'self'), ('share_class_figi', SHARE_CLASS, 'self'),
+                          ('isin', TOYOTA, 'self')})
+        self.assertEqual((tokyo.level, tokyo.attributes.operating_mic, tokyo.attributes.ticker,
+                          tokyo.attributes.asset_class), ('listing', 'XJPX', '7203', 'equity'))
+        self.assertEqual({figi: claims[figi].attributes.operating_mic for figi in claims},
+                         {JT: 'XJPX', JN: None, GF: 'XFRA', GS: 'XSTU', X1: None})
+        # A ticker is evidence only: never a key or identifier, and left out outside core's grammar.
+        self.assertEqual({claim.native_ref.native_scope for claim in claims.values()}, {'figi'})
+        self.assertFalse(any(item.scheme == 'ticker_mic' for claim in claims.values() for item in claim.identifiers))
+        self.assertEqual((claims[GF].attributes.ticker, claims[GS].attributes.ticker), ('TOM', None))
+        self.assertNotIn('share_class_figi', {item.scheme for item in claims[X1].identifiers})
+
+    def test_a_differing_share_class_figi_stays_the_lines_own(self):
+        # One line OpenFIGI files under another share class keeps it beside the ISIN, so core's join sees both.
+        claims = self.claims([*TOYOTA_LINES, line('GM', GM, GR, 'TOM', OTHER_CLASS)])
+        other = {(item.scheme, item.value, item.role) for item in claims[GM].identifiers}
+        self.assertLessEqual({('share_class_figi', OTHER_CLASS, 'self'), ('isin', TOYOTA, 'self')}, other)
+        self.assertIn(('share_class_figi', SHARE_CLASS, 'self'),
+                      {(item.scheme, item.value, item.role) for item in claims[GF].identifiers})
+
+    def test_no_match_is_empty_and_a_malformed_isin_is_refused_before_any_request(self):
+        opener = Opener([[{'warning': 'No identifier found.'}]])
+        empty = resolver(opener).invoke({'identifiers': {'isin': TOYOTA}}, operation='resolve')
+        self.assertEqual((empty['outcome'], empty['data']), ('empty', None))
+        refused = resolver(opener).invoke({'identifiers': {'isin': 'JP3633400002'}}, operation='resolve')
+        self.assertEqual(refused['issues'][0]['code'], 'invalid_request')
+        self.assertEqual(len(opener.requests), 1)
+
+
 class OpenFigiRegistration(unittest.TestCase):
     def test_registers_through_core_alone_and_answers_a_mapping(self):
-        tools, opener = {}, Opener([found])
+        tools, opener = {}, Opener([found, [{'data': TOYOTA_LINES}]])
         ctx = SimpleNamespace(register_tool=lambda **tool: tools.update({tool['name']: tool}))
         without_market_data(self)
         self.enterContext(patch.object(platform_module.access, 'native_access_scope',
@@ -167,10 +244,14 @@ class OpenFigiRegistration(unittest.TestCase):
         self.enterContext(patch.object(plugin, 'Transport', side_effect=lambda helpers: client.Transport(
             helpers, opener=opener)))
         plugin.register(ctx)
-        self.assertIsNone(tools[plugin.TOOL].get('check_fn'))
-        result = json.loads(tools[plugin.TOOL]['handler']({'jobs': [{'idType': 'ID_ISIN', 'idValue': ISIN}]}))
+        self.assertEqual(set(plugin.TOOLS.values()) - set(tools), set())
+        self.assertIsNone(tools[plugin.TOOLS['mapping']].get('check_fn'))
+        result = json.loads(tools[plugin.TOOLS['mapping']]['handler']({'jobs': [{'idType': 'ID_ISIN', 'idValue': ISIN}]}))
         self.assertEqual((result['outcome'], result['data']['results'][0]['outcome']), ('ok', 'found'))
-        self.assertEqual(opener.requests, [{'jobs': 1, 'key': None}])
+        # Core dispatches `resolve` with the subject's identifiers and reads a claim batch back.
+        batch = checked_batch('openfigi', tools[plugin.TOOLS['resolve']]['handler']({'identifiers': {'isin': TOYOTA}}))
+        self.assertEqual(len(batch.claims), 5)
+        self.assertEqual(opener.requests, [{'jobs': 1, 'key': None}] * 2)
 
 
 if __name__ == '__main__':

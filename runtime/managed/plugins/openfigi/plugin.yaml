@@ -6,4 +6,5 @@ requires_plugins:
   - pythia
 provides_tools:
   - pythia_openfigi_resolve
+  - pythia_openfigi_mapping
   - openfigi_identifiers
