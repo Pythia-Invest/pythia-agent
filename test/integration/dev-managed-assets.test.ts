@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MANAGED_CORE_FILES,
@@ -317,6 +317,20 @@ printf '%s\\n' "$*" >> '${commandLog}'
     });
     expect(recoverInterruptedProfileInitialization(paths).recovered).toBe(true);
     expect(existsSync(paths.profileInitialization)).toBe(false);
+  });
+
+  it("lists every file of core's bundled skills for the copy", () => {
+    const core = join(repositoryRoot, "runtime", "managed", "core");
+    const shipped = readdirSync(join(core, "skills"), {
+      recursive: true,
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(core, join(entry.parentPath, entry.name)));
+    expect(shipped).toContain("skills/identity-data/SKILL.md");
+    expect(
+      shipped.filter((path) => !MANAGED_CORE_FILES.includes(path)),
+    ).toEqual([]);
   });
 
   it("refreshes the exact managed plugin files and rejects canonical source symlinks", () => {

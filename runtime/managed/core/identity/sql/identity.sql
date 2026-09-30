@@ -56,7 +56,7 @@ CREATE TABLE relations (  -- typed edges between two subjects that a plugin stat
   retrieved_at TEXT NOT NULL,      -- when the plugin read it
   source_record TEXT,              -- the record or page that stated it, as the plugin names it (often a URL); NULL where none was given
   source_version TEXT,             -- the source's version, where the plugin states one
-  adapter_version TEXT,            -- the plugin adapter version that emitted it; the last three are NULL for rows from before they were kept
+  adapter_version TEXT,            -- the plugin adapter version that emitted it; the last three are NULL for rows from before they were kept, until the plugin states the relation again
   CHECK (from_id <> to_id),
   CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_from <= valid_to)
 );
@@ -101,7 +101,7 @@ CREATE TABLE queue (  -- identity questions: what the data leaves undecided or c
   subject_ids TEXT NOT NULL,       -- JSON list: the subjects it is about; the first is the one the question names
   candidate_ids TEXT NOT NULL DEFAULT '[]',  -- JSON list: the subjects an answer may choose
   evidence_ids TEXT NOT NULL DEFAULT '[]',   -- JSON list: the evidence it cites (assertions.evidence_id, device_assertions.evidence_id)
-  plugins TEXT NOT NULL,           -- JSON: the plugins whose claims are involved (two for a cross-plugin conflict); ["reference"] where the installed reference build or core's own conflict check asked
+  plugins TEXT NOT NULL,           -- JSON: the plugins whose claims are involved (two for a cross-plugin conflict); a question core asks about the reference or what plugins state is tagged "reference" first, then those plugins
   provider_ref TEXT,               -- JSON {provider, native_scope, native_id}: the plugin record it is about; NULL for a question about reference data alone
   scheme TEXT,                     -- conflict: the contested scheme
   contested_values TEXT NOT NULL DEFAULT '[]',  -- JSON list: its contested values

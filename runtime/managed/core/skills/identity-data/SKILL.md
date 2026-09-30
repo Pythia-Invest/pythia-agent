@@ -2,7 +2,7 @@
 name: identity-data
 title: Where Pythia's data comes from
 description: Trace where an identifier, link, price source, plugin contribution or user answer in Pythia's identity data comes from, by reading its two SQLite stores read-only.
-version: 0.1.0
+version: 0.2.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
@@ -24,45 +24,16 @@ its record, when, and the rule or answer behind a decision:
 
 - `$PYTHIA_DATA_ROOT/store/identity.sqlite3`: what plugins stated and this
   device decided.
-- The installed reference package: `store/reference/installed.json` names a
-  directory under `store/reference/packages/`, and its `package.json` names the
-  database (open identifiers, listings, securities, issuers).
+- The installed reference package, which `store/reference/installed.json` and
+  its `package.json` point to: open identifiers, listings, securities, issuers.
 
-Open both read-only with your code or terminal tool, and never write to either:
-
-```python
-import json, os, sqlite3
-from pathlib import Path
-store = Path(os.environ["PYTHIA_DATA_ROOT"]) / "store"
-db = sqlite3.connect(f"{(store / 'identity.sqlite3').as_uri()}?mode=ro", uri=True)
-reference = store / "reference"
-package = reference / "packages" / json.loads((reference / "installed.json").read_text())["current"]
-database = package / json.loads((package / "package.json").read_text())["database"]["file"]
-db.execute(f"ATTACH '{database.as_uri()}?mode=ro' AS ref")
-```
-
-`SELECT name, sql FROM sqlite_master WHERE type = 'table'` (and `ref.sqlite_master`)
-explains each table and column in its comments. Where to look:
-
-- Which source states an identifier: `ref.assertions` (`source`, `source_record`,
-  `retrieved_at`), and `device_assertions` joined to `claims` on `plugin`,
-  `native_scope`, `native_id`.
-- Why a listing sits under a security, and a security under an issuer: the
-  reference's `listings.security_id` and `securities.issuer_id` (the ID spells
-  out the key), `subjects.parent_id` with its `claims`, and the `relations`
-  tables of both files.
-- Bindings: `bindings` (`plugin`, `rule_id` or `verdict_id`, `decided_at`).
-  With no binding, a source's address is derived from the ticker, the venue and
-  its `contract.json`, and nothing is stored.
-- What a plugin added: `subjects.introduced_by`, `claims`, `device_assertions`,
-  `relations` and `bindings`, by `plugin`, the name in its contract (`yahoo`,
-  not the Hermes key).
-- Answers: `queue` joined to `verdicts` on `resolved_by`; `resolver = 'user'`
-  and `state = 'resolved'` is an override that applies, and an agent verdict is
-  only a suggestion. Open questions have `state = 'open'`.
+Load `references/queries.md` with `skill_view` (name `pythia:identity-data`,
+`file_path` `references/queries.md`). It has the snippet that opens both files
+read-only, and worked queries for which source states an identifier, why a price
+uses one source, why a listing sits under a security, what a plugin added, and
+which answers apply. Never write to either file. The terminal tool has
+`PYTHIA_DATA_ROOT`; the code-execution sandbox does not, and the file says what
+to do then.
 
 A row is evidence that a source said something, not proof that it is right. Say
 which source, record and time you read, and what the stores do not record.
-The worked queries are in `docs/architecture/identity-data.md` of the Pythia
-checkout. If `PYTHIA_DATA_ROOT` is not set, ask the investor where their Pythia
-data folder is.

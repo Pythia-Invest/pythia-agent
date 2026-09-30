@@ -14,9 +14,10 @@ from pathlib import Path
 from identity_world import AS_OF, NOW, World, record, vendor
 from test_identity_contracts import PROVENANCE, identity
 from test_reference_package import make_package
-from pythia_identity_fixture import device, page, queue, reference_package, store  # noqa: E402
+from pythia_identity_fixture import device, page, queue, reference_package, relations, store  # noqa: E402
 
 DOC = Path(__file__).parents[3] / "docs/architecture/identity-data.md"
+AGENT = Path(__file__).parents[2] / "managed/core/skills/identity-data/references/queries.md"  # what the skill ships
 TOYOTA, TOYOTA_ISIN = "listing:isin:JP3633400001:XJPX:JPY", "JP3633400001"
 POOL_ID = "00000002-0000-4000-8000-000000000000"
 POOL = f"market:provisional:tidepool:pool:{POOL_ID}"
@@ -29,10 +30,10 @@ POOLS = {"contract_version": 2, "plugin": "tidepool", "provider": "tidepool",
          "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "unsigned"}}
 
 
-def examples(language: str) -> dict[str, str]:
-    """The doc's fenced code blocks of a language that open with `example: <name>`, by name."""
+def examples(language: str, path: Path = DOC) -> dict[str, str]:
+    """A file's fenced code blocks of a language that open with `example: <name>`, by name."""
     marker, found = "--" if language == "sql" else "#", {}
-    for block in re.findall(rf"```{language}\n(.*?)```", DOC.read_text(encoding="utf-8"), re.S):
+    for block in re.findall(rf"```{language}\n(.*?)```", path.read_text(encoding="utf-8"), re.S):
         named = re.match(rf"{marker} example: (\S+)\n", block)
         if named:
             found[named.group(1)] = block
@@ -58,6 +59,14 @@ class DocFixture(unittest.TestCase):
         pricing, other = vendor("isin", name="vendor", mic_table={"XJPX": ".T"}), vendor("isin", name="other")
         underlying = [vendor("isin", name=name) for name in ("first", "second")]
         self.tidepool = page.PluginInfo(key="tidepool", manifest=identity.validate_manifest(POOLS))
+        with contextlib.closing(sqlite3.connect(self.world.path)) as db, db:  # what the contested query must not return
+            for subject, level, scheme, value, source, ended in (
+                    ("security:isin:JP3633400001", "security", "share_class_figi", "BBG000TYSCG9", "fixture", None),
+                    (TOYOTA, "listing", "figi", "BBG000TYTKX1", "legacy", "2020-01-01")):
+                db.execute("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, valid_to, authority,"
+                           " source, plugin, adapter_version, retrieved_at) VALUES (?, ?, ?, ?, ?, ?,"
+                           " 'source_asserted', ?, ?, '1', ?)", (f"ev:{value}", subject, level, scheme, value, ended,
+                                                                source, source, NOW))
         self.world.plugins = [pricing, other, *underlying, self.tidepool]
         self.world.resolve(pricing, TOYOTA, record(pricing, "7203.T", ("isin", TOYOTA_ISIN)))
         self.world.ingest(other, record(other, "TM", ("figi", "BBG000TYTKY0"), ("isin", "US0378331005")))  # contests the ISIN
@@ -90,7 +99,7 @@ class DocFixture(unittest.TestCase):
     @contextlib.contextmanager
     def connection(self):
         """The doc's own snippet, run with the device's data root: `db` is identity.sqlite3 read-only, `ref` attached."""
-        code = examples("python")["open"]
+        code = examples("python", AGENT)["open"]  # the snippet the skill ships
         with mock.patch.dict(os.environ, {"PYTHIA_DATA_ROOT": str(self.root)}):
             scope: dict = {}
             exec(code, scope)  # noqa: S102  (the documented snippet, from this repository)
@@ -103,7 +112,7 @@ class DocFixture(unittest.TestCase):
 class ExampleTest(DocFixture):
     def query(self, db, name, **given):
         """One SQL example of the doc with the parameters it names, from `given`: its rows."""
-        sql = examples("sql")[name]
+        sql = examples("sql", AGENT)[name]
         names = set(re.findall(r"(?<![:\w]):(\w+)", sql))
         self.assertLessEqual(names, set(given), f"{name} names a parameter the test does not know")
         return [dict(row) for row in db.execute(sql, {key: given[key] for key in names})]
@@ -119,7 +128,7 @@ class ExampleTest(DocFixture):
             db.row_factory = sqlite3.Row
             values = {"family": self.family(db, TOYOTA), "subject": TOYOTA, "scheme": "isin", "value": TOYOTA_ISIN,
                       "plugin": "vendor", "source": db.execute("SELECT source FROM ref.assertions LIMIT 1").fetchone()[0]}
-            for name in examples("sql"):
+            for name in examples("sql", AGENT):
                 given = {**values, "subject": OLD_ID} if name == "alias" else (
                     {**values, "subject": POOL, "family": self.family(db, POOL)} if name == "relations" else values)
                 results[name] = self.query(db, name, **given)
@@ -129,7 +138,7 @@ class ExampleTest(DocFixture):
 
     def test_every_example_runs_and_finds_what_the_device_holds(self):
         found = self.run_examples()
-        for name in examples("sql"):
+        for name in examples("sql", AGENT):
             with self.subTest(example=name):
                 self.assertTrue(found[name], f"the {name} example returned nothing on a device that has its data")
         self.assertIn(TOYOTA, found["family"][0]["family"])
@@ -152,9 +161,19 @@ class ExampleTest(DocFixture):
         self.assertTrue(answered[0]["verdict_id"])
 
     def test_a_contested_identifier_shows_both_values_and_who_states_each(self):
-        [row] = [row for row in self.run_examples()["contested"] if row["scheme"] == "isin"]
-        self.assertEqual((row["subject_id"], set(row["vals"].split(",")), set(row["sources"].split(","))),
-                         ("security:isin:JP3633400001", {TOYOTA_ISIN, "US0378331005"}, {"fixture", "other"}))
+        # Only a contest between sources over current values: one source's second share-class FIGI and another
+        # source's line FIGI whose validity ended are stored but not returned.
+        [row] = self.run_examples()["contested"]
+        self.assertEqual((row["subject_id"], row["scheme"], set(row["vals"].split(",")), set(row["sources"].split(","))),
+                         ("security:isin:JP3633400001", "isin", {TOYOTA_ISIN, "US0378331005"}, {"fixture", "other"}))
+        stored = {row["value"] for row in self.run_examples()["family-identifiers"]}
+        self.assertLessEqual({"BBG000TYSCG9", "BBG000TYTKX1"}, stored)
+
+    def test_the_agents_copy_holds_the_docs_snippet_and_queries(self):
+        for language in ("python", "sql"):
+            with self.subTest(language=language):
+                self.assertTrue(examples(language))
+                self.assertEqual(examples(language, AGENT), examples(language))
 
     def test_the_users_answer_is_listed_and_the_other_question_is_still_open(self):
         found = self.run_examples()
@@ -226,6 +245,24 @@ class ProvenanceTest(unittest.TestCase):
             self.assertEqual(tuple(self.store.binding_for(ref)[key] for key in ("decided_at", "verified_at")), ("t1", "t3"))
             _ref, user = self.bind(authority="user_attested")  # another kind of evidence decides it: a new decision
             self.assertEqual((user["decided_at"], user["authority"]), ("t4", "user_attested"))
+
+    def test_a_relation_kept_before_its_provenance_columns_gains_them_when_stated_again(self):
+        start, end = "market:provisional:tidepool:pool:p1", "protocol:provisional:tidepool:protocol:x"
+        ref = lambda scope, native_id: {"provider": "tidepool", "native_scope": scope, "native_id": native_id}  # noqa: E731
+        claim = identity.RelationClaim(
+            type="part_of", from_key=ref("pool", "p1"), to_key=ref("protocol", "x"), provenance={
+                **PROVENANCE, "plugin": "tidepool", "source": "tidepool", "source_record": "https://example.test/p1",
+                "source_version": "v2"})
+        row = {"type": "part_of", "from_id": start, "to_id": end, "valid_from": None, "source": "tidepool"}
+        self.store.db.execute(  # as an earlier core kept it: no record, version or adapter
+            "INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, retrieved_at)"
+            " VALUES (?, 'part_of', ?, ?, 'source_asserted', 'tidepool', 'tidepool', ?)",
+            (relations.relation_id(row), start, end, NOW))
+        columns = "SELECT source_record, source_version, adapter_version FROM relations"
+        self.assertEqual(tuple(self.store.select(columns)[0]), (None, None, None))
+        self.assertEqual(relations.keep(self.store, None, "tidepool", claim, start, end), ("joined", True))
+        self.assertEqual(tuple(self.store.select(columns)[0]), ("https://example.test/p1", "v2", PROVENANCE["adapter_version"]))
+        self.assertEqual(relations.keep(self.store, None, "tidepool", claim, start, end), ("joined", False))  # nothing more
 
     def test_a_store_made_before_the_added_columns_gains_them_keeping_its_rows(self):
         ref, _row = self.bind()

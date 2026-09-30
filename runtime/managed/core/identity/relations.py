@@ -24,7 +24,8 @@ Edge = tuple[str, str, str]  # (type, from_id, to_id)
 def keep(store, ref: sqlite3.Connection | None, plugin: str, claim, start: str, end: str) -> tuple[str, bool]:
     """Keep a plugin's relation claim between two subjects (`ingest`), inside the caller's transaction: its one current
     target of a one-target type replaces its earlier one. Returns the outcome (`conflicts` where it gives the subject
-    another target than the package's, `rejected` where the subjects' kinds do not fit it) and whether a row changed."""
+    another target than the package's, `rejected` where the subjects' kinds do not fit it) and whether a row changed. A row kept
+    before the provenance columns existed gains them when the plugin states the relation again."""
     try:
         relation = Relation(type=claim.type, from_id=start, to_id=end, authority=Authority.SOURCE_ASSERTED,
                             provenance=claim.provenance, validity=claim.validity, ratio=claim.ratio)
@@ -40,8 +41,11 @@ def keep(store, ref: sqlite3.Connection | None, plugin: str, claim, start: str, 
     if one:
         db.execute("DELETE FROM relations WHERE plugin = ? AND type = ? AND from_id = ? AND to_id <> ?",
                    (plugin, row["type"], start, end))
+    key = relation_id(row)
     db.execute(f"INSERT OR IGNORE INTO relations (evidence_id, {','.join(row)}) VALUES ({','.join('?' * (len(row) + 1))})",
-               (relation_id(row), *row.values()))
+               (key, *row.values()))
+    db.execute("UPDATE relations SET source_record = ?, source_version = ?, adapter_version = ? WHERE evidence_id = ?"
+               " AND adapter_version IS NULL", (row["source_record"], row["source_version"], row["adapter_version"], key))  # kept before these were
     disputed = one and ref is not None and ref.execute("SELECT 1 FROM relations WHERE type = ? AND from_id = ? AND"
                                                        " to_id <> ?", (row["type"], start, end)).fetchone()
     return "conflicts" if disputed else "joined", db.total_changes != before

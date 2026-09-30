@@ -107,7 +107,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | A plugin relation | `relations` | `plugin`, `source` | `source_record`, `source_version`, `adapter_version` | `retrieved_at` | `authority` |
 | A subject a plugin introduced, and its parent | `subjects` | `introduced_by` | its `claims` rows (`subject_id`) | `first_seen`, `last_seen` | the claim's `state` |
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
-| A question | `queue` | `plugins` (`["reference"]`: the build or core's own conflict check) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
+| A question | `queue` | `plugins` (`reference` first where the build or core's own conflict check asked, then the plugins whose statements it is about) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
 | An answer | `verdicts` | `resolver`, `plugin`, `model` | `item_id`, `chosen_id` | `created_at` | `rule_id`, `user_turn`, `authority`, `outcome` |
 
 `authority` is the kind of evidence, never where it came from: `source_asserted`
@@ -223,18 +223,23 @@ WHERE d.subject_id IN (SELECT value FROM json_each(:family))
 ORDER BY 1, 2, 5;
 ```
 
-A contested fact is one single-valued scheme with two values from different
-sources (`ticker_mic` is an attribute and never contests). Core applies none of
-the values and asks the user once the subject is opened
-([ADR 0044](../decisions/0044-product-direction.md), A2):
+A contested fact is one single-valued scheme whose current values differ
+between sources. Core applies none of the values and asks the user once the
+subject is opened ([ADR 0044](../decisions/0044-product-direction.md), A2). The
+query applies the same tests: only values inside their validity dates count,
+two or more sources must disagree, and `ticker_mic` is an attribute that never
+contests. One source's own several values are not a contest: OpenFIGI states two
+composite FIGIs for some composites (10,288 in the 2026-09-28 build), and they
+stay separate rows that this query does not return.
 
 ```sql
 -- example: contested
 SELECT subject_id, scheme, group_concat(DISTINCT value) AS vals, group_concat(DISTINCT source) AS sources
-FROM (SELECT subject_id, scheme, value, source FROM ref.assertions
-      UNION ALL SELECT subject_id, scheme, value, plugin FROM device_assertions WHERE role = 'self')
+FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
+      UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
 WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
-GROUP BY subject_id, scheme HAVING COUNT(DISTINCT value) > 1;
+  AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))
+GROUP BY subject_id, scheme HAVING COUNT(DISTINCT value) > 1 AND COUNT(DISTINCT source) > 1;
 ```
 
 ### Why is this listing under that security, and that security under that issuer?
@@ -366,10 +371,11 @@ Some explanations are computed or implicit, and the stores do not record them:
   provider's own publishing dates are in `ref.release`, per source file, and
   `retrieved_at` is the build's read, not the provider's.
 - **Rows from before a column existed.** Plugin relations made before
-  `source_record`, `source_version` and `adapter_version` were kept, and
-  bindings made before `decided_at`, have NULL there. Those columns are added to
-  an existing store the next time core opens it (they are additive, so an older
-  Pythia still reads the store).
+  `source_record`, `source_version` and `adapter_version` were kept have NULL
+  there until their plugin states the relation again (a sync fills them), and
+  bindings made before `decided_at` keep NULL: the time is not recoverable.
+  Those columns are added to an existing store the next time core opens it
+  (they are additive, so an older Pythia still reads the store).
 - **The user's catalogue corrections.** Answers to questions are recorded;
   corrections the user makes directly (setting an identifier, moving a listing)
   are a later change and will need their own rows, which this page will then
@@ -378,7 +384,12 @@ Some explanations are computed or implicit, and the stores do not record them:
 ## Keeping this true
 
 `runtime/test/python/test_identity_data.py` builds a device (a reference
-package, two fixture plugins, a binding, a contested identifier and a user's
-answer), runs the snippet and each example above against it, and checks that the
-tables named here are the tables the stores have. A schema change that adds a
-table or column needs its row here and its comment in `identity/sql/`.
+package, plugins, a binding, a contested identifier and a user's answer), runs
+the snippet and each example above against it, and checks that the tables named
+here are the tables the stores have. A schema change that adds a table or
+column needs its row here and its comment in `identity/sql/`.
+
+The agent reads the same queries from `references/queries.md` of its
+`pythia:identity-data` skill, which core ships (this page is not part of the
+installed product). The test checks that the two files hold identical snippet
+and queries and runs the agent's copy, so change both together.
