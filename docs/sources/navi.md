@@ -132,7 +132,7 @@ Not yet sampled. The measured cases:
 | Same symbol, different coins | `wBTC`/`WBTC` ×3 in `main` | Sui Bridge `…::btc::BTC`, LayerZero `…::wbtc::WBTC`, deprecated Wormhole `…::coin::COIN` | Three subjects, each labelled with its bridge | Handled |
 | Coins DeFiLlama's Sui pools do not hold | 3 of 38 | AUSD, eACRED, YBTC.B, all deprecated or in a deprecating market | Introduced by NAVI | Handled |
 | Reserve of a deprecating market | 3 (`ember`) | `ember-0` | The API flags none of them: `status: active` | Accepted |
-| Deprecated reserve | 11 of 62 | `main-8`, Wormhole WBTC | `status: inactive`: out of search, its page still opens | Handled |
+| Deprecated reserve | 11 of 62 | `main-8`, Wormhole WBTC | `status: inactive`: found in search marked Delisted, below live reserves; its page still opens | Handled |
 | Generic or over-long coin type | 0 of 62 | Longest 115 characters | Not keyed if one appears; the reserve is kept without a token link | Handled |
 | Reward coins (`rewardCoin`) | 4 types | Volo's `CERT` | Not modelled: no relation for them | Accepted |
 
