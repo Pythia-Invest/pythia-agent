@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -75,10 +75,39 @@ async function startFixture(root: string, extra: Record<string, string> = {}) {
   const child = spawn(
     process.execPath,
     [join(repositoryRoot, "scripts/dev/test/fixture-supervisor.mjs")],
-    { cwd: repositoryRoot, env, stdio: "ignore" },
+    { cwd: repositoryRoot, env, stdio: ["ignore", "pipe", "pipe"] },
   );
+  let output = "";
+  const keep = (chunk: Buffer) => {
+    output = `${output}${chunk}`.slice(-8_000);
+  };
+  child.stdout?.on("data", keep);
+  child.stderr?.on("data", keep);
   children.push(child);
-  return { child, env, paths };
+  return { child, env, paths, root, output: () => output };
+}
+
+/** What the supervisor was doing, for a failure that cannot be reproduced locally. */
+function diagnostics(fixture: Awaited<ReturnType<typeof startFixture>>) {
+  const receipt = existsSync(fixture.paths.receipt)
+    ? readFileSync(fixture.paths.receipt, "utf8")
+    : "(no receipt)";
+  const processes = execFileSync(
+    "ps",
+    ["-Ao", "pid,ppid,pgid,stat,etime,args"],
+    {
+      encoding: "utf8",
+    },
+  )
+    .split("\n")
+    .filter((line) => line.includes(fixture.root))
+    .join("\n");
+  return [
+    `supervisor exit: ${fixture.child.exitCode ?? "running"}`,
+    `receipt: ${receipt}`,
+    `processes:\n${processes || "(none)"}`,
+    `supervisor output:\n${fixture.output()}`,
+  ].join("\n");
 }
 
 afterEach(async () => {
@@ -353,9 +382,14 @@ describe("foreground supervision refresh", () => {
     // After the replacement dies the supervisor tears down (up to eight
     // seconds per process group plus port release) before its receipt goes.
     // The client must outlive that worst case on a loaded runner.
-    await expect(requestHermesRestart(fixture.paths, 45_000)).rejects.toThrow(
-      /foreground supervisor (?:stopped|identity changed)/u,
+    const outcome = await requestHermesRestart(fixture.paths, 45_000).then(
+      () => "acknowledged",
+      (error: Error) => error.message,
     );
+    // Intermittent in CI with "did not acknowledge"; report the supervisor's
+    // state so the hang can be located (every wait in this path is bounded).
+    if (!/foreground supervisor (?:stopped|identity changed)/u.test(outcome))
+      throw new Error(`${outcome}\n${diagnostics(fixture)}`);
     await waitUntil(() => fixture.child.exitCode !== null);
     expect(fixture.child.exitCode).not.toBe(0);
     expect(
