@@ -23,8 +23,8 @@ PACKAGE = "reference"  # the reference package as a contributor: its evidence's 
 def disagree(assertions: Iterable[IdentifierAssertion]) -> bool:
     """Different sources state different values: each source's set of values is compared, so one source's several
     values contest nothing and sources that state the identical set (two contributors naming both of a composite's
-    FIGIs) never contest. Sets that differ at all do: the scheme is single-valued, and without a per-scheme
-    cardinality a source that leaves out another's extra value cannot be told from one that denies it."""
+    FIGIs) never contest. Sets that differ at all do: every scheme but a ticker is single-valued (`SINGLE_VALUED`), so
+    a source that leaves out another's extra value cannot be told from one that denies it."""
     stated: dict[tuple[str, str], set[str]] = {}
     for item in assertions:
         stated.setdefault((item.provenance.plugin, item.provenance.source), set()).add(item.value)

@@ -2,8 +2,10 @@
 0037, amendment of 2026-09-30): a contested fact decides nothing until the user answers, and a later release that
 contradicts the user's answer asks again."""
 import contextlib
+import contextvars
 import json
 import sqlite3
+import unittest.mock
 
 from test_identity_build_questions import (
     ISSUER, NAME, NASDAQ, NOTE, OPERATOR, OPERATOR_ISSUER, RECEIPT, RECEIPT_OF, REGISTRANT, SECURITY,
@@ -163,14 +165,14 @@ class AnswerTest(BuildQuestionFixture):
     STATES = ("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
               " retrieved_at) VALUES ('ev:receipt', 'depositary_receipt_of', ?, ?, ?, 'esma_firds', 'esma_firds', '1', ?)")
 
-    def adr(self, authority="source_asserted", extra=()):
+    def adr(self, authority="source_asserted", extra=(), *, more=(), name="world", release="reference-20260926"):
         """The share with no issuer, and the receipt whose issuer FIRDS gave as the venue operator (and, with an
         `authority`, states the share as its underlying); both questions are in the package."""
         sql = [("UPDATE securities SET issuer_id = NULL WHERE id = ?", (SECURITY,)),
                ("UPDATE securities SET issuer_id = ? WHERE id = ?", (OPERATOR_ISSUER, RECEIPT))]
         if authority:
             sql.append((self.STATES, (RECEIPT, SECURITY, authority, NOW)))
-        self.install([issuer_question(SECURITY), self.RECEIPT_ISSUER, *extra], self.world(sql=sql))
+        self.install([issuer_question(SECURITY), self.RECEIPT_ISSUER, *extra], self.world(name, sql=[*sql, *more]), release)
 
     def answer_share(self):
         self.page(ASML)
@@ -193,8 +195,9 @@ class AnswerTest(BuildQuestionFixture):
         [asked] = self.open()
         self.assertEqual(asked["subject_ids"], [RECEIPT])
         self.answer_share()
+        self.assertEqual((self.open(), self.ops.store.queue_item(asked["id"])["state"]), ([], "superseded"),
+                         "withdrawn when the user answers, before the receipt is touched again")
         self.assertEqual(self.page(NASDAQ)["issuer"]["id"], ISSUER)
-        self.assertEqual((self.open(), self.ops.store.queue_item(asked["id"])["state"]), ([], "superseded"))
         [share] = self.ops.store.queue_items(which="settled")
         self.assertEqual(self.answer(share["id"], "reopen")["outcome"], "reopened")
         self.assertEqual(self.page(NASDAQ)["issuer"]["id"], OPERATOR_ISSUER, "the release's issuer again")
@@ -209,6 +212,77 @@ class AnswerTest(BuildQuestionFixture):
         self.answer_share()
         view = self.page(NASDAQ)
         self.assertEqual((view["issuer"]["id"], "inherited_from" in view["issuer"]), (OPERATOR_ISSUER, False))
+
+    def test_a_question_open_before_the_answer_is_withdrawn_on_the_next_touch_too(self):
+        self.adr()
+        self.page(NASDAQ)
+        [asked] = self.open()
+        self.answer_share()
+        # An answer given before this rule existed: the receipt's question was never withdrawn.
+        with self.ops.store.transaction():
+            self.ops.store.db.execute("UPDATE queue SET state = 'open' WHERE id = ?", (asked["id"],))
+        self.assertEqual(len(self.open()), 1)
+        self.page(NASDAQ)
+        self.assertEqual(self.open(), [])
+
+    def test_a_dismissed_receipt_question_is_the_users_answer_and_inheritance_leaves_it(self):
+        self.adr()
+        self.page(NASDAQ)
+        [asked] = self.open()
+        self.assertEqual(self.answer(asked["id"], "none")["state"], "dismissed")
+        self.answer_share()
+        view = self.page(NASDAQ)
+        self.assertEqual((view["issuer"]["id"], "inherited_from" in view["issuer"]), (OPERATOR_ISSUER, False))
+
+    def test_an_enabled_plugin_contradicting_the_stated_underlying_blocks_inheritance(self):
+        self.plugins = [plugin("gleif")]
+        self.adr()
+        with self.ops.store.transaction():  # the plugin states another underlying for the receipt
+            self.ops.store.db.execute(self.PLUGIN_STATES, (RECEIPT, NOTE, NOW))
+        self.answer_share()
+        self.assertEqual(self.page(NASDAQ)["issuer"]["id"], OPERATOR_ISSUER)
+        self.assertEqual([item["subject_ids"][0] for item in self.open()], [RECEIPT])
+        self.plugins = [plugin("gleif", enabled=False)]  # a disabled plugin contradicts nothing
+        self.assertEqual(self.page(NASDAQ)["issuer"]["id"], ISSUER)
+
+    PLUGIN_STATES = ("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, retrieved_at)"
+                     " VALUES ('ev:plugin', 'depositary_receipt_of', ?, ?, 'source_asserted', 'gleif', 'gleif', ?)")
+
+    def test_the_inherited_issuer_survives_a_rekey_of_the_underlying(self):
+        self.adr()
+        self.answer_share()
+        moved = "security:isin:NL0099999995"
+        rekey = [(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (moved, SECURITY))
+                 for table, column in (("securities", "id"), ("listings", "security_id"), ("composites", "security_id"),
+                                       ("assertions", "subject_id"), ("relations", "to_id"))]
+        rekey.append(("INSERT INTO id_aliases (old_id, new_id, release) VALUES (?, ?, 'reference-20260927')",
+                      (SECURITY, moved)))
+        self.adr(more=rekey, name="second", release="reference-20260927")
+        view = self.page(NASDAQ)
+        self.assertEqual((view["issuer"]["id"], view["issuer"]["inherited_from"]["security"]), (ISSUER, moved))
+        self.assertEqual(self.open(), [])
+
+    def test_a_correction_to_the_inherited_issuers_identifier_still_wins(self):
+        self.adr()
+        self.answer_share()
+        from pythia_core_queue_fixture import correction_ops
+        from pythia_core_queue_fixture.platform import request_context
+        desk = contextvars.copy_context()
+        desk.run(request_context.usage.set, "dashboard")
+        done = json.loads(desk.run(correction_ops.submit, self.ops, {
+            "kind": "identifier", "subject_id": ISSUER, "scheme": "lei", "value": "HWUPKR0MPOU8FGXBT394"}))["data"]
+        self.assertIn("id", done)
+        view = self.page(NASDAQ)
+        self.assertEqual((view["issuer"]["id"], view["issuer"]["lei"], view["provenance"]["lei"]["plugin"]),
+                         (ISSUER, "HWUPKR0MPOU8FGXBT394", "user"))
+
+    def test_touching_a_receipt_that_inherits_takes_no_write_lock_once_nothing_is_open(self):
+        self.adr()
+        self.answer_share()
+        self.page(NASDAQ)
+        with unittest.mock.patch.object(self.ops.store, "transaction", wraps=self.ops.store.transaction) as lock:
+            self.page(NASDAQ)
+        self.assertEqual(lock.call_count, 0)
 
     def unsettled(self, authority):
         self.adr(authority)

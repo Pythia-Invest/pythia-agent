@@ -234,8 +234,8 @@ never contests. One source's own several values are not a contest, and neither
 is several sources stating the identical set: OpenFIGI states two composite
 FIGIs for some composites (10,288 in the 2026-09-28 build), and a plugin that
 states the same two beside the package contests nothing. Sets that differ at
-all do contest, a subset included, because the model has one cardinality for
-every scheme but `ticker_mic`.
+all do contest, a subset included, because every scheme but `ticker_mic` is
+single-valued.
 
 ```sql
 -- example: contested
@@ -366,7 +366,7 @@ ORDER BY v.created_at;
 
 A receipt has the issuer the user chose for the share it represents
 (ESMA Q&A 1503: a receipt's issuer is its underlying's), unless the user
-answered the receipt's own issuer. The receipt's page shows it, and its
+answered the receipt's own issuer ("none of these" included). The receipt's page shows it, and its
 `issuer` carries `inherited_from` (the share and the user's verdict). It applies
 only where a source states the underlying (`relations` with `authority =
 'source_asserted'`; not one the builder derived from the issuer) or the user

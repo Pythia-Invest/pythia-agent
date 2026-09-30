@@ -1967,23 +1967,27 @@ its underlying's.
   contest, and one source's several values still contest nothing (the ruling
   of "evidence counts by kind and trust level", unchanged). Sets that differ at
   all contest, a subset included: the model has one cardinality for every scheme
-  but `ticker_mic`, so a source that leaves out another's second value cannot be
-  told from one that denies it, and a false contest costs one shown row where a
+  but `ticker_mic` (`SINGLE_VALUED`), so a source that leaves out another's
+  second value cannot be told from one that denies it (a set-valued exception
+  for `composite_figi` belongs with the first second source that states only
+  one of OpenFIGI's two), and a false contest costs one shown row where a
   false agreement would pick a value silently. A self-contradiction of one
   source stays a separate question (`conflicts.restated`). `values` takes the
   first value, as before.
 - **A receipt inherits the answered issuer of its underlying.** Where the user
   answered who issued the underlying share, a receipt that represents it has
   that issuer: the page and filings route to it, the receipt's own question is
-  not queued, and one already open is superseded at the next touch. The
+  not queued, and one already open is superseded when the user answers the
+  underlying (or, for an answer given earlier, at the next touch). The
   receipt's `issuer` carries `inherited_from` (the share and the user's
   verdict), so it shows in the raw data, and no `binding` question is raised
   for the release's differing issuer. It applies only where the underlying is
   settled: the user answered it, or a source states it (a `source_asserted`
   relation, never the builder's issuer rule, which derives it from the issuer)
   and no enabled plugin contradicts it. The user's answer about the receipt's
-  own issuer wins, and reopening the share's answer ends the inheritance on the
-  next read, when the receipt's question is asked again.
+  own issuer always wins, "none of these" included, and reopening the share's
+  answer ends the inheritance on the next read, when the receipt's question is
+  asked again.
 
 **Rejected alternatives.**
 
