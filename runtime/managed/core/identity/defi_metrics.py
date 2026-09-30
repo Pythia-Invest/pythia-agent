@@ -80,6 +80,12 @@ METRICS: dict[str, Metric] = {
         "base_apr": "The yearly rate borrowers pay, before any incentive rewards."}),
     "liquidity": Metric(Kind.MARKET, "USD", "instant", {
         "pool_reserves": "The value of the tokens the pool holds, at the source's prices."}),
+    "taker_fee": Metric(Kind.MARKET, "percent", "instant", {
+        "governance_trade_params": "The fee a taker pays on the value of a trade, as the market's governance sets it "
+                                   "now; governance changes it by vote at an epoch boundary."}),
+    "maker_fee": Metric(Kind.MARKET, "percent", "instant", {
+        "governance_trade_params": "The fee a maker pays on the value of a trade, as the market's governance sets it "
+                                   "now; governance changes it by vote at an epoch boundary."}),
     "volume_24h": Metric(Kind.MARKET, "USD", "24h", {
         "traded": "The US dollar value traded in the market over the last 24 hours."}),
 }
