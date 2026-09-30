@@ -49,17 +49,19 @@ Citations:
 | `compositeFIGI` | The country-level composite that groups one market's venue lines | The line's `composite_figi` | A composite's own line has `figi` equal to it. Toyota: JP, GR, US, MM and seven EO composites | yes |
 | `shareClassFIGI` | The share class, across countries | The line's `share_class_figi` (`self`) | Null on 6 of Toyota's 143 lines; the line then carries none. 4 of 20,751 ISIN answers span two share classes, for example a stapled security that took over a trust's ISIN | yes |
 | The job's ISIN | The identifier OpenFIGI maps to each line | The line's `isin` (`self`) at security scope: the mapping is OpenFIGI's own statement, as GLEIF's ISIN filter is GLEIF's, so it is not an echo | Toyota's answer held only ordinary share lines (all `Common Stock`), none of its ADR | yes |
-| `exchCode` | Bloomberg exchange code | `provider_venue`; an operating MIC only through `venue_codes` (below) | Codes name venues, country composites (US, GR, JP) or European composites whose lines use X-prefixed codes (EO) | yes |
+| `exchCode` | Bloomberg exchange code | `provider_venue`; an operating MIC only through `venue_codes` (below) | Codes name venues, country composites (US, GR, JP) or the OTC composite (EO), whose lines use X-prefixed codes | yes |
 | `ticker` | The exchange ticker as Bloomberg writes it | An attribute, never a key or identifier; kept only in core's ticker grammar, since core refuses a batch with a malformed one | MTF lines add a currency (`7203USD`). 9,324 of 1,187,119 cached lines fall outside the grammar, mostly with `/` (`AMD/B`) | yes |
 | `name` | Security name | The line's `name` | Upper case | yes |
 | `marketSector` | Bloomberg market sector | `asset_class: equity` for `Equity`; nothing otherwise | ETFs and receipts are Equity too | yes |
 | `securityType`, `securityType2`, `securityDescription` | Bloomberg security types and description | not read into claims; the agent's `mapping` shows them | | no |
 
-A line is the country composite, and is left out of a claim batch, when other
-lines name its FIGI as their composite FIGI and its code maps to no venue. In
-the cached answers, AU (the ASX) was both a composite other lines named (1,042
-answers) and a venue line, so a mapped code keeps the line. The composite's
-FIGI still reaches core as each venue line's composite FIGI.
+A line is a composite, and is left out of a claim batch, when other lines name
+its FIGI as their composite FIGI and its code maps to no venue. The composite's
+FIGI still reaches core as each venue line's composite FIGI. AU is Australia's
+composite code, and other lines named an AU line as their composite in 1,042
+cached answers. The contract still maps AU to XASX, as the builder's
+home-exchange table does (`reference_builder/rules.py`), so an AU line stays as
+the ASX line.
 
 ### Exchange codes
 
@@ -67,9 +69,11 @@ FIGI still reaches core as each venue line's composite FIGI.
 venue:
 
 - in the reference build of 2026-09-28, OpenFIGI's lines with that code sat on
-  venue lines that FIRDS or SEC keyed under one operating MIC, in at least 20
-  listings with no other reading (for example GD on XDUS 11,088 times, JT on
-  XJPX 904, BU on XBUL 450);
+  venue lines keyed under one operating MIC, in at least 20 listings with no
+  other reading (for example GD on XDUS 11,088 times, BU on XBUL 450). For the
+  home codes AU, CT, JT, HK, SP, IT, SJ, LN and SE this is not independent
+  evidence: the builder keyed those lines through its own home-exchange table
+  (`HOME` in `reference_builder/rules.py`), so the count repeats that table;
 - one code per operating MIC: the builder's main code where
   `reference_builder/rules.py` names one, else the code that dominates that
   venue's lines;
@@ -77,8 +81,8 @@ venue:
 
 Left unmapped, so their lines carry no MIC:
 
-- country composites (US, GR, JP, SW, MM, CN), the European composite EO and
-  the X-prefixed codes of its lines, whose venues are not confirmed;
+- country composites (US, GR, JP, SW, MM, CN), the OTC composite EO and the
+  X-prefixed codes of its lines, whose venues are not confirmed;
 - second books on a mapped venue's operating MIC, such as GT (Xetra), LA
   (Hamburg), GZ (Munich's gettex) and XS (Stuttgart). Mapping them would give
   one security two lines on one MIC, which derive the same price address;
@@ -86,7 +90,8 @@ Left unmapped, so their lines carry no MIC:
   a line for every US exchange a security trades on, not only where it lists: a
   Nasdaq Capital Market share also has UN, UA and UP lines. Mapping them would
   show unlisted trading as NYSE or Cboe listings. US listings come from SEC in
-  the reference, and OpenFIGI's lines join them by FIGI;
+  the reference, and OpenFIGI's lines join them by FIGI. The one US code mapped
+  is PQ, OTC Markets under the US composite, to OTCM (2,160 listings);
 - codes seen on fewer than 20 listings, such as LG (Riga).
 
 Toyota's 143 lines give 132 claims, 11 with an operating MIC: XJPX, XFRA,

@@ -36,10 +36,12 @@ The answer is one listing claim per FIGI line, never a pick:
   ticker as evidence. A ticker never keys a line, and one outside core's ticker
   grammar (`BRK/B`) is left out.
 
-A country composite line (JP, GR or US: a FIGI other lines name as their
-composite FIGI, on a code that maps to no venue) is not a venue line and is left
-out; its FIGI reaches core as each venue line's composite FIGI. Where one code is
-both a composite and a venue (AU, the ASX), the line stays.
+A composite line is not a venue line and is left out: a FIGI other lines name
+as their composite FIGI, on a code that maps to no venue, such as the JP, GR and
+US country composites or EO, the OTC composite. Its FIGI reaches core as each
+venue line's composite FIGI. AU is Australia's composite code, but the contract
+maps it to the ASX (XASX), as the reference builder's home-exchange table does,
+so an AU line stays as the ASX line.
 
 ## The agent's jobs
 

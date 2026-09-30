@@ -192,8 +192,8 @@ class OpenFigiClaims(unittest.TestCase):
     def setUp(self):
         governor._owners.clear()
 
-    def claims(self, lines):
-        result = resolver(Opener([[{'data': lines}]])).invoke({'identifiers': {'isin': TOYOTA}}, operation='resolve')
+    def claims(self, lines, isin=TOYOTA):
+        result = resolver(Opener([[{'data': lines}]])).invoke({'identifiers': {'isin': isin}}, operation='resolve')
         self.assertEqual(result['outcome'], 'ok', result)
         return {claim.native_ref.native_id: claim for claim in checked_batch('openfigi', result).claims}
 
@@ -223,13 +223,23 @@ class OpenFigiClaims(unittest.TestCase):
         self.assertIn(('share_class_figi', SHARE_CLASS, 'self'),
                       {(item.scheme, item.value, item.role) for item in claims[GF].identifiers})
 
-    def test_no_match_is_empty_and_a_malformed_isin_is_refused_before_any_request(self):
-        opener = Opener([[{'warning': 'No identifier found.'}]])
+    def test_a_composite_on_a_mapped_code_stays_a_venue_line(self):
+        # AU is Australia's composite code, mapped to the ASX as the builder's home table does: its line is the ASX's.
+        asx, chix = figi('BBGZZ0000B1'), figi('BBGZZ0000B2')
+        claims = self.claims([line('AU', asx, asx, 'SYN'), line('AT', chix, asx, 'SYN')], isin=ISIN)
+        self.assertEqual({number: claim.attributes.operating_mic for number, claim in claims.items()},
+                         {asx: 'XASX', chix: None})
+
+    def test_no_match_is_empty_a_provider_error_is_an_error_and_a_malformed_isin_is_refused(self):
+        opener = Opener([[{'warning': 'No identifier found.'}], [{'error': 'Synthetic job error'}]])
         empty = resolver(opener).invoke({'identifiers': {'isin': TOYOTA}}, operation='resolve')
         self.assertEqual((empty['outcome'], empty['data']), ('empty', None))
+        governor._owners.clear()
+        failed = resolver(opener).invoke({'identifiers': {'isin': ISIN}}, operation='resolve')
+        self.assertEqual((failed['outcome'], failed['data'], failed['issues'][0]['code']), ('error', None, 'provider_error'))
         refused = resolver(opener).invoke({'identifiers': {'isin': 'JP3633400002'}}, operation='resolve')
         self.assertEqual(refused['issues'][0]['code'], 'invalid_request')
-        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual(len(opener.requests), 2)  # the malformed ISIN never reached OpenFIGI
 
 
 class OpenFigiRegistration(unittest.TestCase):

@@ -16,7 +16,8 @@ def _annotation(operation):
                                                  'read_only': True, 'updates': False, 'cache_seconds': 0}})
 
 
-def schemas(_wire=None):
+def schemas(_wire):
+    """Both operations' native schemas. Every plugin's `schemas` takes core's wire module; these need none of it."""
     fields = {name: {'type': 'string', 'minLength': 1, 'maxLength': limit} for name, limit in FILTERS.items()}
     fields['micCode']['pattern'] = '^[A-Z0-9]{4}$'
     job = {'type': 'object', 'additionalProperties': False, 'required': ['idType', 'idValue'],
