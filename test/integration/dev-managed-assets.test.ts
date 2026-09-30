@@ -30,7 +30,7 @@ import {
   developmentPaths,
   repositoryRoot,
   temporaryRoot,
-} from "../support/dev-stack";
+} from "../support/dev-stack.js";
 
 describe("managed source and runtime preparation", () => {
   it("refreshes managed plugin files without changing later native user choices", async () => {

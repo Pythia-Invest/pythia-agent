@@ -6,7 +6,7 @@ import {
   createSnapshotFixture,
   git,
   repositoryRoot,
-} from "../support/release-snapshot";
+} from "../support/release-snapshot.js";
 
 afterEach(cleanupReleaseFixtures);
 
@@ -38,7 +38,7 @@ describe("first public release snapshots", () => {
     );
     expect(
       signed.snapshotB.entries.find(
-        (entry) => entry.path === "release/allowed_signers",
+        (entry: { path: string }) => entry.path === "release/allowed_signers",
       )?.sha256,
     ).not.toBe(
       signed.source.entries.find(

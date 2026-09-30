@@ -20,7 +20,13 @@ import {
   commit,
   signedTag,
   releaseFixture,
-} from "../support/release-fixture";
+} from "../support/release-fixture.js";
+// The recovery path a test resumes; recoverUpdate may also return an applied update.
+type Recovered = Extract<
+  Awaited<ReturnType<typeof recoverUpdate>>,
+  { recovered: boolean }
+>;
+
 describe("release verification and update", () => {
   it("orders strict stable tags and verifies annotated SSH tags", () => {
     const fixture = releaseFixture();
@@ -354,11 +360,11 @@ describe("release verification and update", () => {
     expect(readFileSync(fixture.paths.allowedSigners, "utf8")).toBe(nextSigner);
     expect(run(fixture.checkout, ["git", "rev-parse", "HEAD"])).toBe(revisionD);
 
-    const recovered = await recoverUpdate(fixture.paths, {
+    const recovered = (await recoverUpdate(fixture.paths, {
       stop: async () => undefined,
       completeCandidate: async () => undefined,
       startAndVerify: async () => undefined,
-    });
+    })) as Recovered;
     expect(recovered.receipt.phase).toBe("complete");
     expect(readFileSync(fixture.paths.allowedSigners, "utf8")).toBe(nextSigner);
     expect(readJson(fixture.paths.installFile).revision).toBe(revisionD);
@@ -378,11 +384,11 @@ describe("release verification and update", () => {
     expect(run(fixture.checkout, ["git", "rev-parse", "HEAD"])).toBe(
       fixture.revisionB,
     );
-    const recovered = await recoverUpdate(fixture.paths, {
+    const recovered = (await recoverUpdate(fixture.paths, {
       stop: async () => undefined,
       completeCandidate: async () => undefined,
       startAndVerify: async () => undefined,
-    });
+    })) as Recovered;
     expect(recovered.recovered).toBe(true);
     expect(recovered.receipt.phase).toBe("complete");
     const transactionPath = join(

@@ -11,7 +11,11 @@ import {
   stackStatus,
   stopStack,
 } from "../../scripts/dev/supervisor.mjs";
-import { startFixture, temporaryRoot, waitUntil } from "../support/dev-stack";
+import {
+  startFixture,
+  temporaryRoot,
+  waitUntil,
+} from "../support/dev-stack.js";
 
 describe("foreground supervision process ownership", () => {
   it("starts two independent stacks and stops only the selected owner", async () => {

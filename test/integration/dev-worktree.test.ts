@@ -22,7 +22,7 @@ import {
   developmentEnvironment,
   developmentPaths,
   temporaryRoot,
-} from "../support/dev-stack";
+} from "../support/dev-stack.js";
 
 describe("worktree identity and native command construction", () => {
   it("runs native root auth and status without initializing, preparing or writing secrets", async () => {

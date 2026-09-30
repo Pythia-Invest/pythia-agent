@@ -9,7 +9,7 @@ import {
   repositoryRoot,
   run,
   temporaryQualificationRoot,
-} from "../support/release-snapshot";
+} from "../support/release-snapshot.js";
 
 afterEach(cleanupReleaseFixtures);
 

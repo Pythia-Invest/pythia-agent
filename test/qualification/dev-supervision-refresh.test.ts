@@ -182,7 +182,7 @@ describe("foreground supervision refresh", () => {
         existsSync(join(first.paths.stateRoot, "fixture-ready")) &&
         existsSync(join(second.paths.stateRoot, "fixture-ready")),
     );
-    const userFiles = [
+    const userFiles: [string, string][] = [
       [join(first.paths.profileRoot, "config.yaml"), "model: user-choice\n"],
       [join(first.paths.workspace, "portfolio.md"), "user portfolio\n"],
       [join(first.paths.knowledge, "note.md"), "user memory\n"],

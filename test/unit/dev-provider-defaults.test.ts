@@ -11,33 +11,38 @@ function fixture(
     default: shared,
     test: local,
   };
-  const execute = vi.fn((_paths: unknown, args: string[]) => {
-    const config = profiles[args[1]];
-    const parts = args[4]
-      .split(/(?<!\\)\./u)
-      .map((part) => part.replaceAll("\\.", "."));
-    let parent: Record<string, unknown> | undefined = config;
-    for (const part of parts.slice(0, -1)) {
-      if (
-        args[3] === "set" &&
-        parent &&
-        (!parent[part] || typeof parent[part] !== "object")
-      )
-        parent[part] = {};
-      parent = parent?.[part] as Record<string, unknown> | undefined;
-    }
-    const key = parts[parts.length - 1];
-    if (args[3] === "set") {
-      if (!parent) throw new Error("Missing fixture parent");
-      parent[key] = args[4].startsWith("model.")
-        ? args[5]
-        : JSON.parse(args[5]);
-      return "saved";
-    }
-    if (parent?.[key] === undefined)
-      throw new Error(`Config key not set: ${args[4]}`);
-    return JSON.stringify(parent[key]);
-  });
+  const execute = vi.fn(
+    (
+      _paths: unknown,
+      args: [string, string, string, string, string, string?],
+    ) => {
+      const config = profiles[args[1]];
+      const parts = args[4]
+        .split(/(?<!\\)\./u)
+        .map((part) => part.replaceAll("\\.", "."));
+      let parent: Record<string, unknown> | undefined = config;
+      for (const part of parts.slice(0, -1)) {
+        if (
+          args[3] === "set" &&
+          parent &&
+          (!parent[part] || typeof parent[part] !== "object")
+        )
+          parent[part] = {};
+        parent = parent?.[part] as Record<string, unknown> | undefined;
+      }
+      const key = parts[parts.length - 1] as string;
+      if (args[3] === "set") {
+        if (!parent) throw new Error("Missing fixture parent");
+        parent[key] = args[4].startsWith("model.")
+          ? args[5]
+          : JSON.parse(args[5] ?? "");
+        return "saved";
+      }
+      if (parent?.[key] === undefined)
+        throw new Error(`Config key not set: ${args[4]}`);
+      return JSON.stringify(parent[key]);
+    },
+  );
   const run = () =>
     inheritModelDefaults({ profile: "test" }, "fixture-bearer", { execute });
   return { run, execute, local };
@@ -70,7 +75,7 @@ describe("shared custom provider inheritance", () => {
       const writes = f.execute.mock.calls
         .map(([, args]) => args)
         .filter((args) => args[3] === "set");
-      expect(writes[0][4]).toBe("providers.research\\.proxy");
+      expect(writes[0]?.[4]).toBe("providers.research\\.proxy");
       expect(JSON.stringify(writes)).not.toContain("unrelated-secret");
       f.execute.mockClear();
       expect(f.run()).toBe(false);
@@ -111,7 +116,7 @@ describe("shared custom provider inheritance", () => {
     const writes = f.execute.mock.calls
       .map(([, args]) => args)
       .filter((args) => args[3] === "set");
-    expect(writes[0][4]).toBe("providers.lab-proxy");
+    expect(writes[0]?.[4]).toBe("providers.lab-proxy");
     expect(JSON.stringify(writes)).not.toContain("local-secret");
   });
 
