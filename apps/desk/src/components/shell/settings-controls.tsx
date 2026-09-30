@@ -173,7 +173,8 @@ export function CapabilitySettings() {
           <p className="text-body text-foreground-secondary">
             Native toolsets for the Hermes API Server platform only. Pythia's
             own tools are always on; to stop a data source, disable its plugin
-            with <code>hermes plugins disable &lt;plugin&gt;</code>.
+            with <code>hermes plugins disable &lt;plugin&gt;</code>. Data
+            sources shows what that takes away first.
           </p>
           {data.toolsets.map((tool) => (
             <SettingRow

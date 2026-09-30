@@ -376,17 +376,19 @@ def _contributed(rows: Iterable[Mapping[str, Any]]) -> dict[str, str]:
 
 def _contributors(store: IdentityStore, subject_ids: list[str], introducer: str | None,
                   plugins: list) -> list[dict[str, Any]]:
-    """The plugins behind these subjects, the one that introduced them first, each with its status now and the
-    identifiers it states about them (`stated`)."""
+    """The plugins behind these subjects, the one that introduced them first (`introduced`), each with its status now,
+    the identifiers it states about them (`stated`) and, once a complete catalogue scope of it no longer carries any of
+    its records on them, since when (`not_offered_since`)."""
     infos, marks = {info.manifest.plugin: info for info in plugins}, json.dumps(subject_ids)
     stated: dict[str, list[dict[str, str]]] = {}
     for plugin, scheme, value in store.select(
             "SELECT plugin, scheme, value FROM device_assertions WHERE role = 'self' AND subject_id IN (SELECT value"
             " FROM json_each(?)) ORDER BY plugin, scheme, value", (marks,)):
         stated.setdefault(plugin, []).append({"scheme": scheme, "value": value})
-    placed = [row[0] for row in store.select("SELECT DISTINCT plugin FROM claims WHERE subject_id IN (SELECT value FROM"
-                                             " json_each(?)) ORDER BY 1", (marks,))]
+    placed = {plugin: since if gone else None for plugin, gone, since in store.select(
+        "SELECT plugin, MIN(state = 'not_seen'), MAX(last_seen) FROM claims WHERE subject_id IN (SELECT value FROM"
+        " json_each(?)) GROUP BY plugin", (marks,))}
     return [{"plugin": name, "label": infos[name].label if name in infos else name,
              "status": "removed" if name not in infos else "enabled" if infos[name].enabled else "disabled",
-             "stated": stated.get(name, [])}
+             "stated": stated.get(name, []), "introduced": name == introducer, "not_offered_since": placed.get(name)}
             for name in dict.fromkeys([*([introducer] if introducer else []), *sorted({*stated, *placed})])]

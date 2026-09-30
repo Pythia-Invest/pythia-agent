@@ -361,9 +361,9 @@ class _Ingest:
                           if isinstance(claim, RecordClaim) and (ref := claim_ref(self.manifest.provider, claim))}
         rows = self.store.select("SELECT native_scope, native_id FROM claims WHERE plugin = ? AND scope = ? AND state IN"
                                  " (SELECT value FROM json_each(?))", (self.plugin, self.batch.scope, json.dumps(PLACED)))
-        gone = [(self.plugin, *row) for row in rows if tuple(row) not in carried]
-        self.store.db.executemany("UPDATE claims SET state = 'not_seen' WHERE plugin = ? AND native_scope = ?"
-                                  " AND native_id = ?", gone)
+        gone = [(self.now, self.plugin, *row) for row in rows if tuple(row) not in carried]
+        self.store.db.executemany("UPDATE claims SET state = 'not_seen', last_seen = ? WHERE plugin = ? AND"
+                                  " native_scope = ? AND native_id = ?", gone)  # since when it is no longer offered
         self.counts["not_seen"] = len(gone)
         self.changed = self.changed or bool(gone)
 

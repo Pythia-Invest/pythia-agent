@@ -552,11 +552,12 @@ profile, IDs minted under these are re-keyed 1:1 through `id_aliases`.
   claims establish depends on claim type and trust level, not on its origin,
   and the absence of competing evidence never increases it.
 
-Plugins introduce subjects through core's ingest (amendments "device subjects"
-and "ingest" below); search over them is still to come in roadmap stage 0
-(ADR 0044's amendment "data any plugin can extend"). Questions for relevant
-instruments are built; see the amendment "questions on touch, answers as local
-overrides" below.
+Roadmap stage 0 builds this direction (ADR 0044's amendment "data any plugin
+can extend"): plugins introduce subjects and evidence through core's ingest,
+and saved references to them keep working through disabling, re-enabling and
+updates (amendments "device subjects", "ingest" and "saved references through
+a plugin's lifecycle" below); questions for relevant instruments are asked on
+touch (amendment "questions on touch, answers as local overrides").
 
 ### Consequential failures (roadmap stage 0)
 
@@ -609,9 +610,10 @@ Known gaps:
   missing from the build.
 - A SEC line joined to a security by share-class FIGI is not flagged when SEC
   names another issuer (CNDIF).
-- Source removal, plugin evidence about existing subjects, a reused native
-  reference and questions queued on relevance are tested by the stage 0 work
-  that builds them.
+- Source removal, plugin evidence about existing subjects and a record that
+  changes its identifiers are tested with the plugins' ingest and lifecycle
+  (`test_identity_ingest.py`, `test_identity_peers.py`), and questions queued
+  on relevance with the questions on touch.
 
 ## Amendment (2026-09-29): the agent suggests, the user confirms
 
@@ -1327,6 +1329,10 @@ through it.
   it where its contract lets it), so a confirm-level record gives the parent
   of a line a display plugin introduced, and a display record never fills or
   replaces a confirm-level one's. The outcome is the same in either order.
+  A record kept as a conflict that now names another parent than the one its
+  own earlier statement named contests that parent, so a source contradicting
+  itself (a line's record that now states another company's ISIN) leaves the
+  parent unresolved, never that company's.
 - **Evidence.** A joined record's identifiers, and a listing's ticker at its
   operating MIC, become device evidence on the subject and its parents, counted
   at the plugin's trust level (amendment "evidence counts by kind and trust
@@ -1389,8 +1395,8 @@ through it.
   nothing. One left `unmatched` or `conflict` is placed again once the
   installed release, the plugin's trust level or its contract changed since
   the plugin's last batch. The last page of a `complete` catalogue scope marks the scope's
-  records that no page of it carried `not_seen`; their subjects and bindings
-  stay.
+  records that no page of it carried `not_seen`, with the time
+  (`claims.last_seen`); their subjects and bindings stay.
 
 **Rationale.** One path makes a plugin's records count the same however they
 arrive. Joining at the record's own scope is the rule the original ruling set
@@ -1433,3 +1439,78 @@ saved ID means the absence of competing evidence never raises authority (A3).
   stay open (A8).
 - **A second table for plugin relations or conflicts:** the device tables and
   the claim state already hold them.
+
+## Amendment (2026-09-30): saved references through a plugin's lifecycle
+
+**Context.** Roadmap stage 0 asks that an ordinary plugin's subjects keep
+working through disabling, re-enabling and updates, shown with an overlapping
+financial source and a DeFi source, and
+[ADR 0044](0044-product-direction.md) A3 that Pythia show the effect of
+disabling a default plugin before it happens. Device subjects already kept
+resolving while their plugin was off (amendment "device subjects"), but a page
+did not say why a subject's data was gone, a markets watchlist named a
+plugin's pool only while its plugin could be read, a record a source stopped
+offering left no trace a reader could see, and nothing showed what disabling
+a plugin would take away.
+
+**Ruling.**
+
+- **A device subject's page names its source.** The plugin that introduced it
+  is marked in `contributors` (`introduced`), with its status now (`enabled`,
+  `disabled` or `removed`) and, once a complete catalogue scope of it no
+  longer carries any of its records on the subject, since when
+  (`not_offered_since`). The Desk says "From X", "From X, which is disabled"
+  or "From X, which no longer offers it (since …)". The subject keeps its ID,
+  label and identifiers, and a disabled plugin's sections say `disabled`.
+- **The markets overview names a device subject by its label,** through its
+  device aliases, when core's curated tables do not name it: a watchlisted
+  pool keeps its name while its plugin is off.
+- **`identity-plugin-effect {plugin}`** is a local read of what disabling a
+  plugin would take away: the device subjects only it supplies (no other
+  enabled plugin has a record or an identifier on them, and no installed
+  reference package holds them), which leave search and data while it is off,
+  and the markets overview's saved entries (`markets_watchlist`,
+  `markets_cards`) that name them, through their aliases; each as a count with
+  a short sample. Without `plugin` it answers every enabled plugin that
+  declares a bulk catalogue or a resolve, with its trust level. It is a Desk
+  operation; the agent's tool list has no room for it.
+- **Settings → Data sources** lists those plugins, each with its trust level,
+  that effect beside the `hermes plugins disable` command, and, for a bulk
+  catalogue, a "Sync now" control that runs `identity-sync` and shows what it
+  joined, introduced, found in conflict and left unmatched. Enabling and
+  disabling stay Hermes's own command: the section has no toggles.
+- **The acceptance test** (`test_identity_peers.py`) runs two fixture plugins
+  core never names through the ordinary contract, trust by digest and
+  `identity-sync`: a confirm-level financial source that joins the package's
+  ASML line by ISIN and introduces SAP's Xetra line and a CGS-area Apple line,
+  and a display-level DeFi source that introduces a protocol, a pool and two
+  Sui coin types. A saved watchlist ID of each survives disabling (a labelled
+  stub, no row deleted), re-enabling (its data back with no sync), a renamed
+  record (same ID), a better identifier (the old ID aliases), a contradicting
+  identifier (a conflict, the ID unchanged) and a record the source stops
+  offering. The same payload installed as a managed default or as a community
+  plugin, under one grant on its digest, gives identical IDs, rows, statuses
+  and conflicts.
+
+**Rationale.** A saved reference is only useful if its page says why its data
+is missing; the label outliving its plugin is what makes that possible, and
+the effect read uses the same rule search does to drop a disabled plugin's
+subjects, so what it predicts is what happens.
+
+**Consequences.**
+
+- A plugin that mostly adds identifiers to subjects others supply (OpenFIGI)
+  shows few or no subjects of its own: the effect counts coverage, not the
+  identifiers a subject loses with it.
+- Only the overview's own settings count as saved entries. Desk URLs and chat
+  transcripts keep resolving by ID but are not counted.
+
+**Rejected alternatives.**
+
+- **A Sources page with toggles and impact dialogs:** enabling and disabling
+  are Hermes's; one read and one line show the effect without a second control
+  plane.
+- **Syncing a catalogue automatically on enable, or on a schedule:** a sync
+  calls a provider, so it stays an explicit, single-plugin action.
+- **Deleting a disabled plugin's rows, or answering its subjects as unknown:**
+  a saved reference would then point at nothing, or at another subject later.
