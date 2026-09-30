@@ -288,6 +288,7 @@ Decisions and limits:
   programme changed is an accepted limit, owned by lifecycle (`successor_of`).
 - **Open with an owner:** the `JBUL` field 8 pattern; the Crédit Agricole
   internaliser answering field 8 true; answers outside a question's
-  candidates (the curator's back office, future work).
+  candidates (future work).
 - **Judgement:** every question type stays suggest-only until it has a
-  question set and gold set; answers come from the central curator (ADR 0044).
+  question set and gold set; the user's answer on the device is a local
+  override (ADR 0037, amendment "questions on touch").

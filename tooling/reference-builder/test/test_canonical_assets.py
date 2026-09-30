@@ -1,18 +1,18 @@
-"""Core's curated canonical crypto assets: the seed's own rules, provider-independent IDs and the drift alarm."""
+"""Core's curated canonical crypto assets: the seed's own rules, provider-independent IDs and the drift alarm. The
+package names no provider: each coin plugin's contract declares its coin ids (ADR 0038, contract version 2)."""
 
 import json
 import re
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from reference_builder import drift, schema, truth, writer
 from reference_builder.model import Snapshot
 
 identity = schema.identity
 page, search, store = truth.page, truth.search, __import__(f"{identity.__name__}.store", fromlist=["store"])
+declared, subjects = (__import__(f"{identity.__name__}.{name}", fromlist=[name]) for name in ("declared", "subject"))
 SEED = json.loads((schema.CORE / "canonical_assets.json").read_text(encoding="utf-8"))
 AUDIT = (Path(__file__).resolve().parents[1] / "truth" / "canonical-assets-audit.md").read_text(encoding="utf-8")
 BTC = "bip122:000000000019d6689c085ae165831e93/slip44:0"
@@ -59,8 +59,6 @@ class ReferenceTest(unittest.TestCase):
         path = Path(cls.tmp.name) / "reference-test.sqlite3"
         writer.write(Snapshot(as_of="2026-09-28"), path, {"build_id": "test"}, [])  # no provider involved
         cls.path, cls.ref = path, store.open_reference(path, "confirm")  # installed by a user who trusts it
-        cls.canonical = {(row[0], row[1]): row[2] for row in cls.ref.execute(
-            "SELECT provider, native_id, caip19 FROM canonical_assets")}
         cls.contracts = truth.load_contracts()
 
     @classmethod
@@ -69,24 +67,23 @@ class ReferenceTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_coingecko_only_and_coinmarketcap_only_installs_address_one_subject_per_curated_asset(self):
-        declared = {provider: drift.coins(SEED, drift.declared(provider)) for provider in drift.PROVIDERS}
+        coin_ids = {provider: drift.coins(SEED, drift.declared(provider)) for provider in drift.PROVIDERS}
         for asset in SEED["assets"]:
             with self.subTest(asset=asset["symbol"]):
-                subject_id = f"security:caip19:{asset['caip19']}"  # built with no provider installed
-                self.assertEqual({self.canonical[(provider, declared[provider][asset["caip19"]])]
-                                  for provider in drift.PROVIDERS}, {asset["caip19"]})
-                subject = page.load_subject(self.ref, subject_id)
+                subject = page.load_subject(self.ref, f"security:caip19:{asset['caip19']}")  # built with no provider
                 for provider in drift.PROVIDERS:  # one installed coin plugin addresses that same subject
                     quote = next(section for section in page.compose(
                         subject, [self.contracts[provider]], stored=lambda *_: None, queue=[])
                         if section["section"] == "quote")
                     self.assertEqual((quote["status"], quote["binding"]["native_id"], quote["binding_status"]),
-                                     ("ready", declared[provider][asset["caip19"]], "confirmed"))
+                                     ("ready", coin_ids[provider][asset["caip19"]], "confirmed"))
 
-    def test_an_id_minted_before_curation_aliases_to_the_curated_subject(self):
+    def test_an_id_minted_before_curation_resolves_through_its_plugins_contract_not_the_package(self):
+        aliases = declared.aliases(info.manifest for info in self.contracts.values())  # shipped confirm-level
         for provider, native_id in (("coingecko", "usd-coin"), ("coinmarketcap", "3408")):
             earlier = identity.provisional_id("security", provider, "coin", native_id)  # as a resolve residual mints it
-            self.assertEqual(page.load_subject(self.ref, earlier)["id"], f"security:caip19:{USDC}")
+            self.assertIsNone(page.load_subject(self.ref, earlier))  # the package aliases no provider's ID
+            self.assertEqual(subjects.current_id(self.ref, earlier, aliases), f"security:caip19:{USDC}")
 
     def test_deployments_are_listings_of_one_security_and_a_wrapped_asset_stays_apart(self):
         base = page.load_subject(self.ref, f"listing:caip19:{USDC_BASE}")
@@ -103,28 +100,6 @@ class ReferenceTest(unittest.TestCase):
         usdc = [(group["id"], [row["id"] for row in group["rows"]]) for group in groups
                 if any(row["ticker"] == "USDC" for row in group["rows"])]
         self.assertEqual(usdc, [(f"security:caip19:{USDC}", [f"security:caip19:{USDC}"])])  # one asset, one row
-
-
-class UnsignedContractTest(unittest.TestCase):
-    def test_an_unsigned_plugins_coin_ids_give_the_package_no_rows_and_no_aliases(self):
-        """A display plugin's declaration is an address, never an alias (ADR 0038, contract version 2)."""
-        contract = json.loads((schema.PLUGINS / "coingecko" / "contract.json").read_text(encoding="utf-8"))
-        with tempfile.TemporaryDirectory() as directory:
-            for name, provider, status in (("coingecko", "coingecko", "grandfathered"), ("coins", "coins", "unsigned")):
-                (Path(directory) / name).mkdir()
-                (Path(directory) / name / "contract.json").write_text(json.dumps(
-                    {**contract, "provider": provider, "signoff": {"status": status}}), encoding="utf-8")
-            path = Path(directory) / "reference-test.sqlite3"
-            with mock.patch.object(schema, "PLUGINS", Path(directory)):
-                writer.write(Snapshot(as_of="2026-09-28"), path, {"build_id": "test"}, [])
-            with sqlite3.connect(path) as db:
-                providers = {row[0] for row in db.execute("SELECT provider FROM canonical_assets UNION"
-                                                          " SELECT provider FROM provider_chains")}
-                aliased = {row[0] for row in db.execute("SELECT old_id FROM id_aliases WHERE old_id LIKE ?",
-                                                        ("security:provisional:%",))}
-        self.assertEqual(providers, {"coingecko"})
-        self.assertIn(identity.provisional_id("security", "coingecko", "coin", "bitcoin"), aliased)
-        self.assertNotIn(identity.provisional_id("security", "coins", "coin", "bitcoin"), aliased)
 
 
 class DriftTest(unittest.TestCase):

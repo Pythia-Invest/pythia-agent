@@ -155,7 +155,10 @@ how often devices check for updates need their own decision under "If Pythia
 later publishes a snapshot" above. An installed Pythia has no lifecycle command
 for the import step yet, so it runs core's installer directly with `--data-dir`.
 A core release that changes the reference schema bumps the format version.
-Until the investor installs a matching package, core reports no reference data.
+Until the investor installs a matching package, core reads no reference data,
+and its status, search and pages say that the installed package is too old and
+must be rebuilt, or that Pythia must be updated to read it (since format 6,
+2026-09-30).
 
 **Rejected alternatives.** *Keep scanning the builder's folder* couples core
 to the builder's layout and gives no integrity check. *Keep the previous

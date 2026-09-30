@@ -1,7 +1,6 @@
 """Closed vocabularies of the backbone: tiers, authorities, kinds, statuses, relations."""
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -38,20 +37,6 @@ AUTHORITY_TIER: dict[Authority, EvidenceTier] = {
 }
 # Authorities that may carry a binding to `confirmed`.
 CONFIRMING = frozenset(Authority) - {Authority.MODEL_SUGGESTED}
-# Values a reference package of format 5 writes for where evidence came from, not what kind it is. Core reads each as
-# its kind (`stored_authority`); the next package format writes only kinds.
-LEGACY = frozenset({"snapshot", "curated"})
-RULE_ID = re.compile(r"[a-z][a-z0-9_]*@[0-9]+")  # a versioned rule, e.g. `receipt_issuer_share@1`
-
-
-def stored_authority(value: str, source_record: str | None = None) -> Authority:
-    """The kind of evidence a stored row states. An older package's `snapshot` and `curated` rows are what a source,
-    or Pythia's own list, states (`source_asserted`), except a value a builder rule derived, whose `source_record`
-    names the rule (`rule_confirmed`)."""
-    if value not in LEGACY:
-        return Authority(value)
-    derived = value == "snapshot" and RULE_ID.fullmatch(source_record or "")
-    return Authority.RULE_CONFIRMED if derived else Authority.SOURCE_ASSERTED
 
 
 # Closed sets grow when a connector emits a new class or kind, with its store CHECKs.

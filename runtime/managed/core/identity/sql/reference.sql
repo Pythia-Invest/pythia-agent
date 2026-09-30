@@ -75,8 +75,9 @@ CREATE TABLE assertions (
   value TEXT NOT NULL,
   valid_from TEXT,
   valid_to TEXT,
-  authority TEXT NOT NULL CHECK (authority IN ('source_asserted', 'snapshot', 'rule_confirmed', 'model_confirmed',
-                                                'model_suggested', 'user_attested', 'curated')),
+  -- The kind of evidence, never its origin (vocabulary.Authority; ADR 0044 A2).
+  authority TEXT NOT NULL CHECK (authority IN ('source_asserted', 'rule_confirmed', 'model_confirmed', 'model_suggested',
+                                                'user_attested')),
   source TEXT NOT NULL,
   source_record TEXT,
   source_version TEXT,
@@ -104,7 +105,8 @@ CREATE TABLE relations (
   ratio TEXT,
   valid_from TEXT,
   valid_to TEXT,
-  authority TEXT NOT NULL,
+  authority TEXT NOT NULL CHECK (authority IN ('source_asserted', 'rule_confirmed', 'model_confirmed', 'model_suggested',
+                                                'user_attested')),
   source TEXT NOT NULL,
   source_record TEXT,
   source_version TEXT,
@@ -148,24 +150,4 @@ CREATE TABLE venues (
 CREATE TABLE chains (
   caip2 TEXT PRIMARY KEY,
   name TEXT NOT NULL
-);
-
--- Each coin plugin's own chain ids -> CAIP-2, from its contract (`addressing.chain_codes`). Core reads none of it;
--- the table stays until the reference format drops it.
-CREATE TABLE provider_chains (
-  provider TEXT NOT NULL,
-  chain TEXT NOT NULL,              -- the provider's own chain or platform id
-  caip2 TEXT NOT NULL REFERENCES chains(caip2),
-  PRIMARY KEY (provider, chain)
-);
-
--- Each coin plugin's own coin id for a curated canonical asset (rule canonical_assets@1), from its contract
--- (`addressing.subjects`), keyed by the asset's canonical deployment. Core no longer reads it: the plugin's contract
--- addresses the asset (`declared_ref@1`). The table stays until the reference format drops it.
-CREATE TABLE canonical_assets (
-  caip19 TEXT NOT NULL,             -- the canonical issuance deployment: the security is security:caip19:<caip19>
-  provider TEXT NOT NULL,
-  native_scope TEXT NOT NULL,
-  native_id TEXT NOT NULL,
-  PRIMARY KEY (provider, native_scope, native_id)
 );

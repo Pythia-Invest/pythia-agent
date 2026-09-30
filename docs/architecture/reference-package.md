@@ -27,7 +27,7 @@ questions open:
 | Field | Meaning |
 | --- | --- |
 | `format` | Always `pythia-reference-package`. |
-| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs only its own version (currently `5`: 3 added the curated `canonical_assets` table, 4 the listings' `most_liquid` flag, 5 their `trading_currency`). |
+| `format_version` | The number core checks for compatibility. It covers the manifest layout and the database schema, and it equals the database's `release.schema_version`. Core installs and reads only its own version (currently `6`: 4 added the listings' `most_liquid` flag, 5 their `trading_currency`, and 6 states every assertion's and relation's kind of evidence, `source_asserted` or `rule_confirmed`, never its origin (`snapshot`, `curated`), and drops the provider tables `canonical_assets` and `provider_chains` with the provisional-coin aliases: each coin plugin's contract declares its own coin ids). |
 | `build_id` | The build, for example `reference-20260928`. It must match the database's `release.release`. |
 | `built_at`, `as_of` | When the build finished (UTC), and the date its sources describe. |
 | `builder_version`, `scope` | The builder's own version, and the venues and sources it covered. |
@@ -109,14 +109,18 @@ shows in Settings.
 Core resolves the reference database through `installed.json` alone. It never
 reads the builder's output folder or scans for loose `reference-*.sqlite3`
 files, and no environment variable redirects it. A package whose format this
-core does not read counts as no reference data. Loose files left in the old
-`reference/` location are ignored and kept.
+core does not read gives no reference data, and `reference-status`, search,
+pages and Repairs say so plainly: an older package is too old for this Pythia
+and must be rebuilt with the checkout's builder and installed, a newer one
+needs Pythia updated. Loose files left in the old `reference/` location are
+ignored and kept.
 
 The `reference-status` operation (tool `pythia_reference_status`) reports the
 installed build, format, dates, the sources the build included
 (`included_sources`), each source file with its as-of date and licence, the
 deduplicated notices, its trust level (`trust`, looked up by its digest like
-any contributor's), and the last refused package with its reason. Desk
+any contributor's), whether this core reads it (`compatible`, and `problem`:
+why not and what to do), and the last refused package with its reason. Desk
 shows it under **Settings → Reference data**.
 
 ## Later: automated packages

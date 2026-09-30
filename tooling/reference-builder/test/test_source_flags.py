@@ -6,15 +6,18 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from unittest import mock
 
-from reference_builder import assemble, claims, firds, main, mic
+from reference_builder import assemble, claims, firds, linking, main, mic
 from reference_builder.config import BuildConfig, Scope
+from reference_builder.model import Evidence, Issuer, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
 
-from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, NN_ISIN, SHELL_ISIN, SHELL_LEI, FakeOpenFigi, firds_record, fulins, sec_json
+from .fixtures import (ASML_ISIN, ASML_LEI, MIC_CSV, NN_ISIN, SHELL_ISIN, SHELL_LEI, FakeOpenFigi, figi_row, firds_record,
+                       fulins, sec_json)
 from .test_claims import admissions
 from .test_pipeline import OPENFIGI, gleif_fetch, inputs
 
@@ -69,6 +72,43 @@ class SourceFlagsTest(unittest.TestCase):
                                  "isin:US58933Y1055": (f"lei:{msd}", f"lei:{merck}")})
         self.assertEqual({snap.securities[s].issuer_id for s in asked}, {None})
         self.assertNotIn("lei_not_in_gleif", {flag.flag for flag in snap.flags})
+
+    def test_without_gleif_a_cik_whose_other_share_gleif_could_confirm_links_to_no_lei(self):
+        # A registrant's US ISIN names its issuer's LEI (FIRDS field 5), and its other share, found by share-class FIGI,
+        # has an issuer only GLEIF could confirm (field 5 names a venue operator's LEI). Unread, that claim might
+        # contradict the first, so the CIK links to no LEI (linking.py, `link_issuer_unknown`); read, it links.
+        us, other = "US1234567890", "CA1234567890"
+
+        def decide(gleif_read: bool):
+            snap = Snapshot(as_of="2026-09-26")
+            snap.audit["sec"] = Counter()
+            snap.issuers["lei:ACME"] = Issuer("lei:ACME", "ACME CORP SHARES", "esma_firds", lei="ACME", name_rule="firds_full_name")
+            snap.securities[f"isin:{us}"] = Security(f"isin:{us}", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
+                                                     issuer_id="lei:ACME", isin=us)
+            snap.securities[f"isin:{other}"] = Security(f"isin:{other}", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
+                                                        isin=other, share_class_figi="BBGACMESC002")
+            tickers = [SecTicker("1000002", "ACME CORP", "ACME", "NYSE", 0)]
+            figi = FakeOpenFigi({("ID_ISIN", us, "US"): [figi_row("ACME", "US", "BBGACMEUS001", "BBGACMESC001")]})
+            rows = {"ACME": figi_row("ACME", "US", "BBGACMEUS002", "BBGACMESC002")}
+            evidence, _isins = linking._link_evidence(snap, {}, tickers, rows, figi, {}, gleif_read)
+            audit = Counter()
+            return linking._decide(snap, tickers, evidence, audit), audit["link_issuer_unknown"]
+
+        self.assertEqual(decide(gleif_read=False), ({}, 1))
+        self.assertEqual(decide(gleif_read=True), ({"1000002": ("ACME", "isin_exch_us")}, 0))
+
+    def test_a_sec_title_never_matches_a_firds_instrument_name(self):
+        # Without GLEIF an issuer carries FIRDS' instrument name (field 2), which names a security, not the entity. Two
+        # CIKs whose identifiers claim its LEI stay unlinked though one's SEC title reads like it (linking.py,
+        # `_name_alike`); with the LEI's GLEIF name that CIK links (test_pipeline, the Lee Enterprises case).
+        snap = Snapshot(as_of="2026-09-26")
+        snap.issuers["lei:BRK"] = Issuer("lei:BRK", "BERKSHIRE HATHAWAY INC CLASS B", "esma_firds", lei="BRK",
+                                         name_rule="firds_full_name")
+        tickers = [SecTicker("58361", "LEE ENTERPRISES, Inc", "LEE", "NYSE", 0),
+                   SecTicker("1067983", "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE", 1)]
+        evidence = {"58361": [("BRK", "isin_exch_us", "record:lee")], "1067983": [("BRK", "share_class_figi", "record:brk")]}
+        self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
+        self.assertEqual({flag.flag for flag in snap.flags}, {"lei_contested_unnamed"})
 
     def build(self, tmp: Path, config: BuildConfig, figi=None, gleif=None) -> dict:
         archive = tmp / "FULINS_E_20260926_01of01.zip"

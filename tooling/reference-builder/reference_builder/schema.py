@@ -3,9 +3,12 @@
 The file is core's reference store (`runtime/managed/core/identity/sql/reference.sql`)
 with subject IDs from core's `subject_id()`, so core reads it without a mapping.
 The assembled snapshot keeps its own working IDs; this module translates them.
-Identifier assertions carry authority `snapshot` (carried from a verified build);
-the curated canonical-asset seed carries `curated`. Core reads both as the kind of
-evidence they are (`stored_authority`); the next package format writes the kinds.
+Every assertion and relation carries the kind of evidence it is, never where it came
+from (ADR 0044, A2): a value read from a source is `source_asserted`, and one a builder
+rule derives (a relation, or a CIK the build joins to a LEI issuer) is `rule_confirmed`,
+its rule in `source_record`. Core's curated
+crypto table is Pythia's own list: `source_asserted` from source `pythia`, its rule ID
+in `source_record`.
 """
 
 from __future__ import annotations
@@ -19,10 +22,9 @@ from pathlib import Path
 
 from . import rules
 from .config import BUILDER_VERSION
-from .model import Snapshot
+from .model import JOINED_LINKS, Snapshot
 
 CORE = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "core" / "identity"
-PLUGINS = CORE.parents[1] / "plugins"  # the plugins' contracts, for their coin ids and chain ids
 
 
 def _core():
@@ -177,13 +179,14 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     ids, audit = _Ids(snap), Counter()
     tables: dict[str, list[dict]] = {name: [] for name in (
         "release", "venues", "issuers", "securities", "composites", "listings", "assertions", "relations", "names",
-        "chains", "provider_chains", "canonical_assets", "id_aliases")}
+        "chains", "id_aliases")}
     candidates: dict[str, set[str]] = defaultdict(set)  # alias -> the subjects it could name
 
-    def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, authority="snapshot"):
-        try:
+    def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, derived=False):
+        try:  # an identifier read from a source is `source_asserted`; one a builder rule attaches, `rule_confirmed`
             item = identity.IdentifierAssertion(
-                subject_id=subject, scheme=scheme, value=value, authority=identity.stored_authority(authority, record),
+                subject_id=subject, scheme=scheme, value=value,
+                authority=identity.Authority.RULE_CONFIRMED if derived else identity.Authority.SOURCE_ASSERTED,
                 provenance={"plugin": source, "source": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at,
                             "source_record": record},
                 validity={"valid_from": start, "valid_to": end})
@@ -192,7 +195,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             return
         tables["assertions"].append({
             "evidence_id": item.evidence_id, "subject_id": subject, "level": item.level, "scheme": scheme,
-            "value": item.value, "valid_from": start, "valid_to": end, "authority": authority, "source": source,
+            "value": item.value, "valid_from": start, "valid_to": end, "authority": str(item.authority), "source": source,
             "source_record": record, "plugin": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
 
     def name(subject, text, source):
@@ -219,8 +222,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         tables["issuers"].append({"id": subject, "name": shown[:512], "country": country, "status": status})
         if issuer.lei:
             assert_(subject, "lei", issuer.lei, issuer.source)  # GLEIF's record, else the FIRDS field 5 it came from
-        if issuer.cik:
-            assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule)
+        if issuer.cik:  # SEC's CIK; on a LEI issuer a link the build joined is the rule's output, named in the record
+            assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule, derived=issuer.cik_rule in JOINED_LINKS)
         for text, _kind, _language, source in issuer.names:
             if text != issuer.name:
                 name(subject, text, source)
@@ -292,9 +295,10 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     for relation in snap.relationships:
         # receipts.link_receipts keeps only targets this build holds; anything else is skipped and counted below.
         source, target = ids.securities.get(relation.from_id), ids.securities.get(relation.to_id)
+        # A source states it (FIRDS field 26), or a builder rule derives it (`receipt_issuer_share@1`).
+        authority = identity.Authority.RULE_CONFIRMED if relation.evidence is None else identity.Authority.SOURCE_ASSERTED
         try:
-            item = identity.Relation(type=relation.relation, from_id=source, to_id=target,
-                                     authority=identity.stored_authority("snapshot", relation.rule_id),
+            item = identity.Relation(type=relation.relation, from_id=source, to_id=target, authority=authority,
                                      provenance={"plugin": relation.source, "source": relation.source,
                                                  "adapter_version": BUILDER_VERSION, "retrieved_at": at,
                                                  "source_record": relation.rule_id})
@@ -303,9 +307,9 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             continue
         tables["relations"].append({
             "evidence_id": item.evidence_id, "type": item.type, "from_id": source, "to_id": target,
-            "authority": "snapshot", "source": relation.source, "source_record": relation.rule_id,
+            "authority": str(item.authority), "source": relation.source, "source_record": relation.rule_id,
             "plugin": relation.source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
-    _canonical_assets(tables, assert_, candidates, at)
+    _canonical_assets(tables, assert_, at)
     subjects = {row["id"] for table in ("issuers", "securities", "composites", "listings") for row in tables[table]}
     for alias, named in sorted(candidates.items()):
         if alias in subjects or len(named) > 1:  # a real subject, or ambiguous: never an alias
@@ -319,21 +323,15 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     return tables
 
 
-def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[str, set[str]], at: str) -> None:
+def _canonical_assets(tables: dict[str, list[dict]], assert_, at: str) -> None:
     """Core's curated canonical-asset seed (ADR 0037, Crypto): the crypto assets search finds without any provider,
     each keyed by its canonical deployment whatever providers are installed. The asset's other deployments are its
-    listings; a wrapped asset is its own security linked by `wraps`. The coin id each plugin's contract declares for
-    the asset (`addressing.subjects`) has its provisional ID aliased, so an ID minted before the asset was curated
-    still resolves; its chain ids and coin ids stay in the package's tables until its format drops them. An unsigned
-    contract is left out: a display plugin's declaration is an address, never an alias (ADR 0038)."""
+    listings; a wrapped asset is its own security linked by `wraps`. Its rows are Pythia's own list: `source_asserted`
+    from source `pythia`, rule `canonical_assets@1` in `source_record`. A coin plugin's own id for an asset is in that
+    plugin's contract (`addressing.subjects`), never in the package; core aliases its provisional IDs from there."""
     seed = json.loads((CORE / "canonical_assets.json").read_text(encoding="utf-8"))
-    declared = [(item["provider"], item["addressing"]) for item in (json.loads(path.read_text(encoding="utf-8"))
-                for path in sorted(PLUGINS.glob("*/contract.json")))
-                if item["signoff"]["status"] != "unsigned"]
     rule = seed["rule_id"]
     tables["chains"] += seed["chains"]
-    tables["provider_chains"] += [{"provider": provider, "chain": chain, "caip2": caip2}
-                                  for provider, addressing in declared for chain, caip2 in addressing.get("chain_codes", {}).items()]
     for asset in seed["assets"]:
         security = identity.subject_id("security", {"caip19": asset["caip19"]})
         tables["securities"].append({"id": security, "issuer_id": None, "name": asset["name"], "asset_class": "crypto",
@@ -344,22 +342,18 @@ def _canonical_assets(tables: dict[str, list[dict]], assert_, candidates: dict[s
                                        "operating_mic": None, "ticker": asset["symbol"], "currency": None,
                                        "is_primary": int(deployment == asset["caip19"]), "status": "active",
                                        "chain": deployment.split("/", 1)[0]})
-            assert_(listing, "caip19", deployment, "pythia", record=rule, authority="curated")
+            assert_(listing, "caip19", deployment, "pythia", record=rule)
         for alias in asset.get("aliases", []):
             tables["names"].append({"subject_id": security, "name": alias, "source": "pythia"})
-        for provider, ref in ((provider, addressing.get("subjects", {}).get(security)) for provider, addressing in declared):
-            if ref:
-                tables["canonical_assets"].append({"caip19": asset["caip19"], "provider": provider, **ref})
-                candidates[identity.provisional_id("security", provider, ref["native_scope"], ref["native_id"])].add(security)
         if asset.get("wraps"):
             underlying = identity.subject_id("security", {"caip19": asset["wraps"]})
             item = identity.Relation(type="wraps", from_id=security, to_id=underlying,
-                                     authority=identity.stored_authority("curated"),
+                                     authority=identity.Authority.SOURCE_ASSERTED,
                                      provenance={"plugin": "pythia", "source": "pythia", "adapter_version": BUILDER_VERSION,
                                                  "retrieved_at": at, "source_record": rule})
             tables["relations"].append({
                 "evidence_id": item.evidence_id, "type": item.type, "from_id": security, "to_id": underlying,
-                "authority": "curated", "source": "pythia", "source_record": rule, "plugin": "pythia",
+                "authority": str(item.authority), "source": "pythia", "source_record": rule, "plugin": "pythia",
                 "adapter_version": BUILDER_VERSION, "retrieved_at": at})
 
 

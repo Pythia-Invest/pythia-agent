@@ -63,20 +63,27 @@ recorded in `release`; ADR 0037): a US, Canadian or other CGS-area ISIN never
 keys a portable subject, so those securities are keyed by share-class FIGI and
 listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
-or names two subjects, is dropped and counted. Identifier assertions carry
-authority `snapshot`. Venues carry their ISO 10383 market category (`RMKT`,
+or names two subjects, is dropped and counted. Every assertion and relation
+states the kind of evidence it is, never where it came from (ADR 0044, A2;
+package format 6): a value read from a source is `source_asserted`, and one a
+builder rule derives is `rule_confirmed` with the rule in `source_record`: a
+receipt edge of `receipt_issuer_share@1`, and a CIK the build joins to a LEI
+issuer (`isin_exch_us`, `share_class_figi`; GLEIF's EDGAR registration states
+it, so that one is `source_asserted`). Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
 trading (outside the EEA, an exchange ISO leaves unspecified, `NSPD`, counts as
 one). It also carries core's curated canonical crypto assets
 (`runtime/managed/core/identity/canonical_assets.json`, rule
 `canonical_assets@1`: chains, and per asset its canonical deployment and its
 same-security deployments), so search finds those assets without a provider
-and every install keys them alike. The package's `provider_chains` and
-`canonical_assets` tables and the provisional-coin aliases come from the coin
-plugins' contracts (`addressing.chain_codes` and `addressing.subjects`); core no
-longer reads them. `just canonical-assets-drift` checks the coin ids those
-contracts declare against CoinGecko and CoinMarketCap; the evidence per row is
-in `truth/canonical-assets-audit.md`. Securities carry a notability
+and every install keys them alike. Its rows are Pythia's own list:
+`source_asserted` from source `pythia`, the rule in `source_record`. The package
+names no provider: each coin plugin's contract declares its own coin ids and
+chain ids (`addressing.subjects`, `addressing.chain_codes`), and core aliases a
+confirm-level plugin's provisional coin IDs from there, on reads and when it
+re-points saved rows to a new release. `just canonical-assets-drift` checks the
+coin ids those contracts declare against CoinGecko and CoinMarketCap; the
+evidence per row is in `truth/canonical-assets-audit.md`. Securities carry a notability
 `rank` (FITRS turnover order, SEC file order, curated coin order) for search; a
 security with both a turnover and a SEC rank keeps the more notable one.
 Lines core cannot key are left out and counted in the manifest audit
@@ -261,10 +268,9 @@ its name (`identity/trust.py`). The rules are versioned (below).
   class (ADR 0044, A3), so a FIRDS class A beside a SEC-only class B no longer
   takes the receipt. On the 2026-09-28 build the rule links 198 receipts;
   Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a second share
-  without an active line, get none. Like every builder row, the edge is still
-  written with authority `snapshot` until the builder's evidence authority
-  changes later in roadmap stage 0; it names its rule in `source_record`, so
-  it is a display default and never a validated fact (ADR 0044, A6). No source
+  without an active line, get none. The edge is `rule_confirmed` and names its
+  rule in `source_record`: a display default, never a validated fact (ADR
+  0044, A6). No source
   states share classes, so the builder writes no `share_class_of`. Core's
   search folds a receipt into its share only through this relation, and the
   audit lists any second fold target or fold cycle.
@@ -284,6 +290,15 @@ its name (`identity/trust.py`). The rules are versioned (below).
 assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
+- **4** (2026-09-30, roadmap stage 0; package format 6): rows state the kind of
+  evidence they are, never where they came from: an identifier a source
+  states is `source_asserted`, a relation a source states (FIRDS field 26)
+  too, and what a builder rule derives is `rule_confirmed` with the rule in
+  `source_record`: a `receipt_issuer_share@1` edge, and a CIK joined to a LEI
+  issuer (`isin_exch_us`, `share_class_figi`); core's curated crypto rows are
+  `source_asserted` from source `pythia` (`canonical_assets@1`). The package
+  carries no provider coin ids, chain ids or provisional-coin aliases: each
+  coin plugin's contract declares its own.
 - **3** (2026-09-30, roadmap stage 0): key rule `subject_key@2`: a CGS-area
   security without a share-class FIGI is keyed `cgs_isin`, not in the FIRDS
   namespace, with aliases from the old IDs; Circle's native USDC on Sui is a
@@ -501,7 +516,9 @@ row counts, audit counts, canary results, the FIRDS report and SHA-256
 checksums) and `package.json` (`package.py`). With `package.json`, the directory
 is a [reference package](../../docs/architecture/reference-package.md). Core
 reads only a package installed with `just reference-install`; development
-startup installs this one automatically.
+startup installs this one automatically. `just reference-install` runs the
+stack's copy of core, so after a format change build to this folder and run
+`just dev-refresh`: it copies the checkout's core, then installs the build.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
 days, GLEIF records and the SEC and MIC files for one day; `--offline` uses

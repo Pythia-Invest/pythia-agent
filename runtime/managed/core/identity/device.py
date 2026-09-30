@@ -160,8 +160,8 @@ def levels(plugins: Iterable) -> dict[str, str]:
 def current_id(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
                declared: Mapping[str, str] = {}) -> str:
     """The ID a subject has now: each step follows the reference's `id_aliases`, else `declared` (the provisional IDs
-    confirm-level contracts alias, `declared.aliases`; reads pass them, the re-key does not), else the device's
-    aliases, never for an ID the reference holds. A cycle is a defect: its IDs stay as they are."""
+    confirm-level contracts alias, `declared.aliases`; reads and the re-key pass them), else the device's aliases,
+    never for an ID the reference holds. A cycle is a defect: its IDs stay as they are."""
     seen = [subject_id]
     while (new := _alias(ref, store, seen[-1], declared)) is not None:
         if new in seen:

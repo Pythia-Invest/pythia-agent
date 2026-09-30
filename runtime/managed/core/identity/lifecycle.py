@@ -5,10 +5,12 @@ A release never rewrites a saved ID: it records each re-key in `id_aliases`, and
 names a subject (bindings, queue items, verdicts, resolve misses, read checks, and the device subjects with their
 parents, assertions, relations and placed claims) through those chains, once, in one transaction recorded against
 the release ID; after writing device aliases, core runs it `again` (with no release installed, for device aliases
-alone). A new release that holds a device subject under another ID (a line a plugin introduced, now in the build)
-aliases it there first (`covered`). An assertion a row cites moved with its subject,
-so the row cites it by the evidence ID the release or the device gives it. A subject neither the release nor the
-device holds, nor either aliases, is flagged; its rows are kept.
+alone). Each step also follows the provisional IDs confirm-level contracts alias to the subjects they address
+(`declared.aliases`), so a row saved under a coin plugin's provisional ID follows its curated asset although the
+package names no provider. A new release that holds a device subject under another ID (a line a plugin introduced,
+now in the build) aliases it there first (`covered`). An assertion a row cites moved with its subject, so the row
+cites it by the evidence ID the release or the device gives it. A subject neither the release nor the device holds,
+nor either aliases, is flagged; its rows are kept.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import json
 import sqlite3
 from collections import defaultdict
 from dataclasses import replace
+from typing import Callable, Mapping
 
 from . import device
 from . import evidence as weighing
@@ -41,9 +44,12 @@ def vanished(store: IdentityStore) -> list[str]:
     return json.loads(store.metadata(VANISHED) or "[]")
 
 
-def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *, again: bool = False) -> dict | None:
+def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *, again: bool = False,
+          declared: Callable[[], Mapping[str, str]] = dict) -> dict | None:
     """Re-point local rows to the IDs this release and the device's aliases give their subjects; None when it was
-    already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases)."""
+    already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases).
+    `declared` gives the installed contracts' aliases (`declared.aliases`), read only when a row names a provisional
+    ID."""
     db = store.db
     with store.transaction():
         if store.metadata(REKEYED) == release and not again:
@@ -62,7 +68,8 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *,
             cited.update(item["candidate_ids"], item["subject_ids"] if item["kind"] == "conflict" else ())
         named = cited | {value for item in queue for value in item["subject_ids"]} | {
             value for (value,) in db.execute("SELECT subject_id FROM resolve_misses UNION SELECT subject_id FROM read_checks")}
-        moved = {old: new for old in named if (new := device.current_id(ref, store, old)) != old}
+        aliases = declared() if any(":provisional:" in value for value in named) else {}
+        moved = {old: new for old in named if (new := device.current_id(ref, store, old, aliases)) != old}
         point = lambda ids: list(dict.fromkeys(moved.get(value, value) for value in ids))  # noqa: E731
 
         evidence = _moved_evidence(ref, [(row["subject_id"], row["evidence_ids"]) for row in bindings] + [

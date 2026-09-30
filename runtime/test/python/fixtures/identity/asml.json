@@ -62,7 +62,7 @@
       "subject_id": "issuer:lei:724500Y6DUVHQD6OXN27",
       "scheme": "lei",
       "value": "724500Y6DUVHQD6OXN27",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "gleif",
         "source": "gleif",
@@ -76,7 +76,7 @@
       "subject_id": "issuer:lei:724500Y6DUVHQD6OXN27",
       "scheme": "cik",
       "value": "937966",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "sec",
         "source": "sec",
@@ -89,7 +89,7 @@
       "subject_id": "security:isin:NL0010273215",
       "scheme": "isin",
       "value": "NL0010273215",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "gleif",
         "source": "gleif",
@@ -103,7 +103,7 @@
       "subject_id": "security:isin:NL0010273215",
       "scheme": "share_class_figi",
       "value": "BBG001S7Q066",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -116,7 +116,7 @@
       "subject_id": "composite:isin:NL0010273215:NL",
       "scheme": "composite_figi",
       "value": "BBG000C1HSN8",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -129,7 +129,7 @@
       "subject_id": "listing:isin:NL0010273215:XAMS:EUR",
       "scheme": "figi",
       "value": "BBG000C1HT47",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -142,7 +142,7 @@
       "subject_id": "listing:isin:NL0010273215:XAMS:EUR",
       "scheme": "ticker_mic",
       "value": "ASML@XAMS",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -155,7 +155,7 @@
       "subject_id": "security:figi:BBG001SCG0R3",
       "scheme": "isin",
       "value": "USN070592100",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "gleif",
         "source": "gleif",
@@ -169,7 +169,7 @@
       "subject_id": "security:figi:BBG001SCG0R3",
       "scheme": "share_class_figi",
       "value": "BBG001SCG0R3",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -182,7 +182,7 @@
       "subject_id": "composite:figi:BBG001SCG0R3:US",
       "scheme": "composite_figi",
       "value": "BBG000K6MRN4",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -195,7 +195,7 @@
       "subject_id": "listing:figi:BBG000K6N6G7",
       "scheme": "figi",
       "value": "BBG000K6N6G7",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "openfigi",
         "source": "openfigi",
@@ -208,7 +208,7 @@
       "subject_id": "listing:figi:BBG000K6N6G7",
       "scheme": "ticker_mic",
       "value": "ASML@XNAS",
-      "authority": "snapshot",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "sec",
         "source": "sec",
@@ -224,7 +224,7 @@
       "from_id": "security:figi:BBG001SCG0R3",
       "to_id": "security:isin:NL0010273215",
       "ratio": "1",
-      "authority": "curated",
+      "authority": "source_asserted",
       "provenance": {
         "plugin": "pythia",
         "source": "pythia.curated",
