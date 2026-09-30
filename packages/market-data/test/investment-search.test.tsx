@@ -323,8 +323,7 @@ describe("investment search", () => {
     const b = group([row("BBA"), row("BBB")], 1);
     const held = new Map<string, () => void>();
     const search: SearchBackend = (request, signal) => {
-      if (!request.group)
-        return Promise.resolve({ groups: [a, b] });
+      if (!request.group) return Promise.resolve({ groups: [a, b] });
       const rows = everything.get(request.group) ?? [];
       return new Promise((resolve, reject) => {
         signal.addEventListener("abort", () => reject(signal.reason));

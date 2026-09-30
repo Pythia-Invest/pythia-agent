@@ -61,7 +61,7 @@ export function SearchPanel(props: SearchPanelProps) {
   const renderRow = (
     option: SearchOption,
     index: number,
-    list: SearchOption[],
+    list: readonly SearchOption[],
   ) => (
     <Fragment key={option.key}>
       {option.row ? (

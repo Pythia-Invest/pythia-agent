@@ -1,4 +1,5 @@
 "use client";
+import { searchQueryKey } from "@pythia/market-data/search-ui";
 import { coreData, SUBJECT_PLUGIN } from "@pythia/market-data/subject";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -11,7 +12,9 @@ import { deskKeys } from "./query-cache";
  * enabled that ships a contract, with what it serves, whether
  * the investor paused it, and what pausing it hides (ADR 0044 A3);
  * `identity-sync` reads one plugin's catalogue into the device's identity store
- * when the user asks. Pausing is Pythia's own switch, kept in its settings and
+ * when the user asks, and `identity-lookup` looks one identifier up in one
+ * plugin's resolve and stores what it answers: a plugin's own function, on its
+ * own row here, never part of search. Pausing is Pythia's own switch, kept in its settings and
  * applied at once; enabling a plugin Hermes does not run stays Hermes's command.
  */
 
@@ -22,7 +25,9 @@ export const dataSourceSchema = z.object({
   plugin: text,
   label: text,
   catalogue: z.boolean(),
-  resolve: z.boolean(),
+  /** The identifier schemes its resolve takes (`isin`, `figi` ...): what the
+   * investor can look up in it. Empty when it has no resolve. */
+  lookup: z.array(z.string()).default([]),
   /** The data concepts it serves (`market_data`, `filings`, `news` ...). */
   serves: z.array(z.string()).default([]),
   /** The investor turned it off here: its data is out of selection, search,
@@ -49,6 +54,33 @@ export const syncSchema = z.object({
   partial: z.boolean().default(false),
 });
 export type SyncSummary = z.infer<typeof syncSchema>;
+
+/** What one lookup stored: the counts of a sync, and the subjects placed. */
+export const lookupSchema = syncSchema.extend({
+  rejected: z.number().int().default(0),
+  subjects: z.array(z.string()),
+});
+export type LookupSummary = z.infer<typeof lookupSchema>;
+
+export function count(value: number, one: string, many: string) {
+  return `${value} ${value === 1 ? one : many}`;
+}
+
+/** How a read's records were placed, in the investor's words. */
+export function placedLine(summary: SyncSummary) {
+  return [
+    `${summary.joined} joined`,
+    `${summary.introduced} new`,
+    count(summary.conflicts, "conflict", "conflicts"),
+    `${summary.unmatched} unmatched`,
+    ...(summary.not_seen ? [`${summary.not_seen} no longer offered`] : []),
+  ].join(", ");
+}
+
+const lookupAnswer = z.object({
+  data: lookupSchema.nullish(),
+  issues: z.array(z.object({ message: z.string() })).default([]),
+});
 
 const syncAnswer = z.object({
   data: syncSchema.nullish(),
@@ -99,6 +131,37 @@ export function useSyncSource() {
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: sourcesKey }),
+        client.invalidateQueries({
+          queryKey: ["plugin", SUBJECT_PLUGIN, "identity-subject"],
+        }),
+      ]),
+    retry: false,
+  });
+}
+
+/** Looks one identifier up in one plugin now. "No match" is an answer (all
+ * counts zero, with the reason); a refusal or failure answers only the reason. */
+export function useLookupSource() {
+  const api = useDeskApi();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: { plugin: string; query: string }) => {
+      const answer = lookupAnswer.parse(
+        await api.pluginInvoke({
+          plugin: SUBJECT_PLUGIN,
+          operation: "identity-lookup",
+          arguments: request,
+        }),
+      );
+      if (!answer.data)
+        throw Error(answer.issues[0]?.message ?? "The lookup failed.");
+      return { summary: answer.data, issue: answer.issues[0]?.message ?? null };
+    },
+    // What it stored can change search, pages and this row's counts.
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: sourcesKey }),
+        client.invalidateQueries({ queryKey: searchQueryKey }),
         client.invalidateQueries({
           queryKey: ["plugin", SUBJECT_PLUGIN, "identity-subject"],
         }),

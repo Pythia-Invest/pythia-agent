@@ -3,7 +3,7 @@
 `pythia-openfigi` is a Hermes-native plugin with two operations over OpenFIGI's
 `/v3/mapping` endpoint. Both return evidence; Pythia's core decides identity. It
 supplies no prices, catalogue or search, and it is never called while a user
-types. The offline reference build has its own OpenFIGI client. The
+types or by any search action. The offline reference build has its own OpenFIGI client. The
 [source record](../../../../docs/sources/openfigi.md) holds the field meanings
 and the evidence behind the exchange-code table.
 
@@ -15,9 +15,13 @@ and the evidence behind the exchange-code table.
 
 ## Core's lookup
 
-OpenFIGI introduces subjects on demand only: one ISIN per lookup, when the
-investor or the agent asks for it. There is no catalogue, bulk mapping or
-scheduled sync ([ADR 0044](../../../../docs/decisions/0044-product-direction.md),
+OpenFIGI introduces subjects on demand only: one ISIN per lookup. The investor
+asks for it in the lookup form on OpenFIGI's row in Settings → Data → Data
+sources (an ISIN in; how many records joined, were introduced, conflicted or
+stayed unmatched, and the subjects they were placed on, out), which calls core's
+`identity-lookup`. Search offers no lookup and never calls OpenFIGI. The agent
+reads mappings through `mapping` (`openfigi_identifiers`), which stores nothing.
+There is no catalogue, bulk mapping or scheduled sync ([ADR 0044](../../../../docs/decisions/0044-product-direction.md),
 note "OpenFIGI introduces subjects on demand only"). The contract declares
 `introduces: {"listing": ["figi"]}`: a line the reference lacks becomes
 `listing:figi:<FIGI>`.

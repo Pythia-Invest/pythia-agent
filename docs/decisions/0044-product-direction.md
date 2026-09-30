@@ -374,8 +374,14 @@ central curator exists.
   amendments "device subjects", "ingest", "search over reference and device"
   and "saved references through a plugin's lifecycle").
 - **Sources are read only when asked.** A catalogue is read from Settings →
-  Data sources ("Sync now"), and one identifier is looked up from search's
-  "Look up in X". There is no scheduler.
+  Data sources ("Sync now"), and one identifier is looked up in a plugin that
+  takes it, from the form on that plugin's row there. Search calls no plugin
+  and offers no lookup. There is no scheduler.
+- **Search answers from local data, delisted lines included.** A delisted line
+  (its security or listing is inactive) is found by name, ticker and
+  identifier, marked "Delisted" and ranked below live lines; an "Include
+  delisted" toggle in the search panel hides them. Its page still gets no live
+  price through the ticker (amendment of 2026-09-30 below).
 - **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
   for data, with no restart, and its subjects and saved references keep
@@ -486,7 +492,10 @@ in bulk and act as a reference source by another route, which A8 leaves open
 ("direct and prebuilt forms per reference source").
 
 **Ruling.** OpenFIGI introduces subjects on demand only: a single-identifier
-lookup, one ISIN, when the investor or the agent asks for it. Its contract
+lookup, one ISIN, when the investor asks for it (from the plugin's row in
+Settings → Data sources, [amendment of 2026-09-30](#amendment-2026-09-30-search-is-local-data-only-and-delisted-lines-stay-findable))
+or the agent asks for the mapping (`openfigi_identifiers`, which stores
+nothing). Its contract
 declares `resolve` with input `isin` and `introduces: {"listing": ["figi"]}`, and
 no catalogue. There is no bulk mapping and no scheduled sync. The answer is one
 listing claim per FIGI line; tickers are evidence only, and an exchange code
@@ -697,3 +706,81 @@ should price this line", or remove a value nobody contests.
   names Repairs as the place a suggestion becomes the user's.
 - **Trust levels for who may correct** (removed above), and an explanation panel
   (the founder asked for well-modelled data instead).
+
+## Amendment (2026-09-30): search is local data only, and delisted lines stay findable
+
+### Context
+
+Two rulings by the founder. First, "the search should fully work with the local
+data": search offered "Look up in OpenFIGI" for an identifier the directory did
+not hold, a plugin-specific action reached from a search screen. Second,
+delisted and inactive instruments disappeared from search: the directory
+dropped every line whose listing or security is inactive, so Milkiland
+(`security:isin:NL0009508712`, delisted in Warsaw) could be found neither by
+name nor by ISIN, although its page opens by id and the reference holds it.
+
+### Ruling
+
+- **Search never calls a plugin.** It offers no lookup, in the background or
+  from its interface. A plugin's own function lives on that plugin's own
+  place: a plugin with a `resolve` gets a small lookup form on its row in
+  Settings → Data → Data sources (an identifier in; the counts of records
+  joined, introduced, in conflict or unmatched, and the subjects they were
+  placed on, out). The form calls `identity-lookup`, which calls exactly that
+  plugin once. The search answer no longer has a `lookup` field.
+- **No plugin page framework.** The existing Data sources row is the place;
+  nothing else is built. A plugin's widgets (ADR 0032) remain the way to give
+  it a richer surface.
+- **Delisted lines are found.** A line is delisted when its listing or its
+  security is inactive, whatever the source. Search finds it by name, ticker
+  and identifier like any other line, marks it `delisted`, and ranks it below
+  live lines: a group with a live line before a group with only delisted lines,
+  and within a group, live lines first (also as the line that represents a
+  security). A live receipt whose share is delisted stays its own instrument.
+  A subject a plugin marks inactive (a dead DeFi protocol) is treated the same.
+- **A way to hide them.** Search takes `include_delisted` (default true), and the
+  search panel has an "Include delisted" toggle, on by default, kept for the
+  session only: Desk has no per-viewer preference mechanism for a plugin's
+  widget, and this one is cheap to set again.
+- **Pages and prices are unchanged.** The instrument page's listing selector and
+  the line a security page prices through leave delisted lines out, as before,
+  and a delisted ticker still addresses no price source (tickers get reused).
+  Market data is out of scope for this change.
+
+### Rationale
+
+Search is a read of what the device holds; asking a provider from it makes a
+read write to the store and call a third party, and puts one plugin's function
+on a screen every plugin shares. A delisted instrument is still an instrument
+an investor holds records about, researches after the fact, or has saved, so
+hiding it is a silent loss; flagging and ranking it keeps the answer honest
+without crowding live lines.
+
+### Consequences
+
+- An investor who used the search button now opens Settings → Data → Data
+  sources, types the ISIN in the plugin's row, and then searches. The agent
+  reads OpenFIGI mappings through `openfigi_identifiers`, which stores nothing;
+  only the form stores a lookup.
+- Search results can contain delisted lines: rows carry `delisted: true`, and
+  the agent's `pythia_find` sees the flag.
+- The effect of pausing a plugin counts an inactive subject as supplied only by
+  that plugin, because search finds it.
+- A line with no ticker is still not in the directory, live or delisted (560 of
+  the 597 inactive lines in the 2026-09-28 build have none): findability by ISIN
+  for tickerless lines is a separate decision.
+
+### Rejected alternatives
+
+- **Keeping the lookup in search but moving it behind a setting.** It is still
+  a plugin-specific action on a shared screen.
+- **A plugin page framework** (a route and layout per plugin). Nothing needs it
+  yet; the data sources row does.
+- **Hiding delisted lines by default, with a toggle to show them.** The founder
+  asked that they never disappear, so they show unless the investor hides them.
+- **A penalty weight instead of a rank tier.** A delisted line with an exact
+  ticker or ISIN match could then outrank a live match, against "below active
+  matches".
+- **Persisting the toggle in browser storage.** Desk has no shared mechanism for
+  a plugin widget's preference, and a second ad hoc one is not worth it for a
+  filter.

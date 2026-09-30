@@ -119,9 +119,7 @@ describe("search transport", () => {
     const [group] = response.groups;
     const [line] = group?.rows ?? [];
     const found: SearchResponse = {
-      groups: [
-        { ...group, rows: [{ ...line, delisted: true }] },
-      ],
+      groups: [{ ...group, rows: [{ ...line, delisted: true }] }],
     } as SearchResponse;
     const { value, requests } = transport({ outcome: "ok", data: found });
     await expect(

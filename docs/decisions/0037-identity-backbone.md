@@ -1542,12 +1542,12 @@ nothing showed what search and saved references do without one.
 - **With no package installed,** search reads the device's subjects alone. An
   answer with no results still says why there is no reference data, and after
   a removal it says the package was removed.
-- **Lookup offers.** A Desk search answer's `lookup` lists the enabled,
-  configured plugins whose declared resolve takes the identifier the query is
-  (an ISIN, a LEI, a CIK, or a FIGI in any FIGI scheme;
-  `search_device.identifier`, which `identity-lookup` uses too). A text query
-  offers none, and the agent's search none: the lookup is the investor's Desk
-  action (amendment "ingest"). Offering calls nothing.
+- **Lookup offers** (superseded 2026-09-30, see
+  [ADR 0044](0044-product-direction.md), amendment "search is local data
+  only"): a Desk search answer used to list the plugins whose resolve takes the
+  identifier the query is. Search now offers and runs no lookup; the lookup is
+  a form on the plugin's own row in Settings, and `search_device.identifier`
+  stays as `identity-lookup`'s rule.
 - **The search contract** (`packages/market-data/src/search.ts`) gains the
   kinds `market` and `protocol`, a nullable `ticker` and an optional `source`.
   The Crypto type filter includes pools and protocols.
@@ -1643,8 +1643,8 @@ a plugin would take away.
 - **`identity-plugin-effect {plugin}`** is a local read of what disabling a
   plugin would take away: the device subjects only it supplies, by search's
   own rule (no other enabled plugin has a record still offered on them, or
-  one that states their identifiers; they are not inactive; and no installed
-  reference package holds them), which leave search and data while it is off,
+  one that states their identifiers, and no installed reference package holds
+  them; an inactive subject counts, since search finds it flagged delisted), which leave search and data while it is off,
   and the markets overview's saved entries (`markets_watchlist`,
   `markets_cards`) that name them, through their aliases; each as a count with
   a short sample. Without `plugin` it answers every enabled plugin that

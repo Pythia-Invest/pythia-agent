@@ -391,9 +391,13 @@ version 1):
   and rank like any other; a record's `rank` signals in
   US dollars (keys ending `_usd`, such as `market_cap_usd` or `tvl_usd`) set
   their notability. A line under a known security takes the security's kind.
-  A Desk search for an identifier that its `resolve` takes offers "Look up in"
-  the plugin ([ADR 0037](../decisions/0037-identity-backbone.md), amendment
-  "search over reference and device").
+  A subject its source marks inactive is found too, flagged delisted and ranked
+  below live ones. Search never calls a plugin: a plugin that declares a
+  `resolve` gets a lookup form on its own row in Settings → Data → Data sources
+  (an identifier in, how the records it stored were placed out;
+  `identity-lookup`), not a button in search
+  ([ADR 0044](../decisions/0044-product-direction.md), amendment of
+  2026-09-30 "search is local data only").
 - A bulk `catalogue` operation takes `{"scope", "cursor"}` and answers
   `{"data": <ClaimBatch>, "next_cursor"}`, the last page of a scope `complete`
   with no cursor. Core reads it through `identity-sync`, a Desk operation with

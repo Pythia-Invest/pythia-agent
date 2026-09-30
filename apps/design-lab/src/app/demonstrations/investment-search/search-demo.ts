@@ -81,8 +81,7 @@ export function searchDemoDirectory(
     include_delisted?: boolean;
   } = {},
 ): SearchResponse {
-  const live = (company: Company) =>
-    company.rows.some((row) => !row.delisted);
+  const live = (company: Company) => company.rows.some((row) => !row.delisted);
   const groups = demoCompanies
     .map((company, order) => ({ company, order, score: score(company, query) }))
     .filter(

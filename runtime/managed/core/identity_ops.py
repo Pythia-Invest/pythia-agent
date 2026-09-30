@@ -126,12 +126,10 @@ class Identity:
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
             path, plugins = self.reference_path(), installed()  # with no package, the device's subjects alone
-            directory, kinds = self.directory(path, plugins), arguments.get("kinds")
-            delisted = arguments.get("include_delisted") is not False  # delisted lines show unless asked to hide
-            data = (directory.group(group, kinds=kinds, delisted=delisted) if group
-                    else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
-                                          suffixes=search_venues.suffixes, priced=search_venues.priced,
-                                          delisted=delisted) if query else empty)
+            directory, kinds, hide = self.directory(path, plugins), arguments.get("kinds"), arguments.get("include_delisted") is False
+            data = (directory.group(group, kinds=kinds, delisted=not hide) if group
+                    else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(), delisted=not hide,
+                                          suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
         except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
