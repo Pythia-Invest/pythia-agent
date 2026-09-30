@@ -208,15 +208,15 @@ def merge(ref: sqlite3.Connection, store: IdentityStore, subject: dict[str, Any]
     return subject
 
 
-def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
-         plugins: Iterable = ()) -> dict[str, Any] | None:
+def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, plugins: Iterable = (),
+         parents: Mapping[str, str] = {}) -> dict[str, Any] | None:
     """A device subject in `subject.load_subject`'s shape, or None when the device store has none.
 
     An instrument's parents are its own device rows, else the reference's (a listing a plugin introduced under a
-    security the build holds); a security is priced through its first device listing. Its identifiers are the
-    `self` assertions on it and its parents, the device's at each plugin's level (`levels`), the reference's at the
-    package's. `contributors` names the plugins that introduced it or state anything about it, each `enabled`,
-    `disabled` or `removed`, and `introduced_by` the one that introduced it."""
+    security the build holds), or the ones the user chose (`parents`, `build_questions`); a security is priced through
+    its first device listing. Its identifiers are the `self` assertions on it and its parents, the device's at each
+    plugin's level (`levels`), the reference's at the package's. `contributors` names the plugins that introduced it or
+    state anything about it, each `enabled`, `disabled` or `removed`, and `introduced_by` the one that introduced it."""
     subject_id = current_id(ref, store, subject_id)
     row = subject_row(store, subject_id)
     if row is None:
@@ -226,7 +226,7 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
     ids: dict = {kind: subject_id}
     listing = None
     if kind in INSTRUMENT_KINDS:
-        ids = {level: None for level in Level} | _family(ref, store, subject_id)
+        ids = {level: None for level in Level} | _family(ref, store, subject_id, parents)
         child = store.select("SELECT id FROM subjects WHERE parent_id = ? AND kind = 'listing'"
                              " ORDER BY status <> 'active', id LIMIT 1", (subject_id,)) if kind is Kind.SECURITY else []
         ids[Level.LISTING] = ids[Level.LISTING] or (child[0][0] if child else None)
@@ -342,7 +342,7 @@ def _evidence(row: Mapping[str, Any]) -> str:
                         "record": f"{row['native_scope']}:{row['native_id']}"})
 
 
-def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str) -> dict[Level, str]:
+def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, parents: Mapping) -> dict[Level, str]:
     """An instrument and its parents up to its issuer: each from its device row, else from the reference."""
     ids: dict[Level, str] = {}
     current = subject_id
@@ -350,8 +350,8 @@ def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: st
         level = Level(subject_kind(current))
         ids[level] = current
         row = subject_row(store, current)
-        found = (row["parent_id"],) if row else ref.execute(_REFERENCE_PARENT[level], (current,)).fetchone() \
-            if ref is not None and level in _REFERENCE_PARENT else None
+        found = (parents.get(current, row["parent_id"]),) if row else ref.execute(
+            _REFERENCE_PARENT[level], (current,)).fetchone() if ref is not None and level in _REFERENCE_PARENT else None
         current = found[0] if found else None
     return ids
 

@@ -875,8 +875,10 @@ A question about a CIK-only SEC registrant's LEI names the CIK and the LEIs,
 and says whether several LEIs claim the CIK or several registrants claim the
 LEI, so two registrants one LEI claims read differently.
 It names its source "Pythia reference": that label names the origin and grants
-no authority. A build question is a row with that tag and no provider record,
-and `reference` is a reserved plugin name, so no plugin can pose as the build. A settled question shows the chosen answer. The page's issuer
+no authority. A build question is a row with that tag first and no provider
+record, and `reference` is a reserved plugin name, so no plugin can pose as the
+build; a question about what plugins state names them instead (amendment
+"questions and overrides for plugin-introduced subjects"). A settled question shows the chosen answer. The page's issuer
 carries `authority: user_attested` when the user's answer set it.
 
 **The default listing** (A5: a documented default, not an identity question).
@@ -1389,7 +1391,9 @@ through it.
   `queue_ops.surface`, with the build's questions and the contested facts of
   the evidence amendment, once, when the subject is opened, watched or used.
   The user's answer is the local override. A display-level plugin's conflict
-  is shown and never asked.
+  is shown and never asked. A subject only the device holds is asked about
+  the same way (amendment "questions and overrides for plugin-introduced
+  subjects").
 - **Introduced subjects.** A record that joins nothing introduces a device
   subject only when its contract's `introduces` declares the kind and the key
   scheme its identifiers give (`subject_id`, the same ID on every install), or
@@ -1452,8 +1456,6 @@ saved ID means the absence of competing evidence never raises authority (A3).
   catalogue and resolve").
 - A confirm-level vendor whose record contradicts the package contests the
   fact for every reader until the user answers or demotes a contributor.
-- A contested fact about a subject only the device holds is shown and flagged,
-  not yet asked: questions are asked about reference subjects.
 - The identity store gains lookup indexes (a record's statements, relations by
   end, children, the records on a subject) in its additive section, with no
   schema bump. DeFiLlama's full catalogue (23 pages; 17,402 relations) syncs
@@ -1691,3 +1693,62 @@ subjects, so what it predicts is what happens.
   calls a provider, so it stays an explicit, single-plugin action.
 - **Deleting a disabled plugin's rows, or answering its subjects as unknown:**
   a saved reference would then point at nothing, or at another subject later.
+
+## Amendment (2026-09-30): questions and overrides for plugin-introduced subjects
+
+**Context.** The amendment "ingest" lets any plugin introduce a device subject, but a disagreement about one was only
+shown and flagged: core asked about reference subjects alone, so the user could not decide it, although
+[ADR 0044](0044-product-direction.md) A2 says that where the rules do not decide, the link stays unresolved and a
+local override makes the user's choice win. A second gap came with the rule that a conflict lasts until the record's
+identifiers change: one plugin that states another value than it did (a line whose ID spells an ISIN, and whose
+record now names another company's) contests nothing, because one source never contests itself
+(`evidence.disagree`), so the record stayed a conflict and nothing asked about it.
+
+**Ruling.**
+
+- **The same gate.** `queue_ops.surface` raises the contested facts of a subject only the device holds, and the
+  answers a release contradicts, through the same touch points as a reference subject's, once per question key.
+  Ingest queues nothing. The question is the existing `conflict`/`identifier` shape, and its family is the device
+  subject's and its parents'.
+- **The source names the plugins.** A question core asks about what plugins state is tagged `reference` first, then
+  those plugins (`plugins: ["reference", "atlas", "meridian"]`). Repairs shows them as its source, and the `plugin`
+  filter of `identity-queue` finds it by them. This holds for a reference subject's contested facts too.
+- **The answer is the local override.** A device subject is read through `build_questions.load_device`, which applies
+  the user's resolved answers as a reference subject's are applied: by its ID or a saved one, through its device
+  aliases. The answer survives a re-key because Lifecycle A re-points the row and its verdict and the read follows
+  the alias; Reopen supersedes the answer and asks again; the agent's answer stays a suggestion.
+- **One plugin contradicting itself.** When a device subject is touched, core looks at the catalogue records placed on
+  it as a conflict. Where a record's plugin earlier stated another value of a single-valued identifier (the one the
+  subject's ID spells is kept, amendment "ingest"), core queues one `identifier` question about the record's
+  subject. Its candidates are the subjects the two values name, for the record's own identifier (a line's FIGI) or its
+  parent's (a line's ISIN: which security it belongs to; a security's LEI: which company). Choosing the earlier
+  value, the one the subject's ID spells, keeps everything. Choosing the new one shows it as the line's own FIGI, or
+  reads the line under the parent that value names, with that parent's identifiers (`device.load`'s `parents`). The
+  answer is read, not written: the subject keeps its ID, its rows and its record's conflict state.
+
+**Rationale.** A disagreement about a subject a plugin introduced matters as much as one about a reference subject,
+and the gate, the question shape, the override and the undo are already there. Reading the answer, never moving
+rows, is what lets Reopen undo it.
+
+**Consequences.**
+
+- With no package installed the queue still asks, lists and answers about the device's subjects, against an empty
+  stand-in for the package, as search does; the build's own questions need one.
+- Its evidence lists each device statement with the plugin that made it.
+- After the user picks a new value, the line's page re-parents, but search and the old parent's page still group it
+  under the stored parent until the catalogue-correction slice applies the answer there.
+- Only catalogue records are examined for self-contradiction: a resolve answer states the question's own
+  identifiers back.
+- An answer that names a parent is not compared with what the source states later: it stays until reopened.
+- A new release supersedes these open questions with the build's, and the next touch asks again where the
+  disagreement remains. An open question is not withdrawn when its disagreement ends before the user answers it.
+
+**Rejected alternatives.**
+
+- **A device alias written when the user picks the new value.** It would re-key the line and re-point its rows,
+  evidence IDs included, and Reopen could not move them back without also moving other plugins' rows that joined
+  the new key meanwhile. A read-time answer can simply stop applying.
+- **Counting one plugin's two values as a contested fact.** One source's several values are not a contest (OpenFIGI's
+  two composite FIGIs), and the conflict is about the record, not the fact.
+- **Queueing at ingest, or a question kind or table for device subjects.** Ingest never asks (A2), and the
+  existing shape and the resolved question as override already cover it.

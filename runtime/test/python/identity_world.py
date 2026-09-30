@@ -12,7 +12,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
-from pythia_identity_fixture import build_questions, conflicts, device, ingest, lifecycle, page, store  # noqa: E402
+from pythia_identity_fixture import build_questions, conflicts, device, ingest, lifecycle, page, queue, store  # noqa: E402
 from pythia_identity_fixture import subject as subjects  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
@@ -118,6 +118,20 @@ class World:
         """What `queue_ops.surface` does when the investor opens a subject: queue the conflicts its page raises."""
         raised = conflicts.raised(self.ref, self.identity, [subject_id], self.plugins)
         return build_questions.import_build(self.identity, raised, NOW)
+
+    def read(self, subject_id: str, ref=None) -> dict | None:
+        """The subject as `Identity._load` reads it (on `ref`, else the world's): through its aliases, the user's
+        answers applied."""
+        ref = ref or self.ref
+        subject_id = device.current_id(ref, self.identity, subject_id)
+        return build_questions.load_subject(ref, subject_id, None, self.identity, self.plugins) \
+            or build_questions.load_device(ref, self.identity, subject_id, self.plugins)
+
+    def answer(self, item_id: str, relation: str, chosen_id: str | None = None) -> dict:
+        """The user's answer to a queue item, as the Desk sends it (`queue_ops.submit_verdict`)."""
+        return queue.submit(self.identity, self.ref, item_id=item_id, resolver=queue.ResolverKind.USER,
+                            relation=relation, chosen_id=chosen_id, now=NOW, as_of=AS_OF,
+                            user_turn="desk:identity-verdict", plugins=self.plugins)
 
     def resolve(self, info: page.PluginInfo, subject_id: str, *records: dict):
         """What identity-resolve does with one plugin's answer: store its records through ingest, then store the binding
