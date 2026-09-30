@@ -1,20 +1,13 @@
-import { expect, type Page, test } from "@playwright/test";
-import { openDesk } from "./open-desk";
+import { expect, test } from "@playwright/test";
+import { openDesk, showChats } from "./open-desk";
 
 /**
  * Chat surface smoke. These tests never send a prompt: that would start a
  * real Hermes run against a real model. They cover the surfaces around it.
  */
 
-const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
-
 /** The chat list: beside the conversation on desktop, opened over it on a
  * phone from the chat header, as on desktop when it is hidden. */
-async function showChats(page: Page) {
-  if (!isPhone(page)) return;
-  await page.getByRole("button", { name: "Show chats" }).click();
-}
-
 test("the new-chat surface offers a composer that only enables with text", async ({
   page,
 }) => {
