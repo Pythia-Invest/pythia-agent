@@ -58,7 +58,7 @@ class ReferenceTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         path = Path(cls.tmp.name) / "reference-test.sqlite3"
         writer.write(Snapshot(as_of="2026-09-28"), path, {"build_id": "test"}, [])  # no provider involved
-        cls.path, cls.ref = path, store.open_reference(path, "confirm")  # installed by a user who trusts it
+        cls.path, cls.ref = path, store.open_reference(path)
         cls.contracts = truth.load_contracts()
 
     @classmethod
@@ -79,7 +79,7 @@ class ReferenceTest(unittest.TestCase):
                                      ("ready", coin_ids[provider][asset["caip19"]], "confirmed"))
 
     def test_an_id_minted_before_curation_resolves_through_its_plugins_contract_not_the_package(self):
-        aliases = declared.aliases(info.manifest for info in self.contracts.values())  # shipped confirm-level
+        aliases = declared.aliases(info.manifest for info in self.contracts.values())  # the shipped contracts
         for provider, native_id in (("coingecko", "usd-coin"), ("coinmarketcap", "3408")):
             earlier = identity.provisional_id("security", provider, "coin", native_id)  # as a resolve residual mints it
             self.assertIsNone(page.load_subject(self.ref, earlier))  # the package aliases no provider's ID

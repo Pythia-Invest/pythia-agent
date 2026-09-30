@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from . import Store, add_columns, reference_package, schema_sql, trust
+from . import Store, add_columns, reference_package, schema_sql
 from .model import Binding, ProviderRef
 from .schemes import registered_kind
 from .resolution import QueueItem, Verdict, VerdictOutcome
@@ -42,24 +42,10 @@ def reference_path(data_dir: Path) -> Path | None:
     return reference_package.current(data_dir)
 
 
-class Reference(sqlite3.Connection):
-    """A read-only reference database and the trust level its evidence counts at (ADR 0044 A4, `evidence`)."""
-
-    level = trust.DISPLAY
-
-
-def open_reference(path: Path, level: str | None = None) -> Reference:
-    """The reference at `path`, read-only. Its evidence counts at `level`, by default its package's grant
-    (`trust.package_level`): display for a database outside a readable package."""
-    connection = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True, check_same_thread=False,
-                                 factory=Reference)
+def open_reference(path: Path) -> sqlite3.Connection:
+    """The reference at `path`, read-only."""
+    connection = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True, check_same_thread=False)
     connection.row_factory = sqlite3.Row
-    if level is None:
-        try:
-            level = trust.package_level(reference_package.read_manifest(Path(path).parent))
-        except (OSError, reference_package.PackageError):
-            level = trust.DISPLAY
-    connection.level = level
     return connection
 
 

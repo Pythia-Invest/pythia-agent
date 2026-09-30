@@ -1830,3 +1830,40 @@ or removed.
 - **Recording the basis of every reference link now:** a format change for
   every installed package, for links the identifier rows and questions already
   explain in most cases.
+
+## Amendment (2026-09-30): no trust levels
+
+[ADR 0044](0044-product-direction.md)'s amendment of the same day removes plugin
+trust levels: installing a plugin means trusting it, and every enabled plugin is
+equal. The amendments above that weigh evidence or act by "trust level",
+"confirm level" or "display level" change as follows; everything else in them
+stands.
+
+- **Evidence** ("evidence counts by kind and trust level"): the reference
+  package and every enabled plugin count alike, and they all prove and block.
+  What a disabled or removed plugin stated is still kept and shown with its
+  source (the view's `shown`), and does not prove, block or contest while the
+  plugin is off. A reference package needs no grant, and `reference-status` no
+  longer reports a `trust`.
+- **Contested facts:** unchanged. Different sources asserting different values
+  of a single-valued scheme leave it contested, and a user's answer, refused
+  only by unanimous identifier proof, decides it.
+- **Device subjects and ingest:** any enabled plugin's statements name subjects
+  in a join, its better key re-keys a device subject upward, and a device
+  subject's parent is the one the records that name one agree on; where they
+  disagree it has none. A plugin's conflicts are all asked on touch. Another
+  plugin's line on an exchange counts as a second line there, so a record with
+  no currency that would join the exchange's one line stays unmatched.
+- **Binding:** any enabled plugin binds, onto reference or device subjects. The
+  `unaudited` residual is gone; an earlier one is marked superseded when the
+  store opens.
+- **Crypto keys:** a canonical-issuance claim from any plugin aliases a
+  provisional coin, and a contract's declared address is `confirmed` and aliases
+  its provisional ID, whatever the contract's `signoff`.
+- **Search:** nothing breaks a tie by trust, and the directory's key is the
+  store's generation and the enabled plugins.
+- **Read checks** no longer label a read "source not audited", and
+  `identity-plugin-effect` and Settings → Data sources show no level.
+- **The peers test** installs one payload under two names and two declared
+  sign-offs, not under one grant, and expects identical IDs, rows, statuses,
+  conflicts and effects.

@@ -29,15 +29,11 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
-/** Core marks a source that has not signed off (ADR 0042): "not yet audited". */
-const unaudited = z.boolean().optional();
-
 /** A source as core names it on sections and in agent results. */
 const sourceSchema = z.object({
   source: text,
   provider: text,
   plugin: text,
-  unaudited,
 });
 
 /** Another source that could serve the section now: one click reads it
@@ -48,7 +44,6 @@ export const sectionAlternativeSchema = z.object({
   status: text,
   binding: providerRefSchema.nullish(),
   request: pluginRequestSchema.nullish(),
-  unaudited,
   authorities: z.array(text).default([]), // a filings source's authorities
 });
 export type SectionAlternative = z.infer<typeof sectionAlternativeSchema>;
@@ -70,7 +65,6 @@ export const subjectSectionSchema = z.object({
   plugin: text,
   label: text,
   status: text,
-  unaudited,
   binding: providerRefSchema.nullish(),
   /** The read that fills a profile or filings section; null for quote/chart. */
   request: pluginRequestSchema.nullish(),
@@ -78,7 +72,7 @@ export const subjectSectionSchema = z.object({
   alternatives: z.array(sectionAlternativeSchema).default([]),
   reason: optionalText,
   /** Set on an `unresolved` section whose source's match waits in the
-   * resolution queue (the review reason: unaudited, ambiguous, no_key,
+   * resolution queue (the review reason: ambiguous, no_key,
    * underlying_identifier);
    * absent when the source found no match. */
   queued: text.nullish(),
@@ -147,7 +141,7 @@ export const subjectPageSchema = z.object({
     description: optionalText,
   }),
   identifiers: z.record(z.string(), optionalText).default({}),
-  /** Identifiers whose confirm-level sources disagree, by scheme: core
+  /** Identifiers whose sources disagree, by scheme: core
    * applies neither value, so each is listed with the sources stating it. */
   contested: z.record(z.string(), z.array(contestedValue)).default({}),
   issuer: z

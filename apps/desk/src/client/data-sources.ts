@@ -7,8 +7,8 @@ import { useDeskApi } from "./providers";
 
 /*
  * Core's data sources: `identity-plugin-effect` lists each enabled plugin that
- * reads a catalogue or looks identifiers up, with its trust level and what
- * disabling it would take away (ADR 0044 A3); `identity-sync` reads one
+ * reads a catalogue or looks identifiers up, with what disabling it would
+ * take away (ADR 0044 A3); `identity-sync` reads one
  * plugin's catalogue into the device's identity store when the user asks.
  * Enabling and disabling stay Hermes's own command.
  */
@@ -19,8 +19,6 @@ const sample = z.object({ id: text, name: z.string().nullish() });
 export const dataSourceSchema = z.object({
   plugin: text,
   label: text,
-  /** display: shown with its source; confirm: establishes identity facts. */
-  level: z.enum(["display", "confirm"]).catch("display"),
   catalogue: z.boolean(),
   resolve: z.boolean(),
   /** The device subjects only this plugin supplies. */

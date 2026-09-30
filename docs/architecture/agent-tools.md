@@ -41,14 +41,13 @@ vision's "What the agent sees". The subject's listing in use
 (`subject.listing`) is the default. `provenance` gives each identifier shown
 its `source` (the record it comes from, such as `esma_firds`), the contributing
 `plugin` (`reference` for the reference package), its `authority` (the kind of
-evidence, or `user_attested` where the user's answer decided it) and the
-contributor's trust `level`. `flags` is a list of
+evidence, or `user_attested` where the user's answer decided it). `flags` is a list of
 `{code, detail}` from a closed vocabulary (`core/identity/flags.py`), derived
 only from what composing the page already loads:
 
 | Code | Means | Detail |
 | --- | --- | --- |
-| `conflicting_identifier` | Confirm-level sources disagree on an identifier, so neither value applies | the scheme, and each value with its sources |
+| `conflicting_identifier` | Sources disagree on an identifier, so neither value applies | the scheme, and each value with its sources |
 | `identity_question_open` | Open identity questions about the investment or its family | their count and reasons |
 | `issuer_unknown` | A share whose issuer the data does not settle | none |
 | `successor` | A corporate action changed a natural key | the subject it `succeeds`, or the one it is `succeeded_by` |
@@ -145,13 +144,13 @@ these steps:
 4. Run the operation tool in-process with `ctx.dispatch_tool`, forwarding
    `session_id` and `task_id`.
 5. Bound the result to 16,000 characters. A handler that raises becomes
-   `source_error`, without its exception text. A source not yet signed off
-   ([ADR 0042](../decisions/0042-source-onboarding-standard.md)) adds an
-   `unaudited_source` warning, and every source label carries `unaudited`.
+   `source_error`, without its exception text. Every enabled source is read the
+   same way: no warning or label depends on its declared sign-off
+   ([ADR 0044](../decisions/0044-product-direction.md), amendment of
+   2026-09-30).
 
 `pythia_prices` reads the subject itself in core's one source order, so
-market-data's read checks and its "not yet audited" warning apply, and it names
-the source that answered. A named `source` reads exactly that source's
+market-data's read checks apply, and it names the source that answered. A named `source` reads exactly that source's
 reference.
 
 ## Permissions

@@ -80,17 +80,11 @@ name, so nothing is re-keyed. The installer:
    rename. Readers see either the old package or the new one.
 4. Drops the replaced package. Reinstalling the installed package changes
    nothing.
-5. Records the investor's trust in the package as a grant on
-   `sha256:<its database's sha256>` in `trust.json` in the Pythia config folder
-   ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
-   2026-09-30): confirm, or display when `reference_package.py install` is run
-   with `--display`. Reinstalling the same package keeps the grant already
-   recorded. Without a config folder (`PYTHIA_CONFIG_ROOT`) the command line
-   refuses to install, since the choice could not be recorded. Core grants a package installed before grants existed confirm
-   once, on first use, and logs it. The package's rows count at that level: only
-   at confirm do they prove or block a match; at display they are shown with
-   their source and confirm nothing ([ADR 0037](../decisions/0037-identity-backbone.md),
-   amendment of 2026-09-30).
+
+The package is one source among the enabled plugins: installing it is the
+investor's act of trusting it, and its rows count as evidence like any
+plugin's, with no grant or level ([ADR 0044](../decisions/0044-product-direction.md),
+amendment of 2026-09-30).
 
 One package is installed at a time; there is no separate rollback. Going back
 to an older build is an ordinary install of that package, a release change
@@ -148,8 +142,7 @@ ignored and kept.
 The `reference-status` operation (tool `pythia_reference_status`) reports the
 installed build, format, dates, the sources the build included
 (`included_sources`), each source file with its as-of date and licence, the
-deduplicated notices, its trust level (`trust`, looked up by its digest like
-any contributor's), whether this core reads it (`compatible`, and `problem`:
+deduplicated notices, whether this core reads it (`compatible`, and `problem`:
 why not and what to do), the last refused package with its reason, and the
 package `remove` set aside (`removed`). Desk shows it under **Settings →
 Reference data**.
@@ -225,11 +218,11 @@ exceeds them by more than 2%):
   work adds.
 - "Also:" reads a source once, for the view only. Nothing remembers it per
   subject: a source the investor wants every time goes in `source_order`,
-  which puts it first for every concept it serves. Where one source serves, a
-  display (unsigned) source comes after every audited one: it serves unnamed
-  only if nothing audited can (NSM for a UK issuer filings.xbrl.org does not
-  cover), and otherwise is an "Also:" link (NSM beside filings.xbrl.org).
-- Plugin trust levels have two of three levels in code: display and confirm
-  ([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment).
-  Suggest arrives with the first plugin that needs it; until then a user's
-  own vendor addressed by `resolve` needs the investor's confirm per subject.
+  which puts it first for every concept it serves. Where one source serves,
+  core's default order names the sources it prefers; one it does not name
+  serves unnamed only if none of those can (NSM for a UK issuer
+  filings.xbrl.org does not cover), and otherwise is an "Also:" link (NSM
+  beside filings.xbrl.org).
+- Plugins have no trust levels ([ADR 0044](../decisions/0044-product-direction.md),
+  amendment of 2026-09-30): a user's own vendor addressed by `resolve` binds
+  like any other enabled plugin.

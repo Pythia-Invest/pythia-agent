@@ -1,6 +1,7 @@
 """Core's ingest of plugin claims (roadmap stage 0; ADR 0037, amendment "ingest"): every record joins by identifier
 agreement at its own scope, a contradiction is kept as a conflict and asked about only when relevant, a subject is
-introduced only under a key scheme its contract declares, and keys move up only on confirm-level evidence.
+introduced only under a key scheme its contract declares, and keys only move up. Every enabled plugin counts alike
+(ADR 0044, amendment of 2026-09-30).
 
 The world is `identity_world` (Ericsson, Alphabet, GSK, Shell and US Steel from the identity truth set); the plugins
 are fixtures core never names. Sources as they emit, and the operations, are test_identity_ingest_sources's.
@@ -10,11 +11,12 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 
 from identity_world import World
 from test_identity_contracts import PROVENANCE, identity
-from pythia_identity_fixture import device, lifecycle, page, relations, search, store, trust  # noqa: E402
+from pythia_identity_fixture import device, lifecycle, page, relations, search, store  # noqa: E402
 
 ERICSSON_LEI, ERICSSON = "549300W9JLPW15XIFM52", "issuer:lei:549300W9JLPW15XIFM52"
 ERIC_A, ERIC_B = "security:isin:SE0000108649", "security:isin:SE0000108656"
@@ -29,7 +31,7 @@ SUI_USDC = "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9
 POOL_ID = "00000002-0000-4000-8000-000000000000"
 
 
-def source(name, *, level="listing", introduces=None, display=False, scopes=("all",), native=(), resolve=()):
+def source(name, *, level="listing", introduces=None, scopes=("all",), native=(), resolve=()):
     """A plugin core never names: a bulk catalogue of records at `level` (and a resolve by `resolve` schemes),
     introducing what `introduces` declares."""
     contract = {"contract_version": 2, "plugin": name, "provider": name,
@@ -39,8 +41,7 @@ def source(name, *, level="listing", introduces=None, display=False, scopes=("al
                 **({"resolve": {"operation": "resolve", "input_schemes": list(resolve), "echoes": []}} if resolve else {}),
                 "rights": {"licence": "personal", "cache": "none", "hostable": False},
                 "signoff": {"status": "grandfathered"}}
-    manifest = identity.validate_manifest(contract)
-    return page.PluginInfo(key=f"pythia-{name}", manifest=identity.vouched(manifest, trust.DISPLAY) if display else manifest)
+    return page.PluginInfo(key=f"pythia-{name}", manifest=identity.validate_manifest(contract))
 
 
 def record(info, native_id, *identifiers, level=None, scope="ref", **attributes):
@@ -143,7 +144,7 @@ class JoinTest(IngestTest):
         # issuer its LEI names.
         world = self.fresh()
         world.ref.close()
-        world.ref = store.open_reference(world.release("no-class-a", drop=[ERIC_A_LINE, ERIC_A]), "confirm")
+        world.ref = store.open_reference(world.release("no-class-a", drop=[ERIC_A_LINE, ERIC_A]))
         self.ingest(classes, record(classes, "ERIC-A", ("share_class_figi", "BBG001SCFF19"), ("lei", ERICSSON_LEI),
                                     ("cik", "717826"), name="Ericsson A"), world=world)
         introduced = "security:figi:BBG001SCFF19"
@@ -211,8 +212,8 @@ class DeterminismTest(IngestTest):
 
 class OrderTest(IngestTest):
     """The same records from several plugins, arriving in either order, give the same subjects, parents and evidence:
-    a device subject's parent is the one its records at the highest trust level name (never a lower level's), and a
-    parent's identifiers land only on a parent they name (#116 review, probes a to c)."""
+    a device subject's parent is the one its records name and agree on, and a parent's identifiers land only on a
+    parent they name (#116 review, probes a to c)."""
 
     @staticmethod
     def outcome(world):
@@ -230,8 +231,8 @@ class OrderTest(IngestTest):
         self.assertEqual(outcomes[0], outcomes[1])
         return outcomes[0]
 
-    def test_a_display_plugins_security_and_line_records_give_one_security_in_either_order(self):
-        lines = source("lines", introduces={"listing": ["isin", "figi"], "security": ["isin", "figi"]}, display=True,
+    def test_a_plugins_security_and_line_records_give_one_security_in_either_order(self):
+        lines = source("lines", introduces={"listing": ["isin", "figi"], "security": ["isin", "figi"]},
                        native=({"native_scope": "security", "level": "security"},))
         subjects, _evidence = self.both_orders(
             (lines, record(lines, "SAP", ("isin", SAP_ISIN), ("share_class_figi", SAP_SHARE), scope="security")),
@@ -240,18 +241,7 @@ class OrderTest(IngestTest):
         self.assertEqual(subjects, [(f"listing:figi:{SAP_FIGI}", f"security:isin:{SAP_ISIN}"),
                                     (f"security:isin:{SAP_ISIN}", None)])  # its own statements join its own subject
 
-    def test_a_confirm_level_parent_stands_over_a_display_one_in_either_order(self):
-        stale, current = "US0378331005", "US5949181045"  # two securities the line's sources name (CGS-area ISINs)
-        display = source("display", introduces={"listing": ["figi"], "security": ["cgs_isin"]}, display=True)
-        confirm = source("confirm", introduces={"listing": ["figi"], "security": ["cgs_isin"]})
-        subjects, evidence = self.both_orders(
-            (display, record(display, "L", ("figi", SAP_FIGI), ("isin", stale), operating_mic="XNAS", currency="USD")),
-            (confirm, record(confirm, "L", ("figi", SAP_FIGI), ("isin", current), operating_mic="XNAS", currency="USD")))
-        self.assertIn((f"listing:figi:{SAP_FIGI}", f"security:cgs_isin:{current}"), subjects)
-        isins = {(subject, value) for subject, scheme, value, _plugin in evidence if scheme == "isin"}
-        self.assertEqual(isins, {(f"security:cgs_isin:{stale}", stale), (f"security:cgs_isin:{current}", current)})
-
-    def test_two_confirm_level_records_that_disagree_leave_the_line_without_a_parent_in_either_order(self):
+    def test_two_plugins_records_that_disagree_leave_the_line_without_a_parent_in_either_order(self):
         first, second = (source(name, introduces={"listing": ["figi"], "security": ["figi"]}) for name in ("a", "b"))
         subjects, evidence = self.both_orders(
             (first, record(first, "L", ("figi", SAP_FIGI), ("share_class_figi", SAP_SHARE), operating_mic="XLON",
@@ -279,33 +269,29 @@ class LifecycleTest(IngestTest):
         self.ingest(lines, pages[1])
         self.assertEqual(self.ingest(lines, pages[0], complete=True, seen={("ref", "B")})["not_seen"], 0)
 
-    def test_a_better_key_re_keys_upward_by_confirm_level_evidence_or_on_a_display_plugins_own_subject(self):
-        # A display plugin re-keys a subject only while it is its alone; one another plugin's record is on stays put.
-        for level, shared, moves in ((trust.CONFIRM, True, True), (trust.DISPLAY, False, True),
-                                     (trust.DISPLAY, True, False)):
-            with self.subTest(level=level, shared=shared):
+    def test_a_better_key_re_keys_a_device_subject_upward_even_where_another_plugins_record_is_on_it(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared):
                 world = self.fresh()
-                lines = source("lines", introduces={"listing": ["isin", "figi"]}, display=level == trust.DISPLAY)
+                lines = source("lines", introduces={"listing": ["isin", "figi"]})
                 self.ingest(lines, record(lines, "SAP.DE", ("figi", SAP_FIGI), operating_mic="XETR", currency="EUR"),
                             world=world)
                 old, new = f"listing:figi:{SAP_FIGI}", f"listing:isin:{SAP_ISIN}:XETR:EUR"
                 self.assertEqual(self.placed(lines, "SAP.DE", world), (old, "introduced"))
                 if shared:
-                    other = source("other", display=True)
+                    other = source("other")
                     self.ingest(other, record(other, "SAP", ("figi", SAP_FIGI)), world=world)
                     self.assertEqual(self.placed(other, "SAP", world), (old, "joined"))
                 self.ingest(lines, record(lines, "SAP.DE", ("figi", SAP_FIGI), ("isin", SAP_ISIN), operating_mic="XETR",
                                           currency="EUR"), world=world)
-                expected = new if moves else old
-                self.assertEqual(device.current_id(world.ref, world.identity, old), expected)
-                self.assertEqual(world.identity.bound_subject(identity.ProviderRef("lines", "SAP.DE", "ref")), expected)
-                self.assertEqual(world.subject(old)["id"], expected)  # a saved ID reads as the subject it became
+                self.assertEqual(device.current_id(world.ref, world.identity, old), new)
+                self.assertEqual(world.identity.bound_subject(identity.ProviderRef("lines", "SAP.DE", "ref")), new)
+                self.assertEqual(world.subject(old)["id"], new)  # a saved ID reads as the subject it became
                 aliases = world.identity.select("SELECT old_id, new_id FROM device_aliases")
-                self.assertEqual([tuple(row) for row in aliases], [(old, new)] if moves else [])
-
+                self.assertEqual([tuple(row) for row in aliases], [(old, new)])
 
     def test_a_changed_identifier_never_merges_two_open_keyed_subjects(self):
-        # A confirm-level plugin's own record first names SAP's security, then GSK's: a conflict, and nothing moves.
+        # A plugin's own record first names SAP's security, then GSK's: a conflict, and nothing moves.
         securities = source("securities", level="security", introduces={"security": ["isin"]})
         self.ingest(securities, record(securities, "ACME", ("isin", SAP_ISIN)))
         sap = f"security:isin:{SAP_ISIN}"
@@ -317,16 +303,16 @@ class LifecycleTest(IngestTest):
         self.assertEqual(self.world.identity.bound_subject(identity.ProviderRef("securities", "ACME", "ref")), sap)
         self.assertEqual(self.world.identity.select("SELECT * FROM device_aliases"), [])
 
-    def test_a_display_level_release_covers_no_device_subject(self):
+    def test_a_release_that_holds_a_device_subjects_key_covers_it(self):
         lines = source("lines", introduces={"listing": ["figi"]})
         self.ingest(lines, record(lines, "L", ("figi", SAP_FIGI), operating_mic="XETR", currency="EUR"))
         path = self.world.release("holds-the-line")
         with closing(sqlite3.connect(path)) as db, db:
             db.execute("UPDATE assertions SET value = ? WHERE subject_id = ? AND scheme = 'figi'",
                        (SAP_FIGI, "listing:isin:SE0000108656:XSTO:SEK"))  # the release now states that FIGI
-        for level, alias in ((trust.DISPLAY, None), (trust.CONFIRM, "listing:isin:SE0000108656:XSTO:SEK")):
-            with closing(store.open_reference(path, level)) as ref:
-                self.assertEqual(lifecycle.covered(ref, self.world.identity).get(f"listing:figi:{SAP_FIGI}"), alias)
+        with closing(store.open_reference(path)) as ref:
+            self.assertEqual(lifecycle.covered(ref, self.world.identity).get(f"listing:figi:{SAP_FIGI}"),
+                             "listing:isin:SE0000108656:XSTO:SEK")
 
     def test_an_unplaced_record_is_placed_again_once_its_contract_changes(self):
         before = source("lines")
@@ -339,49 +325,41 @@ class LifecycleTest(IngestTest):
 
 class ConflictQuestionTest(IngestTest):
     def test_a_plugin_conflict_is_asked_once_when_its_subject_becomes_relevant(self):
-        for level in (trust.CONFIRM, trust.DISPLAY):
-            with self.subTest(level=level):
-                world = self.fresh()
-                stale = source("stale", display=level == trust.DISPLAY)
-                self.ingest(stale, record(stale, "GSK.L", ("figi", "BBG000CT5GJ1"), ("isin", "GB0009252882")),
-                            world=world)
-                self.assertNoQuestions(world)
-                view = world.subject(GSK_LINE)["view"]
-                if level == trust.DISPLAY:  # shown with its source, deciding nothing and never asked
-                    self.assertEqual((view["identifiers"]["isin"], world.touch(GSK_LINE)), ("GB00BN7SWP63", 0))
-                    self.assertIn({"scheme": "isin", "value": "GB0009252882", "source": "stale"}, view["shown"])
-                    continue
-                self.assertNotIn("isin", view["identifiers"])
-                self.assertIn({"value": "GB0009252882", "sources": ["stale"]}, view["contested"]["isin"])
-                self.assertEqual(world.touch(GSK_LINE), 1)
-                [asked] = world.identity.queue_items()
-                self.assertEqual((asked["reason"], asked["subject_ids"], asked["candidate_ids"]),
-                                 ("identifier", [GSK], [GSK_BEFORE, GSK]))
-                self.assertEqual((world.touch(GSK_LINE), world.touch(GSK)), (0, 0))  # re-asking never duplicates
-                self.assertEqual(len(world.identity.queue_items()), 1)
+        stale = source("stale")
+        self.ingest(stale, record(stale, "GSK.L", ("figi", "BBG000CT5GJ1"), ("isin", "GB0009252882")))
+        self.assertNoQuestions()
+        view = self.world.subject(GSK_LINE)["view"]
+        self.assertNotIn("isin", view["identifiers"])
+        self.assertIn({"value": "GB0009252882", "sources": ["stale"]}, view["contested"]["isin"])
+        self.assertEqual(self.world.touch(GSK_LINE), 1)
+        [asked] = self.world.identity.queue_items()
+        self.assertEqual((asked["reason"], asked["subject_ids"], asked["candidate_ids"]),
+                         ("identifier", [GSK], [GSK_BEFORE, GSK]))
+        self.assertEqual((self.world.touch(GSK_LINE), self.world.touch(GSK)), (0, 0))  # re-asking never duplicates
+        self.assertEqual(len(self.world.identity.queue_items()), 1)
 
 
 class RelationTest(IngestTest):
-    """A confirm-level plugin relation that contradicts the package's makes it contested: shown, not applied, not
-    folded. One that agrees changes nothing, and a display-level one is only shown."""
+    """A plugin relation that contradicts the package's makes it contested: shown, not applied, not folded. One that
+    agrees changes nothing, and a disabled plugin's is only shown."""
 
     def related(self, world, subject):
         return {(item["id"], item["type"], item.get("source"), item.get("contested", False))
                 for item in world.subject(subject)["view"]["related"] if item["type"] == "depositary_receipt_of"}
 
     def folded(self, world):
-        contested = relations.contested(world.identity, device.levels(world.plugins))
+        contested = relations.contested(world.identity, device.enabled(world.plugins))
         lines = search.Directory(world.ref, contested).instrument_listings(ERIC_B)
         return [line["id"] for line in lines if line["folded"]]
 
     def test_a_contradiction_contests_the_package_relation_and_agreement_changes_nothing(self):
-        cases = {"contradicts": ("SE0000108649", trust.CONFIRM), "agrees": ("SE0000108656", trust.CONFIRM),
-                 "display": ("SE0000108649", trust.DISPLAY)}
-        for case, (share, level) in cases.items():
+        cases = {"contradicts": ("SE0000108649", True), "agrees": ("SE0000108656", True),
+                 "disabled": ("SE0000108649", False)}
+        for case, (share, enabled) in cases.items():
             with self.subTest(case=case):
                 world = self.fresh()
                 self.assertEqual((self.related(world, ADS), self.folded(world)), (set(), [ADS_LINE]))
-                links = source("links", level="security", display=level == trust.DISPLAY)
+                links = replace(source("links", level="security"), enabled=enabled)
                 done = self.ingest(links, relation(links, "depositary_receipt_of",
                                                    {"scheme": "share_class_figi", "value": "BBG001S5QXT3"},
                                                    {"scheme": "isin", "value": share}), world=world)
@@ -389,7 +367,7 @@ class RelationTest(IngestTest):
                 shown = self.related(world, ADS)
                 if case == "agrees":
                     self.assertEqual((shown, self.folded(world)), (set(), [ADS_LINE]))
-                elif case == "display":  # shown with its source; the package's still folds
+                elif case == "disabled":  # shown with its source; the package's still folds
                     self.assertEqual((shown, self.folded(world)), ({(ERIC_A, "depositary_receipt_of", "links", False)},
                                                                    [ADS_LINE]))
                 else:
@@ -401,26 +379,23 @@ class RelationTest(IngestTest):
 
 class CryptoKeyTest(IngestTest):
     """A deployment key from any plugin; an asset key only from a canonical-issuance claim; a provisional coin aliased
-    to it only at confirm level; a provider's platform list never keys an asset."""
+    to it; a provider's platform list never keys an asset."""
 
-    def test_a_platform_list_never_keys_an_asset_and_only_a_confirm_level_canonical_claim_aliases(self):
-        for level in (trust.CONFIRM, trust.DISPLAY):
-            with self.subTest(level=level):
-                world = self.fresh(("asml.json", "failures.json", "crypto.json"))
-                coins = source("coins", level="security", introduces={"security": ["native", "caip19"]},
-                               display=level == trust.DISPLAY)
-                provisional = "security:provisional:coins:ref:ether"
-                self.ingest(coins, record(coins, "ether", ("caip19", ETH, "unqualified"), name="Ether",
-                                          asset_class="crypto", kind="coin"), world=world)
-                self.assertEqual(self.placed(coins, "ether", world), (provisional, "introduced"))
-                self.ingest(coins, record(coins, "ether", ("caip19", ETH, "self"), name="Ether", asset_class="crypto",
-                                          kind="coin"), world=world)
-                expected = (f"security:caip19:{ETH}", "joined") if level == trust.CONFIRM else (provisional, "conflict")
-                self.assertEqual(self.placed(coins, "ether", world), expected)
-                self.assertEqual(device.current_id(world.ref, world.identity, provisional), expected[0])
+    def test_a_platform_list_never_keys_an_asset_and_a_canonical_claim_aliases_the_provisional_coin(self):
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        coins = source("coins", level="security", introduces={"security": ["native", "caip19"]})
+        provisional = "security:provisional:coins:ref:ether"
+        self.ingest(coins, record(coins, "ether", ("caip19", ETH, "unqualified"), name="Ether",
+                                  asset_class="crypto", kind="coin"), world=world)
+        self.assertEqual(self.placed(coins, "ether", world), (provisional, "introduced"))
+        self.ingest(coins, record(coins, "ether", ("caip19", ETH, "self"), name="Ether", asset_class="crypto",
+                                  kind="coin"), world=world)
+        expected = (f"security:caip19:{ETH}", "joined")
+        self.assertEqual(self.placed(coins, "ether", world), expected)
+        self.assertEqual(device.current_id(world.ref, world.identity, provisional), expected[0])
 
     def test_a_deployment_key_comes_from_any_plugin(self):
-        tokens = source("tokens", introduces={"listing": ["caip19"]}, display=True)
+        tokens = source("tokens", introduces={"listing": ["caip19"]})
         usdc = "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
         done = self.ingest(tokens, record(tokens, "usdc", ("caip19", usdc), name="USDC on Sui"))
         [placed] = done["subjects"]

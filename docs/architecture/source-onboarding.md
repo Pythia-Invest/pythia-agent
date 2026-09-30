@@ -42,30 +42,26 @@ its onboarding.
   Record the change in both source records. It must not widen what the other
   source confirms.
 
-**What "confirm" means.** To confirm is to create or change an identity binding,
-subject or relation without review. A source that has not signed off:
+**What sign-off means.** Sign-off is Pythia's own audit of a source before it
+ships enabled. Each plugin declares its `signoff` in `contract.json`
+(`signed_off` with its record, `grandfathered` or `unsigned`); ADR 0042 lists
+which sources are which. The field records the audit and changes nothing in
+code: installing a plugin means trusting it, so an enabled plugin works the
+same whatever it declares ([ADR 0044](../decisions/0044-product-direction.md),
+amendment of 2026-09-30; [plugins](plugins.md#installing-a-plugin-means-trusting-it)).
+What the standard still governs is what Pythia ships. A source that has not
+signed off:
 
-- does not confirm;
-- is not enabled by default in fresh profiles;
-- is not the default source for any page section.
+- is not enabled by default in fresh profiles, a product default the investor
+  overrides by enabling it;
+- is not named in core's default order for any page section, so it serves
+  where nothing named can, or when the investor names it in `source_order`.
 
-Each plugin declares its `signoff` in `contract.json` (`signed_off` with its
-record, `grandfathered` or `unsigned`); ADR 0042 lists what the gate does. Its
-trust level ([ADR 0044](../decisions/0044-product-direction.md) A4) follows:
-`unsigned` is display, the other two are confirm, and suggest is not
-represented yet. Core enforces it by a grant on the digest of the plugin's
-files, never by its name: Pythia's release grants confirm the shipped plugins
-that signed off or are grandfathered, and the user's own grants may confirm
-another plugin or demote one of Pythia's
-([plugin trust](plugins.md#trust-follows-the-files-not-the-name)). An `unsigned` source can still be enabled by
-the investor. It then serves like any other source, labelled "not yet
-audited": it joins merged lists and side-by-side values, and where one source
-serves it serves only if the investor names it or nothing audited can. An
-opt-in, display-only source such as
-Hyperliquid's live view ([ADR 0043](../decisions/0043-live-market-view.md))
-ships `unsigned`. The sources in use before this standard are listed in ADR
-0042 and declared `grandfathered`. They keep their current role while they are
-onboarded, FIRDS first.
+An opt-in source such as Hyperliquid's live view
+([ADR 0043](../decisions/0043-live-market-view.md)) ships `unsigned`. The
+sources in use before this standard are listed in ADR 0042 and declared
+`grandfathered`. They keep their current role while they are onboarded, FIRDS
+first.
 
 ## Stages
 
@@ -101,8 +97,8 @@ carries:
 It records an empty answer as absence, not as a negative fact.
 
 **Authority.** Only a value read directly from a source field is
-`source_asserted`: the kind of evidence, counted at the package's trust level,
-never above another contributor's (ADR 0037, amendments of 2026-09-30). Every
+`source_asserted`: the kind of evidence, counted like any contributor's and never
+above it (ADR 0037, amendments of 2026-09-30). Every
 derived value carries its own:
 
 - a rule output is `rule_confirmed`, with its `rule_id`;

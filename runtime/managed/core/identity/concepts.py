@@ -189,7 +189,7 @@ NOT_COVERED = "not_covered"
 NOTICE = frozenset({"conflict", "unresolved", "suspended"})
 # Core's own quote section for a listing no price source covers: it says so, each source's reason listed as skipped.
 UNCOVERED = {"plugin": "pythia", "provider": "pythia", "label": "Pythia", "status": "not_covering",
-             "reason": "No price source covers this listing", "unaudited": False}
+             "reason": "No price source covers this listing"}
 # Core's own issuer section (profile, filings) for a share whose issuer the reference leaves undecided (R2: unknown,
 # never a guess): it says so instead of vanishing.
 NO_ISSUER = {**UNCOVERED, "status": "not_addressable", "via": "issuer",
@@ -224,14 +224,11 @@ def parse_order(text: str | None) -> tuple[str, ...]:
 
 def ranked(entries: list[dict], order: tuple[str, ...], default_order: tuple[str, ...]) -> list[dict]:
     """Entries (each with `plugin` and `provider`) in the investor's order, then core's default order, then by id.
-
-    An entry marked `unaudited` (a source not yet signed off, ADR 0042) is never in core's order: it follows
-    every audited entry unless the investor's order names it."""
+    Any enabled plugin can be picked by the default order (ADR 0040; ADR 0044, amendment of 2026-09-30)."""
     def position(items: tuple[str, ...], entry: dict) -> int:
         return next((index for index, name in enumerate(items) if name in (entry["plugin"], entry["provider"])),
                     len(items))
-    return sorted(entries, key=lambda entry: (position(order, entry), entry.get("unaudited", False),
-                                              position(default_order, entry), entry["plugin"]))
+    return sorted(entries, key=lambda entry: (position(order, entry), position(default_order, entry), entry["plugin"]))
 
 
 def not_covered(result: Any) -> str | None:
@@ -250,9 +247,7 @@ def select(entries: list[dict], *, combine: Combine | None = None
 
     Each entry has `plugin`, `status` and, for a combining concept, `authorities`. The first eligible entry
     serves; under `per_authority` the first eligible entry serving each authority serves it; under `merge` and
-    `side_by_side` every eligible entry serves. An enabled source not yet signed off (`unaudited`) is a display
-    source (ADR 0044 ruling 10): it merges like any other, labelled, and is picked for a single slot only after
-    every audited entry, as `ranked` orders it. The other eligible entries are alternatives; the rest are skipped
+    `side_by_side` every eligible entry serves. The other eligible entries are alternatives; the rest are skipped
     with their status as the reason."""
     eligible = [entry for entry in entries if entry["status"] in ELIGIBLE]
     skipped = [entry for entry in entries if entry["status"] not in ELIGIBLE]

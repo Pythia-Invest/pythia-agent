@@ -6,9 +6,8 @@
   per record; here it is only validated.
 - `addressing.subjects`: the plugin's own native reference for a subject core keys (by an open identifier or a Pythia
   key), such as Yahoo's symbol for a maintained index or CoinGecko's coin id for a maintained crypto asset. Core
-  derives the address from it without a call, under rule `declared_ref@1`. The address is `confirmed` only when the
-  plugin's files are granted confirm (`trust.py`), and a confirm-level declaration also aliases the plugin's
-  provisional ID for that reference to the subject (`aliases`). A display-level one gives an address, never an alias.
+  derives the address from it without a call, under rule `declared_ref@1`. The address is `confirmed`, and the
+  declaration also aliases the plugin's provisional ID for that reference to the subject (`aliases`).
 - `addressing.chain_codes`: the provider's own chain ids as CAIP-2 chains, for the token deployments it names.
 
 Standard library only.
@@ -116,14 +115,11 @@ def chain_codes(value: Any) -> dict[str, str]:
 
 
 def aliases(manifests: Iterable[Any]) -> dict[str, str]:
-    """Provisional ID -> subject ID: the provisional ID a confirm-level plugin's reference had (a resolve residual, an
-    uncurated coin) for each subject its contract declares that reference for, so the ID still resolves once the
-    subject is keyed (ADR 0037, crypto keys). Only a confirm-level declaration aliases (ADR 0044 A3); an ID two
-    declarations give different subjects stays unaliased."""
+    """Provisional ID -> subject ID: the provisional ID a plugin's reference had (a resolve residual, an uncurated
+    coin) for each subject its contract declares that reference for, so the ID still resolves once the subject is
+    keyed (ADR 0037, crypto keys). An ID two declarations give different subjects stays unaliased."""
     named: dict[str, set[str]] = {}
     for manifest in manifests:
-        if manifest.unaudited:
-            continue
         for subject, ref in manifest.subjects.items():
             old = provisional_id(subject_kind(subject), manifest.provider, ref.native_scope, ref.native_id)
             named.setdefault(old, set()).add(subject)

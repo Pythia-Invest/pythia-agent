@@ -1,4 +1,4 @@
-"""Core's one path for plugin claims (ADR 0037, amendment "ingest"; ADR 0044 A1, A3 and A4).
+"""Core's one path for plugin claims (ADR 0037, amendment "ingest"; ADR 0044 A1 and A3 and its amendment of 2026-09-30).
 
 A plugin returns claim batches from the operations core dispatches (a catalogue page, a resolve or lookup answer).
 `ingest` places every record and relation of one batch in identity.sqlite3:
@@ -9,20 +9,19 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
   several, one with another FIGI or ticker, or several such lines in the answer: it stays `unmatched`); a security by ISIN, then share-class FIGI, then canonical CAIP-19; an issuer by
   LEI, then CIK; a market or protocol by the plugin's own native reference. Never by issuer, ticker, symbol or name;
   an `underlying` or `unqualified` value never joins.
-- **Conflicts.** A second subject found, or a single-valued value confirm-level evidence about the subject or its parent
-  states otherwise (or that names another subject), makes the claim a `conflict`: the record stays with the first
-  subject, its values beside the others' (at confirm level they contest the fact, which `queue_ops.surface` asks about
-  when the subject becomes relevant), nothing is re-parented, and a new listing with a contested security gets none. A
-  device subject's parent is the one its records name at the highest trust level among them (`joins.settled_parent`).
+- **Conflicts.** A second subject found, or a single-valued value evidence about the subject or its parent states
+  otherwise (or that names another subject), makes the claim a `conflict`: the record stays with the first subject,
+  its values beside the others' (they contest the fact, which `queue_ops.surface` asks about when the subject becomes
+  relevant), nothing is re-parented, and a new listing with a contested security gets none. A device subject's parent
+  is the one its counting records name and agree on (`joins.settled_parent`).
 - **Introduced subjects** only under a key scheme the contract's `introduces` declares for the kind (the key the
   identifiers give, the same on every install, or `native`), a listing only with an operating MIC or a chain; else the
   claim is `unmatched`. The plugin's record binds what it introduced (`device.bind_introduced`).
-- **Keys move up only:** a confirm-level record's better key for a device subject (a display-level one's only for its
-  plugin's own lone, non-provisional subject), or the subject a confirm-level plugin's own provisional one is (a
-  canonical CAIP-19 for a provisional coin), writes a device alias and re-points the rows. Two open keys never merge.
+- **Keys move up only:** a record's better key for a device subject, or the subject a plugin's own provisional one is
+  (a canonical CAIP-19 for a provisional coin), writes a device alias and re-points the rows. Two open keys never merge.
 
-No queue row is written. A record left unmatched or conflicting is placed again once the release, the plugin's trust or
-its contract changed; a conflict stays one until the identifiers it states change. A record is kept under its native
+No queue row is written. A record left unmatched or conflicting is placed again once the release or the plugin's
+contract changed; a conflict stays one until the identifiers it states change. A record is kept under its native
 reference, or one without (a DeFi token named only by CAIP-19) under a digest of its level and identifiers. An unchanged
 record writes nothing; a `complete` scope's last page marks what no page carried `not_seen`, keeping subjects and bindings.
 """
@@ -43,7 +42,6 @@ from .schemes import (
     INSTRUMENT_KINDS, SCHEME_LEVEL, SINGLE_VALUED, IdentifierError, Kind, Level, Scheme, provisional_id, subject_id,
     subject_kind, ticker_mic)
 from .store import IdentityStore, now as stamp
-from .trust import CONFIRM
 from .vocabulary import IdentifierRole
 
 COUNTS = ("joined", "introduced", "conflicts", "unmatched", "rejected", "not_seen")
@@ -56,8 +54,8 @@ RECORD = "#record"  # the scope of a record kept by digest: no contract can decl
 def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Iterable = (), now: str | None = None,
            seen: Iterable[tuple[str, str]] = ()) -> dict[str, Any]:
     """Place one plugin's batch in one transaction. `ref` is the installed reference (None without one), `plugins` the
-    installed plugins whose levels weigh evidence (the batch's own at its own), and `seen` the records earlier pages of
-    the same scope carried. Returns how many records and relations had each outcome, and the subjects placed. Raises
+    installed plugins whose evidence counts alongside the batch's own, and `seen` the records earlier pages of the
+    same scope carried. Returns how many records and relations had each outcome, and the subjects placed. Raises
     `ClaimError` for a batch that breaks its contract."""
     check_batch(batch, info.manifest)
     run = _Ingest(store, ref, info, batch, list(plugins), now or stamp())
@@ -74,7 +72,7 @@ def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Itera
             run.not_seen(set(seen))
         if run.changed:
             device.bump(store)
-        if run.fresh:  # records it could not place are placed again once the release, trust or contract changes
+        if run.fresh:  # records it could not place are placed again once the release or contract changes
             store.set_metadata(f"ingested:{run.plugin}", run.context)
     return {**run.counts, "subjects": list(dict.fromkeys(run.subjects))}
 
@@ -83,13 +81,10 @@ class _Ingest:
     def __init__(self, store: IdentityStore, ref, info, batch: ClaimBatch, plugins: list, now: str):
         self.store, self.ref, self.manifest, self.batch, self.now = store, ref, info.manifest, batch, now
         self.plugin, self.plugins = info.manifest.plugin, [*plugins, info]
-        self.granted = device.levels(self.plugins)
-        self.joins = Joins(ref, store, self.granted, self.plugin, self.plugins)
-        self.confirm = self.granted[self.plugin] == CONFIRM
+        self.joins = Joins(ref, store, device.enabled(self.plugins), self.plugin, self.plugins)
         resolve = info.manifest.resolve
         self.echoes = set(resolve.echoes) if batch.origin is BatchOrigin.RESOLVE and resolve else set()
-        self.context = hashlib.sha256(f"{store.metadata(lifecycle.REKEYED)}|{self.granted[self.plugin]}|"
-                                      f"{info.manifest!r}".encode()).hexdigest()[:32]
+        self.context = hashlib.sha256(f"{store.metadata(lifecycle.REKEYED)}|{info.manifest!r}".encode()).hexdigest()[:32]
         self.fresh = store.metadata(f"ingested:{self.plugin}") != self.context
         self.venues = Counter((own.get(Scheme.ISIN), claim.attributes.operating_mic) for claim in batch.claims
                               if isinstance(claim, RecordClaim) and claim.level is Level.LISTING
@@ -121,7 +116,7 @@ class _Ingest:
             row = device.subject_row(self.store, subject) if subject else None
             if row is not None and row["kind"] in device.PARENT and not self._in_reference(subject):  # its parent, settled
                 self.store.db.execute("UPDATE subjects SET parent_id = ? WHERE id = ?",
-                                      (self.joins.settled_parent(subject, row["introduced_by"]), subject))
+                                      (self.joins.settled_parent(subject), subject))
         except (ValueError, TypeError):  # values core cannot place: this record only
             db.execute("ROLLBACK TO record")
             state, subject = "rejected", None
@@ -148,7 +143,7 @@ class _Ingest:
                 return "unmatched", None
         if prior and found and prior not in found:  # the record now names another subject than its own
             row = device.subject_row(self.store, prior)
-            if not (self.confirm and len(found) == 1 and _tag(prior) == "provisional" and row is not None
+            if not (len(found) == 1 and _tag(prior) == "provisional" and row is not None
                     and row["introduced_by"] == self.plugin):  # an open key never merges into another subject
                 self._evidence(claim, native, self._load(prior), keep=True)
                 return "conflict", prior
@@ -165,8 +160,7 @@ class _Ingest:
         if row is not None and not held and level in device.PARENT:  # a parent its identifiers name, or introduce
             conflict = self._parent(claim, level)[1] or conflict
         key = self._key(level, own, claim.attributes)
-        if not conflict and row is not None and not held and key and _better(key, target) and (self.confirm or (
-                self._alone(target) and _tag(target) != "provisional")):  # a better key: its saved ID follows
+        if not conflict and row is not None and not held and key and _better(key, target):  # a better key: its saved ID follows
             self._alias(target, key)
             target = key
         self._evidence(claim, native, self._load(target), keep=conflict)
@@ -241,8 +235,8 @@ class _Ingest:
                 and item.scheme not in self.echoes and item.scheme is not Scheme.TICKER_MIC}
 
     def _contradicts(self, claim: RecordClaim, subject: dict | None) -> bool:
-        """Whether a single-valued value the record states is one that confirm-level evidence about the subject, or its
-        parent at the value's level, states otherwise, or one that names another subject there."""
+        """Whether a single-valued value the record states is one that evidence about the subject, or its parent at the
+        value's level, states otherwise, or one that names another subject there."""
         for item in self._stated(claim):
             owner = subject["ids"].get(SCHEME_LEVEL[item.scheme]) if subject else None
             if item.scheme not in SINGLE_VALUED or owner is None:
@@ -316,12 +310,6 @@ class _Ingest:
 
     def _in_reference(self, subject: str) -> bool:
         return self.ref is not None and device.in_reference(self.ref, subject)
-
-    def _alone(self, subject: str) -> bool:
-        """Whether a device subject is this plugin's alone: it introduced it and no other plugin's record is on it."""
-        row = device.subject_row(self.store, subject)
-        return row is not None and row["introduced_by"] == self.plugin and not self.store.select(
-            "SELECT 1 FROM claims WHERE subject_id = ? AND plugin <> ? LIMIT 1", (subject, self.plugin))
 
     def _key(self, level: Level | Kind, own: Mapping[Scheme, str], attributes: RecordAttributes) -> str | None:
         return subject_id(level, own, operating_mic=attributes.operating_mic, currency=attributes.currency,

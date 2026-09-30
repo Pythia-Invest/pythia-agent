@@ -3,11 +3,10 @@
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
-- **Status:** not signed off; ships opt-in; display only. The plugin is
-  installed disabled, and it never confirms or creates identity: its only
-  subject is core's curated market. That is why it complies with ADR 0042
-  without the code gate. It is not counted as the source in onboarding (FIRDS
-  is); this record documents its stages 1 to 3 so far.
+- **Status:** not signed off; ships opt-in. The plugin is installed disabled
+  (a product default), and it creates no identity: its only subject is core's
+  curated market. It is not counted as the source in onboarding (FIRDS is);
+  this record documents its stages 1 to 3 so far.
 - **Owner:** `runtime/managed/plugins/hyperliquid/` (`feed.py` parses, `stream.py`
   owns the socket). Core's `identity/markets.json` lists the one market it
   serves, and the plugin's contract declares its coin for it.

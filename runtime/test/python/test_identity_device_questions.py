@@ -50,7 +50,6 @@ class Questions(PeersFixture):
         then contradicts: the line's FIGI is contested between the two plugins."""
         key = self.meridian()
         self.install("atlas", ATLAS)
-        self.ship(key, "atlas")
         lines = self.pages[("meridian", "lines")]
         if microsoft:
             lines.append(line("MSFT.OQ", ("isin", MSFT_ISIN), mic="XNAS", currency="USD", ticker="MSFT", name="Microsoft"))
@@ -241,7 +240,7 @@ class ReKeyTest(unittest.TestCase):
             db.execute("UPDATE assertions SET value = ? WHERE subject_id = ? AND scheme = 'figi'", (FIGI_A, ERIC_B_LINE))
         done = world.rekey(path)
         self.assertEqual(done["moved"], 1)  # the FIGI-keyed line, which its question and verdict named
-        with closing(store.open_reference(path, "confirm")) as ref:
+        with closing(store.open_reference(path)) as ref:
             self.assertEqual(device.current_id(ref, world.identity, APPLE_LINE), ERIC_B_LINE)
             [moved] = world.identity.queue_items(which="settled")
             self.assertEqual(moved["subject_ids"], [ERIC_B_LINE])

@@ -221,8 +221,8 @@ def prices(ctx: Any, arguments: dict, **context: Any) -> str:
         target = subject["ids"].get(Level.LISTING)
         if not target:
             return encode(failure("no_listing", "This issuer has no listing in the reference; it has no price."))
-    # Without a named source, market-data reads the subject in core's one source order (#60), with its read checks and
-    # "not yet audited" warnings; a named source reads exactly its own reference.
+    # Without a named source, market-data reads the subject in core's one source order (#60), with its read checks;
+    # a named source reads exactly its own reference.
     view_subject = chosen["binding"] if wanted else {"kind": target.split(":", 1)[0], "id": target}
     operation = "history" if start else "latest"
     head: list = []

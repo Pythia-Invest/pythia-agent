@@ -189,12 +189,11 @@ def plugins() -> dict[str, Any]:
 
 
 def label(plugin_key: str, infos: dict[str, Any]) -> dict:
-    """A source as the page names it (page.source), marked `unaudited` until it is signed off (ADR 0042)."""
+    """A source as the page names it (page.source)."""
     info = infos.get(plugin_key)
     if info is None:
         return {"source": plugin_key, "provider": plugin_key, "plugin": plugin_key}
-    return page.source({"label": info.label, "provider": info.manifest.provider, "plugin": plugin_key,
-                        "unaudited": info.manifest.unaudited})
+    return page.source({"label": info.label, "provider": info.manifest.provider, "plugin": plugin_key})
 
 
 def serving(provider: str | None, infos: dict[str, Any]) -> str | None:

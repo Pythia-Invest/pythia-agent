@@ -4,12 +4,12 @@
 They are tagged and answered like the reference build's questions (`build_questions`), and the user's answer is a
 local override:
 
-- **A contested fact.** Confirm-level assertions of one of the subject's single-valued identifiers disagree
+- **A contested fact.** Assertions of one of the subject's single-valued identifiers by different sources disagree
   (`evidence.weigh`), so no value applies. The candidates are the subjects each value names under the subject-key
   rule, and the answer gives the subject that value. A value that names no subject (a composite FIGI) leaves the
   fact contested and shown, but unasked.
-- **An answer the release contradicts.** The installed release, at confirm level, names another issuer, underlying or
-  identifier value than the user's answer, or gives a registrant the user matched to a company identifiers of its own
+- **An answer the release contradicts.** The installed release names another issuer, underlying or identifier value
+  than the user's answer, or gives a registrant the user matched to a company identifiers of its own
   (`build_questions.load_subject`). The answer stays applied until the user answers this question, whose candidates
   are the two, except that a registrant's own identifiers refuse both the company the user matched it to and "none":
   that question offers the registrant alone (`build_questions.itself`).
@@ -19,10 +19,10 @@ local override:
   subjects its two values name.
 
 A plugin's evidence counts here as on the subject's page (`device.merge`, or `device.load` for a subject only the
-device holds), at its plugin's trust level: a confirm-level plugin whose record contradicts a fact the package, or
-another plugin, states contests it, so the conflict is asked about once, when the subject becomes relevant (ADR 0037,
-amendments "ingest" and "questions and overrides for plugin-introduced subjects"). The question is tagged with the
-plugins whose statements it is about, which Repairs shows as its source.
+device holds): an enabled plugin whose record contradicts a fact the package, or another plugin, states contests it,
+so the conflict is asked about once, when the subject becomes relevant (ADR 0037, amendments "ingest" and "questions
+and overrides for plugin-introduced subjects"). The question is tagged with the plugins whose statements it is about,
+which Repairs shows as its source.
 
 Each is asked once per question key, like the build's (`build_questions.import_build`).
 """
@@ -43,7 +43,7 @@ from .vocabulary import IdentifierRole
 
 def raised(ref: sqlite3.Connection, store, subject_ids: Iterable[str], plugins: Iterable = ()) -> list[QueueItem]:
     """The conflict questions these subjects' pages raise, their listing's, security's and issuer's facts included,
-    with the `plugins`' evidence at their levels."""
+    with the enabled `plugins`' evidence."""
     items: list[QueueItem] = []
     plugins = list(plugins)
     for touched in dict.fromkeys(subject_ids):

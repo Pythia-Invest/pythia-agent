@@ -26,9 +26,7 @@ CURRENCY_GAP = {"code": "trading_currency_unknown", "detail": "A coverage gap: n
 class InstrumentFlagsTest(AgentToolFixture):
     def setUp(self):
         super().setUp()
-        self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_CONFIG_ROOT": str(Path(self.tmp.name) / "config")}))
-        # The user trusts the installed package to confirm (the install command's grant).
-        identity_ops.reference_package.install(Path(self.tmp.name) / "package", Path(self.tmp.name), "confirm")
+        identity_ops.reference_package.install(Path(self.tmp.name) / "package", Path(self.tmp.name))
         self.path = identity_ops.reference_package.current(Path(self.tmp.name))
         with self.reference() as db:
             load_reference(db, load("failures.json"))
@@ -54,7 +52,7 @@ class InstrumentFlagsTest(AgentToolFixture):
         data = self.read(ASML)
         self.assertEqual(data["flags"], [CURRENCY_GAP])
         self.assertEqual(data["provenance"]["isin"],  # the package contributes it, from GLEIF's record
-                         {"source": "gleif", "plugin": "reference", "authority": "source_asserted", "level": "confirm"})
+                         {"source": "gleif", "plugin": "reference", "authority": "source_asserted"})
         self.assertEqual((data["provenance"]["lei"]["source"], data["provenance"]["cik"]["source"]), ("gleif", "sec"))
         # Each identifier shown has one; the listing's ticker, MIC and currency are its own row's.
         self.assertEqual(set(data["provenance"]), {"isin", "lei", "cik", "figi"})
@@ -62,7 +60,7 @@ class InstrumentFlagsTest(AgentToolFixture):
             self.assertNotIn(key, data)
 
     def test_conflicting_identifier_gives_both_values_with_their_sources(self):
-        add(self.path, ASML_SECURITY, "isin", OTHER_ISIN, "vendor")  # beside GLEIF's, at the package's confirm level
+        add(self.path, ASML_SECURITY, "isin", OTHER_ISIN, "vendor")  # beside GLEIF's
         data = self.read(ASML)
         flags = {flag["code"]: flag.get("detail") for flag in data["flags"]}
         self.assertEqual(flags["conflicting_identifier"], {"scheme": "isin", "values": [

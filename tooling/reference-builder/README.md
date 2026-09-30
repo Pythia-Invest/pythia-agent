@@ -80,7 +80,7 @@ and every install keys them alike. Its rows are Pythia's own list:
 `source_asserted` from source `pythia`, the rule in `source_record`. The package
 names no provider: each coin plugin's contract declares its own coin ids and
 chain ids (`addressing.subjects`, `addressing.chain_codes`), and core aliases a
-confirm-level plugin's provisional coin IDs from there, on reads and when it
+plugin's provisional coin IDs from there, on reads and when it
 re-points saved rows to a new release. `just canonical-assets-drift` checks the
 coin ids those contracts declare against CoinGecko and CoinMarketCap; the
 evidence per row is in `truth/canonical-assets-audit.md`. Securities carry a notability
@@ -115,8 +115,8 @@ source of the same kind decides alike (`test_decisions.py` renames every
 source and gets the same decisions). `check_names.py`, run by `just check`,
 fails when a builder module other than the named adapters and audits, or
 core's `identity/*.py`, compares a field named source, plugin or provider with
-a literal. Core's plugin trust follows a digest of the plugin's files, never
-its name (`identity/trust.py`). The rules are versioned (below).
+a literal. Core's plugins are all equal: nothing in core ranks one by its name
+(ADR 0044, amendment of 2026-09-30). The rules are versioned (below).
 
 - **Activity.** FIRDS rarely sets termination dates. A line is `inactive` when
   it is terminated, is a corporate-action line without an OpenFIGI line, or its
