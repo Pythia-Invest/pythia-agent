@@ -25,13 +25,16 @@ const IDENTIFIERS = [
   ["caip19", "CAIP-19"],
 ] as const;
 const CRYPTO_KINDS = new Set(["coin", "token"]);
-/** Facts besides identifiers that an open question can hold back, as the
- * header names them. The issuer has its own line. */
-const WITHHELD_LABELS = {
+/** The facts the header itself places: the issuer's line and each identifier's
+ * row. Any other fact an open question holds back gets a line of its own. */
+const PLACED = new Set(["issuer", ...IDENTIFIERS.map(([key]) => key)]);
+const FACT_LABELS: Record<string, string> = {
   security: "Security",
   underlying: "Underlying share",
   kind: "Share or receipt",
-} as const;
+  composite_figi: "Composite FIGI",
+  share_class_figi: "Share class FIGI",
+};
 
 /** The listing whose price the composition shows: its own subject when it
  * is a listing, else the one core priced it through. */
@@ -132,15 +135,15 @@ export function InstrumentHeader({
           this
         </p>
       ) : null}
-      {page.withheld.map((held) =>
-        held.fact in WITHHELD_LABELS ? (
+      {page.withheld
+        .filter((held) => !PLACED.has(held.fact))
+        .map((held) => (
           <OpenConflict
             key={held.fact}
-            label={WITHHELD_LABELS[held.fact as keyof typeof WITHHELD_LABELS]}
+            label={FACT_LABELS[held.fact] ?? held.fact.replaceAll("_", " ")}
             held={held}
           />
-        ) : null,
-      )}
+        ))}
       <RelatedLinks related={page.related} />
       {identifiers.length ? (
         <dl

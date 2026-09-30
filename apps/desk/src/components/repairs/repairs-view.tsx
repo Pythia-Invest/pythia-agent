@@ -43,7 +43,8 @@ export function RepairsView({ question }: { question?: string | undefined }) {
     correction: useCorrectionKind() as RepairKind,
   };
   const [query, setQuery] = useState("");
-  const [statuses, setStatuses] = useState<string[]>(["open"]);
+  // A link to one question shows it whatever its state.
+  const [statuses, setStatuses] = useState<string[]>(question ? [] : ["open"]);
   const [types, setTypes] = useState<string[]>([]);
   const [pending, setPending] = useState<{
     action: RepairAction;
@@ -58,6 +59,17 @@ export function RepairsView({ question }: { question?: string | undefined }) {
       (!types.length || types.includes(repair.kind)) &&
       (!needle || repair.search.includes(needle)),
   );
+  // A link can outlive its question: answered, superseded by a new release, or
+  // past the queue read's cap.
+  const linked = repairs.all.find(
+    (repair) => question && repair.id === identityRepairId(question),
+  );
+  const gone =
+    !question || repairs.isPending || repairs.error || linked?.status === "open"
+      ? null
+      : linked
+        ? `This question is no longer open (answered on ${time(linked.resolved ?? linked.created, "compact")}).`
+        : "This question is not in the list: it may be answered or replaced.";
   const confirm = async (note: string) => {
     if (!pending) return;
     setPending({ ...pending, busy: true, error: null });
@@ -93,6 +105,14 @@ export function RepairsView({ question }: { question?: string | undefined }) {
             may suggest an answer, which counts once you confirm it.
           </p>
         </div>
+        {gone ? (
+          <p
+            role="status"
+            className="m-0 rounded-control border border-border px-3 py-2 text-body text-foreground"
+          >
+            {gone}
+          </p>
+        ) : null}
         {repairs.notice || message ? (
           <p
             role="status"

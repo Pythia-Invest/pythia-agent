@@ -65,6 +65,14 @@ describe("a fact an open question holds back", () => {
     expect(markup).toContain(review("q-lei"));
   });
 
+  it("names a contested identifier the header has no row for, never a blank", () => {
+    const markup = header({
+      withheld: [{ fact: "composite_figi", question: "q-figi", options: 2 }],
+    });
+    expect(markup).toContain("Composite FIGI: open data conflict (2 options)");
+    expect(markup).toContain(review("q-figi"));
+  });
+
   it("links a section it holds back to its repair", () => {
     const markup = renderToStaticMarkup(
       <SectionPlaceholder

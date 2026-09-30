@@ -453,3 +453,34 @@ test("repairs list the agent's correction proposals to confirm or decline, and t
       { action: "undo", id: "c-pin" },
     ]);
 });
+
+test("a link to a question that is no longer open still shows it, and says so", async ({
+  page,
+}) => {
+  await serveQueue(page, {
+    outcome: "ok",
+    data: {
+      items: [question("q-open")],
+      total: 1,
+      settled: [
+        question("q-done", {
+          state: "resolved",
+          settled_by: "user",
+          updated_at: "2026-09-26T11:00:00Z",
+        }),
+      ],
+    },
+  });
+  await page.goto("/settings/repairs?question=q-done");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("This question is no longer open (answered on");
+  const done = page.locator('[data-slot="data-table-row"][data-expanded]');
+  await expect(done).toHaveCount(1);
+  await expect(done).toContainText("Resolved");
+
+  await page.goto("/settings/repairs?question=q-gone");
+  await expect(
+    page.locator('[data-slot="repairs"]').getByRole("status"),
+  ).toContainText("This question is not in the list");
+});

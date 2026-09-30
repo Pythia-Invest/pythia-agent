@@ -108,12 +108,13 @@ export function DataTable<Row>({
   );
   const root = useRef<HTMLDivElement>(null);
   const revealed = useRef(false);
-  // The revealed row may be listed after the first render (its data loads).
+  // The revealed row may be listed after the first render (its data loads), so
+  // this looks again after each render until it has found it.
   useEffect(() => {
     if (!reveal || revealed.current) return;
-    const row = root.current?.querySelector(
-      `[data-row-key="${CSS.escape(reveal)}"]`,
-    );
+    const row = [
+      ...(root.current?.querySelectorAll("[data-row-key]") ?? []),
+    ].find((element) => element.getAttribute("data-row-key") === reveal);
     if (!row) return;
     revealed.current = true;
     row.scrollIntoView?.({ block: "center" });

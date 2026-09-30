@@ -307,7 +307,7 @@ def filings_request(subject: dict, use: str | None = None) -> dict:
 def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[dict]:
     """One section per concept a plugin can serve for the subject: the chosen source, the other eligible sources
     as alternatives and every other declaring source as skipped with its reason. Filings combine one source per
-    authority into one core read. Pure: the lookups are in-memory, so composition does no I/O."""
+    authority into one core read. No I/O; it also puts `withheld` on the subject's view."""
     sections = []
     for section in SECTIONS:
         order = pin_first(section, tuple(lookups.get("order", ())), lookups.get("pinned"))
@@ -345,6 +345,8 @@ def compose(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> list[di
                        and (answer["status"] in NOTICE or answer["plugin"] in order or answer["provider"] in order)), None)
         lead["notice"] = {**source(notice), "code": notice["status"], "reason": notice["reason"]} if notice else None
         sections.append(lead)
+    from .withheld import show  # imported when used: it reads the build's questions, which read subjects
+    show(subject, lookups["queue"], sections)  # the facts an open question holds back: on the view and sections
     return sections
 
 

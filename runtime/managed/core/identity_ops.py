@@ -19,13 +19,14 @@ from pathlib import Path
 from typing import Any
 
 from .identity import (
-    INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, RelationType, check_batch, subject_kind, validate_manifest,
+    INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch,
+    RelationType, subject_kind, validate_manifest,
 )
 from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import corrections, declared, device, flags, search_device, stub, withheld
+from .identity import corrections, declared, device, flags, search_device, stub
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -236,7 +237,6 @@ class Identity:
             others = {item["id"] for item in view["other_securities"]}
             view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
         sections = page.compose(subject, plugins, **lookups)
-        withheld.show(subject, lookups["queue"], sections)  # what open questions hold back: on the view and its sections
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
     def _load(self, subject_id: str, plugins: list | None = None) -> tuple[Path | None, dict | None, dict, str | None]:
