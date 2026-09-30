@@ -1,11 +1,11 @@
 {
   "contract_version": 2,
-  "plugin": "pythia-navi",
-  "provider": "navi",
+  "plugin": "pythia-cetus",
+  "provider": "cetus",
   "addressing": {
     "native": [
       {
-        "native_scope": "reserve",
+        "native_scope": "pool",
         "level": "market",
         "asset_classes": [
           "crypto"
@@ -40,7 +40,7 @@
     "operation": "catalogue",
     "scopes": [
       "protocols",
-      "reserves"
+      "pools"
     ]
   },
   "rights": {
@@ -48,12 +48,12 @@
     "cache": "unlimited",
     "hostable": false,
     "attribution": {
-      "text": "Data from NAVI Protocol",
-      "url": "https://naviprotocol.io"
+      "text": "Data from Cetus",
+      "url": "https://www.cetus.zone"
     }
   },
   "signoff": {
     "status": "unsigned",
-    "record": "docs/sources/navi.md"
+    "record": "docs/sources/cetus.md"
   }
 }

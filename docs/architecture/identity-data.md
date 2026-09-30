@@ -78,6 +78,12 @@ on `relations`; one asset under two roles is two rows. A plugin may declare
 `fundamentals.metrics` for the `protocol` and `market` kinds, with basis `on_chain`
 as well as `as_reported` and `standardized`; core does not yet define the metric
 rows, so each source states its own definition, source and as-of beside a figure.
+Four protocol-API plugins use them: `pythia-navi` (reserves by `sui_object`, the protocol by `sui_package`),
+`pythia-cetus` (pools over US$1,000 of liquidity, base and quote roles),
+`pythia-deepbook` (order books, base and quote roles) and `pythia-suilend` (a
+market is the subject, since the API names no reserve object; its coins carry
+the role `supply`). Each ships off and states keys only for what its API names;
+see their [source records](../sources/cetus.md).
 
 ### The reference file
 

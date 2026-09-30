@@ -1,11 +1,11 @@
 {
   "contract_version": 2,
-  "plugin": "pythia-navi",
-  "provider": "navi",
+  "plugin": "pythia-suilend",
+  "provider": "suilend",
   "addressing": {
     "native": [
       {
-        "native_scope": "reserve",
+        "native_scope": "market",
         "level": "market",
         "asset_classes": [
           "crypto"
@@ -30,9 +30,6 @@
     "protocol": [
       "native",
       "sui_package"
-    ],
-    "listing": [
-      "caip19"
     ]
   },
   "catalogue": {
@@ -40,7 +37,7 @@
     "operation": "catalogue",
     "scopes": [
       "protocols",
-      "reserves"
+      "markets"
     ]
   },
   "rights": {
@@ -48,12 +45,12 @@
     "cache": "unlimited",
     "hostable": false,
     "attribution": {
-      "text": "Data from NAVI Protocol",
-      "url": "https://naviprotocol.io"
+      "text": "Data from Suilend",
+      "url": "https://suilend.fi"
     }
   },
   "signoff": {
     "status": "unsigned",
-    "record": "docs/sources/navi.md"
+    "record": "docs/sources/suilend.md"
   }
 }
