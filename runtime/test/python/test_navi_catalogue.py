@@ -19,8 +19,8 @@ from market_data_fixture import connector, wire
 from test_identity_contracts import PROVENANCE, load_reference
 from test_identity_ingest import IngestTest
 import test_identity_search_device as search_tests
-from test_plugin_contracts import PLUGINS, checked_batch, identity
-from pythia_identity_fixture import ingest, page, store  # noqa: E402
+from test_plugin_contracts import PLUGINS, checked_batch, identity, manifest
+from pythia_identity_fixture import device, ingest, page, store  # noqa: E402
 from pythia_core_queue_fixture import ingest_ops, queue_ops  # noqa: E402
 
 ROOT = PLUGINS / 'navi'
@@ -40,6 +40,7 @@ WBTC_LAYERZERO = '0x0041f9f9344cac094454cd574e333c4fdb132d7bcc9379bcd4aab485b2a6
 GENERIC_LP = '0x' + 'cd' * 32 + f'::pool::LP<{SUI_COIN}, {NATIVE_USDC}>'
 POOL_USDC = '0xa3582097b4c57630046c0c49a88bfc6b202a3ec0a9db5597c31765f7563755a8'  # main-10
 ALL_MARKETS = ','.join(catalogue.MARKETS)
+NAVI_PROTOCOL = f'protocol:sui_package:{catalogue.PACKAGE}'
 
 
 def reserve(unique_id):
@@ -123,11 +124,19 @@ class Catalogue(unittest.TestCase):
                          ('protocol', 'protocol', 'navi-lending', 'NAVI Lending', 'active'))
         self.assertEqual(claims('reserves'), found)  # stable across runs
 
+    def test_a_reserve_states_its_pool_object_and_the_protocol_its_package(self):
+        for claim in records(claims('reserves')):
+            if claim.level == 'market':
+                self.assertEqual([(item.scheme, item.value) for item in claim.identifiers],
+                                 [('sui_object', claim.native_ref.native_id)])
+        protocol, = records(claims('protocols'))
+        self.assertEqual([(item.scheme, item.value) for item in protocol.identifiers], [('sui_package', catalogue.PACKAGE)])
+
     def test_names_are_as_navi_shows_them(self):
         found = claims('reserves')
         names = named(found, 'market')
         self.assertEqual(names[POOL_USDC], 'NAVI Lending USDC (Main Market)')
-        self.assertEqual(names[reserve('ember-0')['contract']['pool']], 'NAVI Lending USDC (eACRED / USDC Market)')
+        self.assertEqual(names[reserve('ember-0')['contract']['pool']], 'NAVI Lending USDC (eACRED/USDC Market)')
         self.assertEqual(names[reserve('main-19')['contract']['pool']], 'NAVI Lending suiUSDT (Sui Bridge, Main Market)')
         tokens = named(found, 'listing')
         self.assertEqual(tokens['sui:mainnet/slip44:784'], 'SUI')
@@ -383,8 +392,8 @@ class Joins(IngestTest):
         for key in ('defillama', 'navi'):
             self.sync(world, key)
         pool = f'market:provisional:defillama:pool:{self.llama.uuid(2)}'
-        reserve_id = f'market:provisional:navi:reserve:{reserve("main-19")["contract"]["pool"]}'
-        protocols = ('protocol:provisional:defillama:protocol:3323', 'protocol:provisional:navi:protocol:navi-lending')
+        reserve_id = f'market:sui_object:{reserve("main-19")["contract"]["pool"]}'
+        protocols = ('protocol:provisional:defillama:protocol:3323', NAVI_PROTOCOL)
         for subject in (pool, reserve_id, *protocols):
             row = world.identity.select('SELECT introduced_by FROM subjects WHERE id = ?', (subject,))
             self.assertEqual(len(row), 1, subject)
@@ -396,6 +405,28 @@ class Joins(IngestTest):
                          {('market_asset', pool), ('market_asset', reserve_id)})  # adjacent on the token
         self.assertEqual({item for item in related(pool) if item[0] == 'part_of'}, {('part_of', protocols[0])})
         self.assertEqual({item for item in related(reserve_id) if item[0] == 'part_of'}, {('part_of', protocols[1])})
+
+
+class KeyUpgrade(IngestTest):
+    """A reserve NAVI introduced before it stated its Pool object id moves up to the open key once it does."""
+
+    def test_subjects_introduced_under_the_native_reference_move_up_to_the_open_keys(self):
+        info = page.PluginInfo(key='pythia-navi', manifest=manifest('navi'))
+        self.world.plugins = [info]
+        read, _transport = reader()
+        batches = {scope: read.invoke('catalogue', {'scope': scope})['data']['claims'] for scope in ('protocols', 'reserves')}
+        bare = lambda body: [{**claim, 'identifiers': []} if claim.get('level') in ('market', 'protocol') else claim
+                             for claim in body]
+        for scope in batches:  # the sync as it ran before the keys were stated
+            self.world.ingest(info, *bare(batches[scope]), scope=scope, complete=True)
+        old = f'market:provisional:navi:reserve:{POOL_USDC}'
+        self.assertEqual(self.placed(info, POOL_USDC), (old, 'introduced'))
+        for scope in batches:
+            self.world.ingest(info, *batches[scope], scope=scope, complete=True)
+        self.assertEqual(self.placed(info, POOL_USDC), (f'market:sui_object:{POOL_USDC}', 'introduced'))
+        self.assertEqual(self.placed(info, 'navi-lending'), (NAVI_PROTOCOL, 'introduced'))
+        self.assertEqual(device.current_id(self.world.ref, self.world.identity, old), f'market:sui_object:{POOL_USDC}')
+        self.assertNoQuestions()
 
 
 class Search(search_tests.DeviceSearch):
@@ -412,7 +443,7 @@ class Search(search_tests.DeviceSearch):
             ingest_ops.keep(self.ops, self.infos[key], batch)
 
     def reserve_group(self, unique_id):
-        return f'market:provisional:navi:reserve:{reserve(unique_id)["contract"]["pool"]}'
+        return f'market:sui_object:{reserve(unique_id)["contract"]["pool"]}'
 
     def test_the_main_market_reserve_leads_a_search_for_navi_usdc(self):
         groups = self.search('navi usdc')['data']['groups']
@@ -430,8 +461,8 @@ class Search(search_tests.DeviceSearch):
         bridged = set(found('sui bridge'))
         self.assertLessEqual({token(SUI_BRIDGE_USDT), self.reserve_group('main-19'), self.reserve_group('main-21')}, bridged)
         self.assertNotIn(self.reserve_group('main-32'), bridged)  # LayerZero
-        self.assertIn('protocol:provisional:navi:protocol:navi-lending', found('navi'))
-        self.assertIn('protocol:provisional:navi:protocol:navi-lending', found('navi protocol'))
+        self.assertIn(NAVI_PROTOCOL, found('navi'))
+        self.assertIn(NAVI_PROTOCOL, found('navi protocol'))
 
     def test_a_deprecated_reserve_stays_findable_after_the_live_one_and_its_page_still_opens(self):
         found = lambda query, **arguments: [group['id'] for group in self.search(query, **arguments)['data']['groups']]

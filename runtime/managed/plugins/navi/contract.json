@@ -24,10 +24,12 @@
   },
   "introduces": {
     "market": [
-      "native"
+      "native",
+      "sui_object"
     ],
     "protocol": [
-      "native"
+      "native",
+      "sui_package"
     ],
     "listing": [
       "caip19"
