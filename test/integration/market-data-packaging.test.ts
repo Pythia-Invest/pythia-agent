@@ -32,7 +32,9 @@ const runnerOutput = mkdtempSync(join(tmpdir(), "pythia-runner-dist-"));
 // preparation. Never rely on committed bundles or a previous contributor build,
 // and build into the suite's own directories rather than the checkout.
 const built = mkdtempSync(join(tmpdir(), "pythia-widget-build-"));
-const builtOutputs = new Set(MANAGED_WIDGET_BUILDS.map(({ output }) => output));
+const builtOutputs = new Set<string>(
+  MANAGED_WIDGET_BUILDS.map(({ output }) => output),
+);
 beforeAll(async () => {
   execFileSync(process.execPath, [
     join(repository, "node_modules/typescript/bin/tsc"),

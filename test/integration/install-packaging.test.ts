@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { atomicWriteJson } from "../../scripts/install/files.mjs";
-import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
+import { resolveCheckoutInstallPaths } from "../support/install-paths.js";
 import { buildManagedSource } from "../../scripts/install/runtime.mjs";
 import {
   renderUnits,
@@ -37,7 +37,7 @@ afterEach(() => {
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "pythia-packaging-test-"));
   roots.push(root);
-  const paths = resolveInstallPaths({
+  const paths = resolveCheckoutInstallPaths({
     ...process.env,
     HOME: join(root, "home"),
     PYTHIA_CHECKOUT: repositoryRoot,

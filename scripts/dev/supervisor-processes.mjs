@@ -119,6 +119,17 @@ while time.monotonic() < deadline:
 raise SystemExit(75)
 `;
 
+/**
+ * @param {{
+ *   python: string,
+ *   host: string,
+ *   port: number,
+ *   timeoutMs: number,
+ *   quietMs: number,
+ *   intervalMs?: number,
+ *   signal?: AbortSignal,
+ * }} options
+ */
 export async function waitForNoReuseAddressPortRelease({
   python,
   host,

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { readJson, writeTransaction } from "../../scripts/install/files.mjs";
 import { applyUpdate, recoverUpdate } from "../../scripts/update/apply.mjs";
-import { commit, run, releaseFixture } from "../support/release-fixture";
+import { commit, run, releaseFixture } from "../support/release-fixture.js";
 describe("Update prerequisites and historical compatibility", () => {
   it("runs the real target hook from its limited snapshot with installed path identity", () => {
     const fixture = releaseFixture();

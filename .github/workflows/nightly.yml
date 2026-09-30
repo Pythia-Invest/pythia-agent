@@ -30,13 +30,33 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python: "true"
+      # The verified Hermes archive, kept between runs so qualification does
+      # not depend on an unauthenticated download (rate-limited on 2026-09-30).
+      - id: archive
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/qualification-archives
+          key: hermes-archive-${{ hashFiles('runtime/versions.json') }}
+      # The pinned URL is GitHub's API: authenticate so shared runner IPs
+      # are not rate-limited. The pinned sha256 is still verified.
+      - if: steps.archive.outputs.cache-hit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: just qualify-archive .local/qualification-archives
       - id: build
         run: pnpm run build
       - run: just qualify-tests
       # Runs even when a qualification test fails, so one red file cannot
       # hide the assembled run.
       - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          PYTHIA_QUALIFICATION_ARCHIVE_CACHE: ${{ github.workspace }}/.local/qualification-archives
         run: just qualify-assembled
+      - if: ${{ !cancelled() && steps.archive.outputs.cache-hit != 'true' && hashFiles('.local/qualification-archives/*') != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .local/qualification-archives
+          key: hermes-archive-${{ hashFiles('runtime/versions.json') }}
 
   audit:
     name: Full dependency audit

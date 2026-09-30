@@ -6,7 +6,10 @@ import {
 
 it("pins installed authentication and status to the root profile", () => {
   vi.stubEnv("PYTHIA_PYTHON_EXECUTABLE", "/fixture/python");
-  const run = vi.fn(() => ({ status: 0, stdout: "" }));
+  const run = vi.fn((_command: string, _args: string[], _options: object) => ({
+    status: 0,
+    stdout: "",
+  }));
   try {
     for (const status of [false, true]) {
       nativeAuth(

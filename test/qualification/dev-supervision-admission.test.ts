@@ -21,7 +21,7 @@ import {
   startFixture,
   temporaryRoot,
   waitUntil,
-} from "../support/dev-stack";
+} from "../support/dev-stack.js";
 
 async function runLifecycleCli(env: NodeJS.ProcessEnv, command: string) {
   const child = ownChild(

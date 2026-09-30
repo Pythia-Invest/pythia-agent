@@ -6,7 +6,7 @@ import {
   cleanupReleaseFixtures,
   repositoryRoot,
   temporaryQualificationRoot,
-} from "../support/release-snapshot";
+} from "../support/release-snapshot.js";
 
 afterEach(cleanupReleaseFixtures);
 
