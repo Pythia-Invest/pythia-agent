@@ -7,7 +7,7 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
   question; `joins`): a listing by ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment, and a
   line that states no currency, failing those, by its security's one line on its exchange (never where there are
   several, one with another FIGI or ticker, or several such lines in the answer: it stays `unmatched`); a security by ISIN, then share-class FIGI, then canonical CAIP-19; an issuer by
-  LEI, then CIK; a market or protocol by the plugin's own native reference. Never by issuer, ticker, symbol or name;
+  LEI, then CIK; a market or protocol by its open identifier (`sui_object`, `sui_package`), else the plugin's own native reference. Never by issuer, ticker, symbol or name;
   an `underlying` or `unqualified` value never joins.
 - **Conflicts.** A second subject found, or a single-valued value evidence about the subject or its parent states
   otherwise (or that names another subject), makes the claim a `conflict`: the record stays with the first subject,
@@ -37,6 +37,7 @@ from typing import Any, Iterable, Mapping
 
 from . import device, lifecycle, naming, pending, relations
 from .joins import Joins
+from .recordkeys import better as _better, claim_ref, ids as _ids, tag as _tag
 from .claims import BatchOrigin, ClaimBatch, IdentifierValue, RecordAttributes, RecordClaim, RelationClaim, batch_to_json, check_batch
 from .declared import NATIVE
 from .model import ProviderRef
@@ -49,8 +50,6 @@ from .vocabulary import IdentifierRole
 COUNTS = ("joined", "introduced", "conflicts", "unmatched", "rejected", "not_seen")
 PLACED = ("joined", "introduced", "conflict", "unmatched")  # the states a record keeps until it changes
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
-RANK = ("isin", "lei", "figi", "cik", "caip19", "cgs_isin", "pythia", "provisional")  # key schemes, best first
-RECORD = "#record"  # the scope of a record kept by digest: no contract can declare it (a native scope is a namespace)
 
 
 def ingest(store: IdentityStore, ref, info, batch: ClaimBatch, *, plugins: Iterable = (), now: str | None = None,
@@ -138,7 +137,7 @@ class _Ingest:
         """The record's state and subject, writing what it introduces and states; `kept`: it stays a conflict."""
         level, own = claim.level, self._own(claim)
         if level not in INSTRUMENT_KINDS:
-            return self._native(claim)
+            return self._native(claim, previous)
         found = self.joins.candidates(level, own, claim.attributes)
         prior = previous and device.current_id(self.ref, self.store, previous)
         prior = prior if prior and self.joins.held(prior) else None
@@ -219,19 +218,31 @@ class _Ingest:
         self._label(key, claim, grandparent, kind=up)
         return key, contested
 
-    def _native(self, claim: RecordClaim) -> tuple[str, str | None]:
-        """A market's or protocol's record: the subject the contract addresses by its reference, else the one its
-        reference keys, introduced where `native` is declared for the kind."""
+    def _native(self, claim: RecordClaim, previous: str | None) -> tuple[str, str | None]:
+        """A market's or protocol's record: the subject the contract addresses by its reference; else the one its open
+        identifier keys (`<kind>:<scheme>:<value>`, joined by every source stating it), introduced where `introduces`
+        declares the scheme; else the one its reference keys, introduced where `native` is declared. A subject keyed by
+        the reference moves up to the open key; one under an open key never moves (`previous`: where it was placed)."""
         declared = self.joins.declared(claim.native_ref, self.manifest)
         if declared:
             return "joined", declared
-        native = claim.native_ref
-        key = device.current_id(self.ref, self.store, provisional_id(claim.level, native.provider, native.native_scope,
-                                                                      native.native_id))
+        native, tags = claim.native_ref, self.manifest.introduces.get(claim.level, ())
+        key = device.current_id(self.ref, self.store, previous or provisional_id(
+            claim.level, native.provider, native.native_scope, native.native_id))
         row = device.subject_row(self.store, key)
-        if row is None and NATIVE not in self.manifest.introduces.get(claim.level, ()):
+        opened = next((f"{claim.level}:{scheme}:{value}" for scheme, value in self._own(claim).items()), None)
+        if opened is not None:
+            named = device.subject_row(self.store, opened)
+            if named is None and _tag(opened) not in tags:
+                return "unmatched", None
+            if key != opened and _tag(key) != "provisional":  # already keyed by another open key: never merged
+                return "conflict", key
+            if key != opened and row is not None and row["introduced_by"] == self.plugin:
+                self._alias(key, opened)  # keys move up
+            key, row = opened, named or row
+        elif row is None and NATIVE not in tags:
             return "unmatched", None
-        if row is not None and row["introduced_by"] != self.plugin:  # a clone of its provider introduced it
+        if row is not None and row["introduced_by"] != self.plugin:  # another plugin's, or a clone of its provider's
             return "joined", key
         self._label(key, claim, None)
         device.bind_introduced(self.store, self.plugin, native, key)
@@ -369,31 +380,8 @@ class _Ingest:
         self.changed = self.changed or bool(gone)
 
 
-def claim_ref(provider: str, claim: RecordClaim) -> ProviderRef:
-    """The key a record is kept under: its native reference, else a digest of its level and identifiers, so a renamed
-    record keeps its row and a record naming other identifiers is another."""
-    if claim.native_ref is not None:
-        return claim.native_ref
-    stated = json.dumps([str(claim.level), sorted((str(item.scheme), item.value, str(item.role))
-                                                  for item in claim.identifiers)])
-    return ProviderRef(provider, "sha256:" + hashlib.sha256(stated.encode()).hexdigest(), RECORD)
-
-
 def _order(pair: tuple[RecordClaim, dict]) -> tuple:
     """Records in an order their arrival never changes: by level from the issuer down, then by native reference."""
     claim, raw = pair
     native = (claim.native_ref.native_scope, claim.native_ref.native_id) if claim.native_ref else ("", "")
     return DEPTH.get(claim.level, len(DEPTH)), *native, json.dumps(raw, sort_keys=True)
-
-
-def _ids(record: dict) -> list[str]:
-    return sorted(json.dumps(item, sort_keys=True) for item in record.get("identifiers", []))
-
-
-def _tag(key: str) -> str:
-    return key.split(":", 2)[1]
-
-
-def _better(key: str, current: str) -> bool:
-    """Whether `key` ranks above the key scheme of `current` (subject_key@2's precedence)."""
-    return RANK.index(_tag(key)) < RANK.index(_tag(current)) if _tag(key) in RANK and _tag(current) in RANK else False

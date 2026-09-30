@@ -17,7 +17,6 @@ from bisect import bisect_right
 from collections import Counter
 from decimal import Decimal
 import re
-import string
 from urllib.parse import unquote
 
 PROVIDER, PLUGIN, ADAPTER_VERSION = 'defillama', 'pythia-defillama', '1'
@@ -29,9 +28,6 @@ PAGE_CLAIMS = 2000                   # well under core's 5,000 claims a batch
 MAX_ROWS = 100_000
 UUID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z')
 SUI = 'sui'                          # DefiLlama's chain name, casefolded
-_SUI_COIN = re.compile(r'^0x([0-9a-fA-F]{1,64})(::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*)\Z')
-_SUI_NATIVE = '0x' + '2'.rjust(64, '0') + '::sui::SUI'
-_REFERENCE = frozenset('-.' + string.ascii_letters + string.digits)
 # DefiLlama's project slug for Cetus's concentrated-liquidity pools. Measured 2026-09-30 against Cetus's own pool list
 # (top 500 by TVL): for each of the 75 of DefiLlama's 93 Cetus CLMM Sui pools that list holds, Cetus's pools on the same
 # two coins include one whose fee is `poolMeta` / 100, for every poolMeta DefiLlama states (25% is 0.25%, 1% is 0.01%,
@@ -65,17 +61,13 @@ def unknown_chains(protocols, pools, wanted):
 
 
 def sui_caip19(coin_type):
-    """A Sui coin type as CAIP-19 in the Pythia-local profile core applies (`schemes._sui`), or None when it has no
-    key: a long-form lowercase address, native SUI as `slip44:784`, and every character outside CAIP-19's reference
-    set percent-encoded."""
-    match = _SUI_COIN.match(coin_type) if isinstance(coin_type, str) else None
-    if match is None:
+    """A Sui coin type as CAIP-19 in the form core joins on (`pythia_platform.identifiers`, ADR 0037), or None when it
+    has no key: a generic type, or one past CAIP-19's 128 characters."""
+    from pythia_platform import identifiers  # published by core, which registers before this plugin
+    try:
+        return identifiers.normalize_identifier('caip19', f'sui:mainnet/coin:{coin_type}')
+    except identifiers.IdentifierError:
         return None
-    coin = f'0x{match[1].lower():0>64}{match[2]}'
-    if coin == _SUI_NATIVE:
-        return 'sui:mainnet/slip44:784'
-    encoded = ''.join(char if char in _REFERENCE else f'%{ord(char):02X}' for char in coin)
-    return f'sui:mainnet/coin:{encoded}' if len(encoded) <= 128 else None
 
 
 def _text(value, maximum=512):

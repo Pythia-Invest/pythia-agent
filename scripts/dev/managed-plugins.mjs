@@ -264,6 +264,30 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    name: "pythia-sui",
+    install: true,
+    // Opt-in by product default (an experiment, unsigned): Sui's public
+    // GraphQL endpoint is a keyless, rate-limited service "not for
+    // production". Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/sui",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+      "chain.py",
+      "protocols.py",
+      "deepbook.py",
+      "alphalend.py",
+      "bucket.py",
+      "seed.py",
+    ]),
+  }),
+  Object.freeze({
     name: "pythia-eodhd",
     install: true,
     // Makes no provider request until its declared configuration

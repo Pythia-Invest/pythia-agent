@@ -20,7 +20,7 @@ PLUGINS = Path(__file__).resolve().parents[2] / 'managed/plugins'
 V1 = ['API_VERSION', 'require', 'access', 'admission', 'configuration', 'request_context', 'subscription',
       'declare_operation', 'register_read_command', 'register_agent_tool', 'register_widget_presentation',
       'price_sources', 'check_read', 'read_document', 'validate_live_market',
-      'connector', 'wire', 'process', 'FilingKind',
+      'connector', 'wire', 'process', 'identifiers', 'FilingKind',
       'dispatch', 'tool_schemas', 'interrupted', 'session', 'session_platform']
 # Frozen with them: the members each exported module offers. A plugin may use these and nothing else in the module.
 MEMBERS = {
@@ -36,6 +36,7 @@ MEMBERS = {
     'wire': ['CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
              'validate_read_result'],
     'process': ['WorkerError', 'run_worker'],
+    'identifiers': ['IdentifierError', 'normalize_identifier'],
 }
 
 
@@ -156,7 +157,7 @@ class PluginsRegisterThroughTheInterface(unittest.TestCase):
 
     def test_connectors(self):
         for directory in ('sec', 'gleif', 'openfigi', 'xbrl-filings', 'nsm',
-                          'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap', 'defillama', 'navi'):
+                          'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap', 'defillama', 'navi', 'sui'):
             with self.subTest(plugin=directory):
                 # Hermes orders loading by `requires_plugins` but never enforces it: the manifest names core alone.
                 self.assertEqual(requires(directory), ['pythia'])

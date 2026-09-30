@@ -56,7 +56,8 @@ def schema_sql(store: Store | str) -> str:
 # Columns added to a table within a schema version: nullable, so a database made before one still reads. The DDL declares
 # them too; SQLite has no `ADD COLUMN IF NOT EXISTS`, so each open adds what an older database lacks (`add_columns`).
 ADDED_COLUMNS = {Store.IDENTITY: (("relations", "source_record TEXT"), ("relations", "source_version TEXT"),
-                                  ("relations", "adapter_version TEXT"), ("bindings", "decided_at TEXT"))}
+                                  ("relations", "adapter_version TEXT"), ("relations", "role TEXT"),
+                                  ("bindings", "decided_at TEXT"))}
 
 
 def add_columns(db, store: Store | str) -> None:

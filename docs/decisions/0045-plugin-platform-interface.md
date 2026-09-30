@@ -44,6 +44,7 @@ reach core.
   - the modules `access`, `admission`, `configuration`, `request_context` and
     `subscription`;
   - the connector toolkit: the modules `connector`, `wire` and `process`;
+  - `identifiers`, core's identifier forms (added for the Sui experiment, [ADR 0048](0048-sui-defi-experiment.md));
   - for a plugin that coordinates other plugins' reads (market-data), five
     wrappers of Hermes's public API: `tool_schemas`, `dispatch`, `interrupted`,
     `session` and `session_platform`.
@@ -64,7 +65,12 @@ reach core.
     `ReadCancelled`, `parallel`, `StreamingWorker`, `retry_after`;
   - `wire`: `WireError`, `require`, `validate`, `validate_parameters`,
     `validate_read_result`, `parameter_schema`, `CRITERIA`;
-  - `process`: `run_worker`, `WorkerError`.
+  - `process`: `run_worker`, `WorkerError`;
+  - `identifiers`: `normalize_identifier`, `IdentifierError`. A plugin states an
+    identifier in the form core joins on (a Sui coin type as CAIP-19, a Sui
+    package or object ID in 64-digit lowercase form) for the forms core
+    joins on, rather than copying core's profile; no Sui-specific helper is exported (the profile is core's,
+    ADR 0037).
 - **Versioning is one integer.** Names and members are only added within a
   version. Removing either or changing its meaning makes version 2. A plugin
   that needs a later addition checks for it with `hasattr`. `__all__` and the

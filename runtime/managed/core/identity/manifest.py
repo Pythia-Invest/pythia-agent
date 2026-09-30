@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
 from .declared import DeclaredRef, parse as declarations
-from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
+from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, OPEN_KIND, SCHEME_LEVEL, Kind, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -183,6 +183,14 @@ def _enum(kind: type[StrEnum], value: Any, path: str) -> Any:
         raise ManifestError(f"{path}: expected one of {', '.join(kind)}") from None
 
 
+def _instrument_schemes(value: Any, path: str) -> tuple[Scheme, ...]:
+    """Identifier schemes a resolve takes or echoes: an instrument's (the open schemes key markets and protocols)."""
+    items = _enums(Scheme, value, path)
+    if any(item not in SCHEME_LEVEL for item in items):
+        raise ManifestError(f"{path}: only an instrument's identifier schemes")
+    return items
+
+
 def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     if not isinstance(value, list):
         raise ManifestError(f"{path}: list required")
@@ -341,8 +349,8 @@ def validate_manifest(document: Any) -> Manifest:
     for key, listed in _object(addressing.get("schemes", {}), "addressing.schemes", set(), set(Level)).items():
         schemes[Level(key)] = _enums(Scheme, listed, f"addressing.schemes.{key}")
         for scheme in schemes[Level(key)]:
-            if SCHEME_LEVEL[scheme] is not Level(key):
-                raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL[scheme]}")
+            if SCHEME_LEVEL.get(scheme) is not Level(key):
+                raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL.get(scheme) or OPEN_KIND[scheme]}")
     table = addressing.get("mic_table", {})
     table = _object(table, "addressing.mic_table", set(), set(table) if isinstance(table, Mapping) else set())
     mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}
@@ -366,8 +374,8 @@ def validate_manifest(document: Any) -> Manifest:
     if "resolve" in body:
         entry = _object(body["resolve"], "resolve", {"operation", "input_schemes", "echoes"})
         resolve = Resolve(_match(OPERATION, entry["operation"], "resolve.operation"),
-                          _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
-                          _enums(Scheme, entry["echoes"], "resolve.echoes"))
+                          _instrument_schemes(entry["input_schemes"], "resolve.input_schemes"),
+                          _instrument_schemes(entry["echoes"], "resolve.echoes"))
     declared = declarations(version, body, addressing, native)
     for index, item in enumerate(native):
         # A kind outside the hierarchy (a market) takes its refs from `subjects`, or introduces them (version 2).

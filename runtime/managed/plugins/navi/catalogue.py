@@ -2,11 +2,13 @@
 
 The plugin describes NAVI's own records; core's ingest joins or introduces the subjects they name.
 
-- NAVI Lending is one `protocol` with the native id `navi-lending`.
-- A reserve (one coin in one market) is a `market` keyed by its `Pool<T>` object id, `part_of` the protocol and
-  `market_asset` of the coin it holds. The id is an on-chain object id that names the coin in its own type, so it
-  verifies without NAVI; `uniqueId` (`main-10`) and the coin type alone are not keys, since a coin has a reserve in
-  up to nine markets. A market is part of a reserve's name, not a subject: no relation joins a reserve to a market.
+- NAVI Lending is one `protocol` with the native id `navi-lending`, which also states the original package id of NAVI's
+  `lending_core` (`sui_package`), so every Sui source naming that package joins it.
+- A reserve (one coin in one market) is a `market` keyed by its `Pool<T>` object id (`sui_object`, also its native
+  reference), `part_of` the protocol and `market_asset` of the coin it holds. The id is an on-chain object id that names
+  the coin in its own type, so it verifies without NAVI and joins every source naming the same object; `uniqueId`
+  (`main-10`) and the coin type alone are not keys, since a coin has a reserve in up to nine markets. A market is part of
+  a reserve's name, not a subject: no relation joins a reserve to a market.
 - A Sui coin type is a token deployment, a `listing` keyed by CAIP-19 in Pythia's Sui profile (ADR 0037): two coin
   types are two subjects whatever their symbols. A generic type or one past CAIP-19's 128 characters has no key; it is
   left out, since core refuses a batch with a malformed identifier.
@@ -14,26 +16,24 @@ The plugin describes NAVI's own records; core's ingest joins or introduces the s
 from bisect import bisect_right
 from collections import Counter
 import re
-import string
 
 PROVIDER, PLUGIN, ADAPTER_VERSION = 'navi', 'pythia-navi', '1'
 PROTOCOL_ID, PROTOCOL_NAME = 'navi-lending', 'NAVI Lending'
+PACKAGE = '0xd899cf7d2b5db716bd2cf55599fb0d5ee38a3061e7b6bb6eebf73fa5bc4c81ca'  # original package of `lending_core`
 ORIGINS = ('https://open-api.naviprotocol.io',)
 URL = ORIGINS[0] + '/api/navi/pools?env=prod&market='  # the market keys follow, comma-separated, as the app sends them
-# NAVI publishes no list of markets, so the keys and display names are the ones in the SDK's `MARKETS` constant
-# (@naviprotocol/lending 2.0.12, `market.ts`). A market it launches later is invisible until its key is in the
-# `navi_markets` setting; a key the SDK does not name is displayed by the key itself.
-MARKETS = {'main': 'Main Market', 'ember': 'eACRED / USDC Market', 'rwa': 'Matrixdock Market',
-           'sui-eco': 'Sui Eco Market', 'sui-usdc': 'SUI / USDC Market', 'wbtc-usdc': 'WBTC / USDC Market',
-           'xbtc-usdc': 'xBTC / USDC Market', 'vsui-usdc': 'vSUI / USDC Market', 'vsui-sui': 'vSUI / SUI Market',
-           'hasui-sui': 'haSUI / SUI Market', 'high-usdc': 'HIGH / USDC Market'}
+# The keys are the ones in the SDK's `MARKETS` constant (@naviprotocol/lending 2.0.12, `market.ts`) and the display names
+# the ones `/api/navi/markets` answers with (2026-09-30), which differ from the SDK's ("lzWBTC/USDC Market", no spaces
+# around the slash). The plugin does not read that list: a market NAVI launches later is invisible until its key is in
+# the `navi_markets` setting, and a key not named here is displayed by the key itself.
+MARKETS = {'main': 'Main Market', 'ember': 'eACRED/USDC Market', 'rwa': 'Matrixdock Market',
+           'sui-eco': 'Sui Eco Market', 'sui-usdc': 'SUI/USDC Market', 'wbtc-usdc': 'lzWBTC/USDC Market',
+           'xbtc-usdc': 'xBTC/USDC Market', 'vsui-usdc': 'vSUI/USDC Market', 'vsui-sui': 'vSUI/SUI Market',
+           'hasui-sui': 'haSUI/SUI Market', 'high-usdc': 'HIGH/USDC Market'}
 PAGE_CLAIMS = 2000                   # well under core's 5,000 claims a batch
 MAX_ROWS = 10_000
 MARKET_KEY = re.compile(r'^[a-z0-9][a-z0-9-]{0,39}\Z')
 POOL_ID = re.compile(r'^0x[0-9a-f]{64}\Z')
-_SUI_COIN = re.compile(r'^0x([0-9a-fA-F]{1,64})(::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*)\Z')
-_SUI_NATIVE = '0x' + '2'.rjust(64, '0') + '::sui::SUI'
-_REFERENCE = frozenset('-.' + string.ascii_letters + string.digits)
 BRIDGES = (('isSuiBridge', 'Sui Bridge'), ('isWormhole', 'Wormhole'), ('isLayerZero', 'LayerZero'))
 
 
@@ -54,17 +54,13 @@ def url(wanted):
 
 
 def sui_caip19(coin_type):
-    """A Sui coin type as CAIP-19 in the Pythia-local profile core applies (`schemes._sui`), or None when it has no
-    key: a long-form lowercase address, native SUI as `slip44:784`, and every character outside CAIP-19's reference
-    set percent-encoded."""
-    match = _SUI_COIN.match(coin_type) if isinstance(coin_type, str) else None
-    if match is None:
+    """A Sui coin type as CAIP-19 in the form core joins on (`pythia_platform.identifiers`, ADR 0037), or None when it
+    has no key: a generic type, or one past CAIP-19's 128 characters."""
+    from pythia_platform import identifiers  # published by core, which registers before this plugin
+    try:
+        return identifiers.normalize_identifier('caip19', f'sui:mainnet/coin:{coin_type}')
+    except identifiers.IdentifierError:
         return None
-    coin = f'0x{match[1].lower():0>64}{match[2]}'
-    if coin == _SUI_NATIVE:
-        return 'sui:mainnet/slip44:784'
-    encoded = ''.join(char if char in _REFERENCE else f'%{ord(char):02X}' for char in coin)
-    return f'sui:mainnet/coin:{encoded}' if len(encoded) <= 128 else None
 
 
 def _text(value, maximum=120):
@@ -132,7 +128,8 @@ def page(scope, projection, cursor, observed_at, wanted):
                   'retrieved_at': observed_at, 'source_record': url(wanted)}
     claims, following = [], None
     if scope == 'protocols':
-        claims = [{'level': 'protocol', 'identifiers': [], 'native_ref': _ref('protocol', PROTOCOL_ID),
+        claims = [{'level': 'protocol', 'identifiers': [{'scheme': 'sui_package', 'value': PACKAGE}],
+                   'native_ref': _ref('protocol', PROTOCOL_ID),
                    'attributes': {'name': PROTOCOL_NAME, 'status': 'active', 'aliases': ['NAVI', 'NAVI Protocol']},
                    'provenance': provenance}]
     else:
@@ -173,8 +170,8 @@ def _reserve_claims(row, emitted, labels, provenance):
     attributes = {'name': f"{PROTOCOL_NAME} {row['symbol']} ({detail})"[:512], 'asset_class': 'crypto',
                   'status': 'inactive' if row['inactive'] else 'active',
                   **({'rank': {'tvl_usd': row['tvl']}} if row['tvl'] is not None else {})}
-    record = {'level': 'market', 'identifiers': [], 'native_ref': pool, 'attributes': attributes,
-              'provenance': provenance}
+    record = {'level': 'market', 'identifiers': [{'scheme': 'sui_object', 'value': row['pool']}], 'native_ref': pool,
+              'attributes': attributes, 'provenance': provenance}
     relations = [{'type': 'part_of', 'from_key': pool, 'to_key': _ref('protocol', PROTOCOL_ID),
                   'provenance': provenance}]
     key, tokens = row['key'], []

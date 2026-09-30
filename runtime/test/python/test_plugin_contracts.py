@@ -60,7 +60,7 @@ class ShippedContracts(unittest.TestCase):
     def test_every_contract_validates_and_its_operations_reach_the_tools_that_declare_them(self):
         shipped = sorted(path.parent.name for path in PLUGINS.glob('*/' + identity.MANIFEST_FILE))
         self.assertEqual(shipped, ['coingecko', 'coinmarketcap', 'defillama', 'eodhd', 'gleif', 'hyperliquid', 'navi',
-                                   'nsm', 'openfigi', 'sec', 'xbrl-filings', 'yahoo-discovery'])
+                                   'nsm', 'openfigi', 'sec', 'sui', 'xbrl-filings', 'yahoo-discovery'])
         _ops, mapped = adapter_view()
         for plugin in shipped:
             with self.subTest(plugin=plugin):
@@ -126,6 +126,7 @@ class ShippedContracts(unittest.TestCase):
         self.assertEqual(standing['pythia-nsm'], identity.SignOff.UNSIGNED)  # onboarding: docs/sources/nsm.md
         self.assertEqual(standing['pythia-defillama'], identity.SignOff.UNSIGNED)  # opt-in and display-only
         self.assertEqual(standing['pythia-navi'], identity.SignOff.UNSIGNED)  # opt-in: docs/sources/navi.md
+        self.assertEqual(standing['pythia-sui'], identity.SignOff.UNSIGNED)  # experiment: docs/sources/sui.md
 
     def test_the_filings_kinds_parameters_are_cores_filing_kinds(self):
         from market_data_fixture import wire

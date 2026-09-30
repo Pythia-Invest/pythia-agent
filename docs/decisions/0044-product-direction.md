@@ -475,8 +475,12 @@ central curator exists.
   protocol) each introduce their own pools or reserves and protocol, and both
   name the coin types they hold by CAIP-19, so a token both state is one
   subject. Their pools, reserves and protocols stay separate subjects, adjacent
-  on the token's page: no plugin states an identifier at that scope, and a
+  on the token's page: no plugin that ships on states an identifier at that scope (the experimental Sui keys below
+  do, for plugins that ship off), and a
   bridge between them is a founder decision ([ADR 0038](0038-plugin-addressing-contract.md)).
+- **Experimental (in development): Sui keys.** The open schemes `sui_package` (protocol)
+  and `sui_object` (market) let several Sui sources state one subject; the plugins
+  that use them (`pythia-sui`, NAVI) ship disabled ([ADR 0048](0048-sui-defi-experiment.md)).
 
 Still open:
 

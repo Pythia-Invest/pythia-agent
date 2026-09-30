@@ -64,6 +64,25 @@ Subject IDs are `<kind>:<key scheme>:<key>` (`listing:isin:<ISIN>:<MIC>:<currenc
 saved ID can be older than the data: `id_aliases` (reference) and
 `device_aliases` (identity) say what it is now.
 
+**Experimental, in development (Sui; not a decided design, [ADR 0048](../decisions/0048-sui-defi-experiment.md)).** Two open key schemes
+key subjects that are not instruments: `market:sui_object:<id>` (a pool, reserve,
+order book or vault) and `protocol:sui_package:<id>` (a protocol's original
+package), each `0x` and 64 lowercase hex digits (shorter or upper-case input is
+padded and lowered). A record of that kind may state its own one identifier next to
+its native reference, and every plugin that states the same value lands on the same
+subject; a plugin introduces one only if its contract lists the scheme under
+`introduces`, and a subject it introduced under its native reference moves up to the
+key once it states it (two open keys never merge). A `market_asset` relation may
+carry a `role` (`base`, `quote`, `collateral`, `debt`, `supply`, `borrow`), a column
+on `relations`; one asset under two roles is two rows. A plugin may declare
+`fundamentals.metrics` for the `protocol` and `market` kinds, with basis `on_chain`
+as well as `as_reported` and `standardized`; core does not yet define the metric
+rows, so each source states its own definition, source and as-of beside a figure.
+
+The `pythia-sui` plugin (slice E2) is the first source of these keys: it states ten protocols by
+original package, tokens by CAIP-19 with bridge provenance, and the DeepBook, AlphaLend and Bucket
+markets by object with their roles, read from Sui's GraphQL ([source record](../sources/sui.md)). `pythia-navi` states the same keys for its reserves and protocol, so the two sources join by key; DeFiLlama states neither and stays separate. Both ship disabled.
+
 ### The reference file
 
 | Table | Holds |

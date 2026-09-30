@@ -48,6 +48,7 @@ CREATE TABLE relations (  -- typed edges between two subjects that a plugin stat
   from_id TEXT NOT NULL,           -- the subject the edge starts at (a receipt, a pool)
   to_id TEXT NOT NULL,             -- the subject it points to (the share, the protocol)
   ratio TEXT,                      -- shares per receipt, as text; NULL for other types
+  role TEXT,                       -- market_asset only: what the asset is to the market (vocabulary.MarketAssetRole: base, quote, collateral, ...); NULL where none is stated
   valid_from TEXT,                 -- the dates (YYYY-MM-DD) the plugin says it holds; NULL is open-ended
   valid_to TEXT,                   -- the end of that window
   authority TEXT NOT NULL,         -- the kind of evidence: source_asserted, a plugin's own statement
