@@ -60,6 +60,26 @@ describe("source sign-off (ADR 0042)", () => {
   });
 });
 
+describe("a suspended section", () => {
+  it("says the binding is kept but not used, with core's reason", () => {
+    const placeholder = renderToStaticMarkup(
+      <SectionPlaceholder
+        section={section({
+          status: "suspended",
+          label: "Yahoo Finance",
+          reason:
+            "This line no longer trades; its ticker may now name another company",
+        })}
+        level="listing"
+      />,
+    );
+    expect(placeholder).toContain("Yahoo Finance is suspended for this line");
+    expect(placeholder).toContain(
+      "This line no longer trades; its ticker may now name another company.",
+    );
+  });
+});
+
 describe("an unresolved section", () => {
   it("says a match held for review awaits review, not that there is no match", () => {
     const held = section({

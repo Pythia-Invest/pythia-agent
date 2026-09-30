@@ -24,12 +24,12 @@ from enum import StrEnum
 from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
-from .concepts import NOTICE, REGISTRY, Combine, Concept, core_section, ranked, select
+from .concepts import NOTICE, REGISTRY, SUSPENDED, Combine, Concept, core_section, ranked, select
 from .declared import DECLARED_RULE
 from .manifest import ConceptEntry, Manifest
 from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide, quotes_underlying, resolve_evidence
-from .schemes import INSTRUMENT_KINDS, Kind, Level, provisional_id
+from .schemes import INSTRUMENT_KINDS, SINGLE_VALUED, Kind, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
@@ -192,7 +192,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
 
     A declaring plugin that cannot serve this subject answers with the reason as its status: `not_covering`
     (its coverage excludes the asset class or market), `not_addressable`, `disabled`, `needs_configuration`,
-    `conflict` or `unresolved`."""
+    `conflict`, `unresolved` or `suspended` (a confirmed binding kept, not used)."""
     served = served_by(info.manifest, section)
     if served is None:
         return None
@@ -241,6 +241,9 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         return {**answer, "status": "unresolved", "reason": reason, **({"queued": queued["reason"]} if queued else {})}
     if wants_resolve:
         return {**answer, "status": "resolving", "reason": f"Looking up in {info.label}"}
+    if row and via is Level.LISTING and listing and listing["status"] == "inactive" and row["native_scope"] not in SINGLE_VALUED:
+        # Kept (ADR 0037, rule 5), not used: the ticker may name another company now. An identifier's scope serves on.
+        return {**answer, "status": "suspended", "reason": SUSPENDED}
     if row:
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:

@@ -186,7 +186,7 @@ ELIGIBLE = frozenset({"ready", "resolving"})  # resolving: a lookup runs before 
 # {"outcome": "empty", "issues": [{"code": "not_covered", "severity": "warning", "message": ...}]}.
 NOT_COVERED = "not_covered"
 # Skips that signal something went wrong rather than the investor's own setup: they warrant a visible notice.
-NOTICE = frozenset({"conflict", "unresolved"})
+NOTICE = frozenset({"conflict", "unresolved", "suspended"})
 # Core's own quote section for a listing no price source covers: it says so, each source's reason listed as skipped.
 UNCOVERED = {"plugin": "pythia", "provider": "pythia", "label": "Pythia", "status": "not_covering",
              "reason": "No price source covers this listing", "unaudited": False}
@@ -196,6 +196,8 @@ NO_ISSUER = {**UNCOVERED, "status": "not_addressable", "via": "issuer",
              "reason": "Needs the issuer: the reference data doesn't settle which company issued this"}
 # A line the reference marks inactive: its ticker may name another company now, so no source is asked for its price.
 DELISTED = {**UNCOVERED, "reason": "This line no longer trades, so its ticker is not used for a price"}
+# The same line with a confirmed binding through a ticker or symbol: the binding is kept (ADR 0037, rule 5) and not used.
+SUSPENDED = "This line no longer trades; its ticker may now name another company"
 
 
 def core_section(subject: dict, quote: bool, found: list[dict]) -> dict | None:

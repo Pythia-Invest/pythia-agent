@@ -92,10 +92,11 @@ and chart: Yahoo, EODHD, CoinMarketCap, CoinGecko; profile: GLEIF; filings:
 filings.xbrl.org, SEC) that can address the subject at the content entry's
 `via` level, and lists the others as alternatives with their status
 (`disabled`, `needs_configuration`, ...). A plugin is addressed at once when
-core holds a confirmed binding or can derive the native reference from open
-identifiers: the MIC suffix table, a native scope named after a scheme the
-plugin accepts at that level (GLEIF by `lei`, SEC by `cik`), or core's curated
-canonical-asset table (rule `canonical_assets@1`, a confirmed binding). A derived
+core holds a confirmed binding (kept but not used once its line is delisted
+and its native scope is a ticker or symbol: ADR 0037, "Ticker reuse") or can
+derive the native reference from open identifiers: the MIC suffix table, a
+native scope named after a scheme the plugin accepts at that level (GLEIF by
+`lei`, SEC by `cik`), or core's curated canonical-asset table (rule `canonical_assets@1`, a confirmed binding). A derived
 reference is an address, never identifier evidence, and is recomputed rather
 than stored; only its read checks are stored (ADR 0037, "Read checks"). Otherwise the section is `resolving`, and the Desk asks
 `identity-resolve` for that one plugin after rendering: core runs its declared
