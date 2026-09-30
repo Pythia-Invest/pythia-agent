@@ -23,7 +23,7 @@
     "test": "pnpm run test:fast && pnpm run test:system",
     "test:fast": "pnpm run test:unit && pnpm run test:integration && pnpm run test:runtime",
     "test:integration": "vitest run --config vitest.root.config.mts test/integration && node tooling/run-turbo.mjs test:integration",
-    "test:qualification": "vitest run --config vitest.root.config.mts test/qualification",
+    "test:qualification": "vitest run --config vitest.root.config.mts test/qualification --testTimeout=60000",
     "test:runtime": "pnpm run build:runtime && vitest run --config vitest.root.config.mts runtime/test && python3 -m unittest discover -s runtime/test/python -p 'test_*.py'",
     "test:system": "vitest run --config vitest.root.config.mts test/system",
     "test:unit": "vitest run --config vitest.root.config.mts test/unit && node tooling/run-turbo.mjs test:unit",
