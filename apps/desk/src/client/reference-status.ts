@@ -42,6 +42,8 @@ export const referenceStatusSchema = z.object({
         .nullish(),
       /** An earlier copy of Pythia's store still beside the current one, until deleted by hand. */
       both_present: z.string().nullish(),
+      /** The package the investor removed from the device, until one installs. */
+      removed: z.object({ current: optionalText }).nullish(),
       /** The last package the installer refused; cleared once one installs. */
       refused: z
         .object({

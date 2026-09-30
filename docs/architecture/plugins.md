@@ -353,7 +353,13 @@ version 1):
   kind outside the hierarchy is keyed by its native reference alone, and a
   relation claim may name the plugin's own declared references
   ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
-  "contract version 2").
+  "contract version 2"). While the plugin is enabled, its subjects appear in
+  search with its label and rank like any other; a record's `rank` signals in
+  US dollars (keys ending `_usd`, such as `market_cap_usd` or `tvl_usd`) set
+  their notability. A line under a known security takes the security's kind.
+  A Desk search for an identifier that its `resolve` takes offers "Look up in"
+  the plugin ([ADR 0037](../decisions/0037-identity-backbone.md), amendment
+  "search over reference and device").
 - A bulk `catalogue` operation takes `{"scope", "cursor"}` and answers
   `{"data": <ClaimBatch>, "next_cursor"}`, the last page of a scope `complete`
   with no cursor. Core reads it through `identity-sync`, a Desk operation with

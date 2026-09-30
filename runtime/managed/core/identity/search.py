@@ -1,35 +1,34 @@
-"""Local search (ADR 0037): the directory derived from the reference file, and its search groups.
+"""Local search (ADR 0037): the directory of the reference file and the device's subjects, and its search groups.
 
 Search is one local read: no provider call, no identity write, no reconciliation.
-The directory is an in-memory FTS5 index built once per reference file and
-rebuilt when the file changes; `ranking` scores its lines. Each line knows its
-instrument (`inst`: a security with what `fold` relations fold into it, such as
-its depositary receipts) and its search group (`grp`: the company for its
-equity, the product itself for a fund, ETF or note, the asset for crypto).
-Results are search groups, each with its relevant listings first.
+The directory is an in-memory FTS5 index of the reference's lines, built once per
+reference file, with the device's part (`search_device`) laid over it in place
+whenever the device's state changes (`renew`); `ranking` scores every line alike,
+whatever its origin. Each line knows its instrument (`inst`: a security with what
+`fold` relations fold into it, such as its depositary receipts) and its search group
+(`grp`: the company for its equity, the product itself for a fund, ETF or note, the
+asset for crypto, a pool or protocol its own). Results are search groups, each with
+its relevant listings first.
 """
 from __future__ import annotations
 
-import logging
 import re
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-from . import ranking, relations
-from .model import fold_roots
-from .ranking import logrank, norm, tnorm
-from .vocabulary import ISSUER_INTERESTS
+from . import ranking
+from .ranking import norm, tnorm
+from .search_index import DOC_COLUMNS, Index
 
-logger = logging.getLogger(__name__)
 VENUE_WORDS = {"nasdaq": "XNAS", "nyse": "XNYS", "amsterdam": "XAMS", "xetra": "XETR", "paris": "XPAR",
                "frankfurt": "XFRA", "milan": "XMIL", "otc": "OTCM"}
-US_LISTED = ("XNAS", "XNYS", "XCBO")
 # Which listing represents an instrument, unless the query names one (settings.json `search_listing_preference`).
 PREFERENCES = ("primary", "EU", "US")
 # The search contract's kinds (packages/market-data/src/search.ts); the reference holds a subset.
-KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other")
+KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other",
+         "market", "protocol")
 SHOWN = 3  # relevant listing rows a search group carries
 GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
@@ -54,114 +53,8 @@ def classify(query: str) -> tuple[str, str]:
     return "text", query.strip()
 
 
-DOC = """CREATE TABLE doc (
-  id INTEGER PRIMARY KEY, listing TEXT, security TEXT, issuer TEXT, grp TEXT, kind TEXT, crypto INTEGER,
-  ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
-  venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
-  dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER)"""
-DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg liq").split()
-
-
-class Directory:
-    """The search directory of one reference file. A fold relation a confirm-level plugin contests (`contested`,
-    `relations`) folds nothing."""
-
-    def __init__(self, reference: sqlite3.Connection, contested: frozenset = frozenset()):
-        self.db = sqlite3.connect(":memory:", check_same_thread=False)
-        self.db.execute(DOC)
-        self._load(reference, contested)
-        self.db.execute("CREATE VIRTUAL TABLE fts USING fts5(ticker, names, content='doc', content_rowid='id',"
-                        " tokenize=\"unicode61 remove_diacritics 2\", prefix='2 3 4')")
-        self.db.execute("INSERT INTO fts(rowid, ticker, names) SELECT id, coalesce(ticker, ''), names FROM doc")
-        for column in ("tnorm", "isin", "lei", "cik", "grp", "security", "inst"):
-            self.db.execute(f"CREATE INDEX doc_{column} ON doc ({column})")
-        self.db.execute("CREATE TABLE gsize AS SELECT grp, max(size) g FROM doc GROUP BY grp")
-        self.db.execute("CREATE INDEX gsize_grp ON gsize (grp)")
-        self.vocab: dict[str, float] = {}
-        for names, ticker, size in self.db.execute("SELECT d.names, d.ticker, s.g FROM doc d JOIN gsize s USING (grp)"):
-            for token in set(norm(names).split()) | ({ticker.lower()} if ticker else set()):
-                if len(token) >= 3:
-                    self.vocab[token] = max(self.vocab.get(token, 0), size or 0)
-        self.db.commit()
-        self.lock = threading.Lock()
-
-    def _load(self, ref: sqlite3.Connection, contested: frozenset) -> None:
-        def many(sql: str) -> dict[str, list[str]]:
-            out: dict[str, list[str]] = {}
-            for key, value in ref.execute(sql):
-                out.setdefault(key, []).append(value)
-            return out
-
-        # Listings, not open-market trading: an ISO 10383 RMKT segment, a US exchange, or an exchange outside the
-        # EEA whose ISO record leaves the category unspecified (NSPD: Toronto, the ASX, Hong Kong, Tel Aviv). In the
-        # EEA, NSPD marks operator MICs (Frankfurt, Borsa Italiana, BME), never a listing. A build from before the
-        # category column ranks no line as regulated.
-        categorised = "category" in {row[1] for row in ref.execute("PRAGMA table_info(venues)")}
-        venues = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT mic, name, country FROM venues")}
-        regulated = ({mic for mic, category, country in ref.execute("SELECT mic, category, country FROM venues")
-                      if category == "RMKT" or (category == "NSPD" and country not in ranking.EEA)}
-                     | set(US_LISTED)) if categorised else set()
-        issuers = {row[0]: (row[1], row[2]) for row in ref.execute("SELECT id, name, country FROM issuers")}
-        ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
-                   " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
-        names = many("SELECT subject_id, name FROM names")
-        units, odd = fold_roots(edge for edge in ref.execute("SELECT type, from_id, to_id FROM relations")
-                                if not relations.contests(tuple(edge), contested))
-        if odd:  # the builder's report and the reference audit list them
-            logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
-        rows = ref.execute(
-            "SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
-            " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid FROM listings l"
-            " JOIN securities s ON s.id = l.security_id WHERE l.status <> 'inactive' AND s.status <> 'inactive'")
-        docs = []
-        for index, row in enumerate(rows, 1):
-            (listing, security, composite, mic, operating, ticker, currency, chain, primary, issuer, name, kind,
-             asset_class, rank, liquid) = row
-            if not ticker:
-                continue
-            values = {item.split(":", 1)[0]: item.split(":", 1)[1] for key in (listing, security, composite, issuer)
-                      for item in ids.get(key or "", [])}
-            figis = " ".join(item.split(":", 1)[1] for key in (listing, security, composite)
-                             for item in ids.get(key or "", []) if "figi:" in item)
-            issuer_name, issuer_country = issuers.get(issuer or "", (None, None))
-            crypto = asset_class == "crypto"
-            venue_name, venue_country = venues.get(mic or "", (None, None))
-            op = operating or mic
-            isin = values.get("isin")
-            primary_names = [name, issuer_name, *names.get(listing, [])]
-            aliases = [*names.get(issuer or "", []), *names.get(security, [])]
-            label = " | ".join(dict.fromkeys(filter(None, primary_names)))
-            label += " || " + " | ".join(dict.fromkeys(filter(None, aliases))) if aliases else ""
-            # A foreign company's receipt or OTC line ranks below its other lines; its own shares listed on a US
-            # exchange (Linde, Shopify) compete like any other listing.
-            foreign_us = (bool(issuer_country and issuer_country != "US" and op in (*US_LISTED, "OTCM"))
-                          and (kind == "depositary_receipt" or op == "OTCM"))
-            home = crypto or bool((isin and isin[:2] == venue_country) or (issuer_country and issuer_country == venue_country)
-                                  or (not issuer_country and op in US_LISTED and not isin))
-            docs.append(dict(zip(DOC_COLUMNS, (
-                index, security if crypto else listing, security, issuer, None, kind, int(crypto),
-                ticker, tnorm(ticker), (issuer_name if not crypto else None) or name, label, isin, values.get("lei"),
-                (values.get("cik") or "").lstrip("0") or None, figis, op if not crypto else None,
-                venue_name, venue_country if not crypto else None, currency, int(bool(primary)), int(home),
-                int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
-                int(foreign_us), logrank(rank),
-                security, kind, int(mic in regulated or op in regulated & set(US_LISTED)), int(bool(liquid))))))
-        # Relations with `fold` behaviour (vocabulary.RELATIONS) make one unit of the same economic thing: a receipt
-        # folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
-        # (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund,
-        # an ETF or a crypto asset is its own group.
-        kinds = {doc["security"]: doc["kind"] for doc in docs}
-        issuers_of = {doc["security"]: doc["issuer"] for doc in docs}
-        for doc in docs:
-            unit = units.get(doc["security"])
-            unit = unit if unit in kinds else doc["security"]  # a unit outside the directory folds nothing in
-            company = issuers_of[unit] if kinds[unit] in ISSUER_INTERESTS else None
-            doc.update(inst=unit, ikind=kinds[unit], grp=company or unit)
-        self.db.executemany(f"INSERT INTO doc VALUES ({','.join('?' * len(DOC_COLUMNS))})",
-                            [tuple(doc.values()) for doc in docs])
-
-    # ---- query side ------------------------------------------------------------------------------------------
+class Directory(Index):
+    """The search directory: the index (`search_index`) and its queries."""
 
     COLUMNS = (*DOC_COLUMNS, "g")
 
@@ -285,11 +178,11 @@ class Directory:
         for score, line, key in self.lines(query, prefer, suffixes, venues):
             if not _allowed(line, allowed):
                 continue
-            group = groups.setdefault(line["grp"], [score, {}])
-            group[0] = max(group[0], score)
+            group = groups.setdefault(line["grp"], [(score, line["trust"]), {}])  # trust breaks a tie, never origin
+            group[0] = max(group[0], (score, line["trust"]))
             group[1].setdefault(line["security"], []).append((score, key, line))
         out = []
-        for key, (_score, securities) in sorted(groups.items(), key=lambda item: -item[1][0])[:limit]:
+        for key, (_score, securities) in sorted(groups.items(), key=lambda item: item[1][0], reverse=True)[:limit]:
             # The lead is the best line of the best instrument (receipts folded in), then the main share's
             # primary listing (only a flagged one) and a line of each other matched security (receipts,
             # classes): one the query names, else that security's own primary listing.
@@ -345,7 +238,8 @@ def _group(key: str, lead: dict, lines: list[dict], listings: int) -> dict:
             "rows": [{"id": line["listing"], "instrument": line["inst"], "ticker": line["ticker"],
                       "name": line["name"] if line["inst"] == lead["inst"] and line["grp"] != line["inst"] else
                       _own(line["names"]) or line["name"], "kind": line["kind"], "mic": line["mic"],
-                      "venue": line["venue"], "country": line["country"], "currency": line["currency"]}
+                      "venue": line["venue"], "country": line["country"], "currency": line["currency"],
+                      **({"source": line["source"]} if line["source"] else {})}  # a plugin's subject names it
                      for line in lines]}
 
 
@@ -369,19 +263,27 @@ _cache: dict[str, tuple[tuple, Directory]] = {}
 _cache_lock = threading.Lock()
 
 
-def directory(path: Path, open_reference: Callable[[Path], sqlite3.Connection],
-              contested: frozenset = frozenset()) -> Directory:
-    """The directory for a reference file, rebuilt when the file or the plugin relations contesting its folds change."""
-    info = Path(path).stat()
-    stamp = (str(path), info.st_mtime_ns, info.st_size, contested)
+def directory(path: Path | None, open_reference: Callable[[Path | None], sqlite3.Connection],
+              contested: frozenset = frozenset(), device: Callable[[sqlite3.Connection], Any] | None = None,
+              key: tuple = ()) -> Directory:
+    """The directory for the installed reference file (None: none; `open_reference` then gives an empty one). Its
+    reference part is rebuilt only when the file or the plugin relations contesting its folds change; `device`, from
+    the device state `key` names (`search_device`), is laid over it in place whenever that state changes (`renew`)."""
+    info = Path(path).stat() if path else None
+    stamp = ((str(path), info.st_mtime_ns, info.st_size) if info else None, contested)
     with _cache_lock:
         cached = _cache.get("current")
-        if cached and cached[0] == stamp:
-            return cached[1]
-        reference = open_reference(path)
-        try:
-            built = Directory(reference, contested)
-        finally:
-            reference.close()
-        _cache["current"] = (stamp, built)
+        built = cached[1] if cached and cached[0] == stamp else None
+        if built is None or (device is not None and built.key != key):
+            reference = open_reference(path)
+            try:
+                built = built or Directory(reference, contested)
+                if device is not None:
+                    built.renew(reference, device(reference), key)
+            except BaseException:  # a renew that failed partway never serves its half-written index
+                _cache.pop("current", None)
+                raise
+            finally:
+                reference.close()
+            _cache["current"] = (stamp, built)
         return built

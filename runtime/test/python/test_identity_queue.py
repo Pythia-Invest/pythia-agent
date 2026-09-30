@@ -274,7 +274,7 @@ class SubjectOperationTest(QueueFixture):
         reference_package.install(make_package(Path(self.tmp.name) / "out", source=self.path), Path(self.tmp.name) / "core")
         ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(self.tmp.name) / "core")
         with unittest.mock.patch.object(identity_ops, "installed", lambda: [plugin("yahoo"), plugin("eodhd")]), \
-                unittest.mock.patch.object(identity_ops.Identity, "order", lambda _self: ("pythia-eodhd", "unknown")):
+                unittest.mock.patch.object(identity_ops.Identity, "order", lambda _self, _plugins=None: ("pythia-eodhd", "unknown")):
             routed = ops.price_sources(ASML)
         ops.store.db.close()
         del core

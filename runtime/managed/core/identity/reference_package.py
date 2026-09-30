@@ -6,7 +6,8 @@ builder) and consumption (core) meet only here: core reads the package installed
 `<store>/reference/`, never a builder's output folder. `<store>` is Pythia's store directory, `<data>/store`.
 
 Standard library only (its sibling `trust.py` is loaded from its file), so the lifecycle can run it with Hermes's
-Python: `python -P reference_package.py install <package> --data-dir <store> [--display]` (also `status`, `move`).
+Python: `python -P reference_package.py install <package> --data-dir <store> [--display]` (also `status`, `move` and
+`remove`).
 pythia-structure-ignore: one standalone script the lifecycle runs by path; a split would load more siblings by path.
 """
 from __future__ import annotations
@@ -36,6 +37,7 @@ FORMAT_VERSION = 6       # the one number core checks: package layout and the SQ
 PACKAGE_FILE = "package.json"
 INSTALLED_FILE = "installed.json"  # which package under packages/ is installed; packages/ is the installer's own
 REFUSED_FILE = "refused.json"      # the last package the installer refused, until one installs
+REMOVED_FILE = "removed.json"      # the install record `remove` set aside, until a package installs
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _DATABASE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.sqlite3")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -46,7 +48,8 @@ STATUS_SCHEMA = {  # core's read-only `reference-status` operation (identity_ops
     "name": "pythia_reference_status",
     "description": "Describe the reference data installed on this device: its build, as-of date, the sources the "
                    "build included, and each source file with its as-of date, licence and the notice to show when "
-                   "citing it; also the last package that was refused, and why. Local only.",
+                   "citing it; also the last package that was refused, and why, and one removed from the device "
+                   "(`removed`). Local only.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
@@ -90,8 +93,8 @@ def release_key(path: Path) -> str:
 
 
 def status(data_dir: Path) -> dict:
-    """For the Desk and the agent: the installed package (build, dates, sources and notices) or None, and the last
-    refused package or None."""
+    """For the Desk and the agent: the installed package (build, dates, sources and notices) or None, the last
+    refused package or None, and the package `remove` set aside (its name and when it was installed) or None."""
     root = reference_dir(data_dir)
     found, pointer = _installed(root), _pointer(root) or {}
     installed = {**_summary(found[1]), "installed_at": pointer.get("installed_at"), "trust": trust.package_level(found[1]),
@@ -100,7 +103,13 @@ def status(data_dir: Path) -> dict:
         refused = json.loads((root / REFUSED_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         refused = None
-    return {"installed": installed, "refused": refused if isinstance(refused, dict) else None}
+    return {"installed": installed, "refused": refused if isinstance(refused, dict) else None,
+            "removed": removed(data_dir)}
+
+
+def removed(data_dir: Path) -> dict | None:
+    """The install record `remove` set aside (the package's name and when it was installed), until a package installs."""
+    return _pointer(reference_dir(data_dir), REMOVED_FILE)
 
 
 def _summary(manifest: dict) -> dict:
@@ -123,9 +132,9 @@ def _installed(root: Path) -> tuple[Path, dict] | None:
     return _package(root, pointer.get("current")) if pointer else None
 
 
-def _pointer(root: Path) -> dict | None:
+def _pointer(root: Path, name: str = INSTALLED_FILE) -> dict | None:
     try:
-        value = json.loads((root / INSTALLED_FILE).read_text(encoding="utf-8"))
+        value = json.loads((root / name).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return value if isinstance(value, dict) else None
@@ -278,6 +287,7 @@ def install(package: Path, data_dir: Path, level: str | None = None) -> dict:
         _write(root / REFUSED_FILE, {"at": _now(), "package": str(package), "message": str(error)}, make=True)
         raise
     (root / REFUSED_FILE).unlink(missing_ok=True)
+    (root / REMOVED_FILE).unlink(missing_ok=True)
     if level:
         trust.grant_package(read_manifest(package), level, changed=result["changed"])
     return {**result, **status(data_dir)}
@@ -315,6 +325,20 @@ def _install(package: Path, root: Path, *, replace: bool = True) -> dict:
         _write(root / INSTALLED_FILE, {"current": name, "installed_at": _now()})  # the atomic switch
         _sweep(root, keep=name)
     return {"changed": True}
+
+
+def remove(data_dir: Path) -> dict:
+    """Set the installed package's install record aside (`removed.json`), in one atomic step, so no package is active:
+    search and pages then read the device's subjects alone, and a saved reference to a reference subject opens as a
+    labelled stub. The package's files stay until the next install replaces them, and nothing in identity.sqlite3
+    changes: installing the same package again brings no re-key (its release key is its name). Removing when none is
+    installed changes nothing."""
+    root = reference_dir(data_dir)
+    with _lock(root):
+        changed = _pointer(root) is not None
+        if changed:
+            (root / INSTALLED_FILE).replace(root / REMOVED_FILE)
+    return {"changed": changed, **status(data_dir)}
 
 
 def _whole(root: Path, name: str) -> bool:
@@ -401,14 +425,14 @@ def adopt(legacy: Path, data_dir: Path) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="reference_package", description="Install or inspect the reference package.")
-    parser.add_argument("command", choices=("install", "status", "move"))
+    parser.add_argument("command", choices=("install", "status", "move", "remove"))
     parser.add_argument("package", nargs="?", type=Path, help="install: the package directory or its package.json")
     parser.add_argument("--data-dir", type=Path, required=True, help="Pythia's store directory, <data>/store")
     parser.add_argument("--from", dest="legacy", type=Path, help="move: the directory an earlier Pythia used")
     parser.add_argument("--display", action="store_true", help="install: trust the package to display data, not confirm")
     args = parser.parse_args(argv)
-    if args.command == "status":
-        print(json.dumps(status(args.data_dir), indent=2))
+    if args.command in ("status", "remove"):
+        print(json.dumps((status if args.command == "status" else remove)(args.data_dir), indent=2))
         return 0
     if args.command == "move" and args.legacy is not None:
         print(json.dumps({"moved": adopt(args.legacy, args.data_dir)}))

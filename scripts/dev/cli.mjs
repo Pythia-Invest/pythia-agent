@@ -22,7 +22,7 @@ import {
 
 function usage() {
   console.error(
-    "Usage: node scripts/dev/cli.mjs <workspace-transition|init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths|reference-install|reference-status> [provider|package] [oauth|api-key]",
+    "Usage: node scripts/dev/cli.mjs <workspace-transition|init|init-recover|dev|refresh|restart-hermes|status|stop|reset|auth|auth-status|model|paths|reference-install|reference-status|reference-remove> [provider|package] [oauth|api-key]",
   );
 }
 
@@ -92,6 +92,7 @@ async function main() {
       break;
     case "reference-install":
     case "reference-status":
+    case "reference-remove":
       if (command === "reference-install" && !argument) {
         usage();
         process.exitCode = 2;

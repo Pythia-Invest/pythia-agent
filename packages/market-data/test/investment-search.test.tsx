@@ -180,6 +180,45 @@ describe("investment search", () => {
     );
   });
 
+  it("names the plugin behind a subject the reference lacks, such as a pool", async () => {
+    const { search, answer } = directory();
+    await act(async () => root.render(<Harness search={search} />));
+    await type("navi");
+    const pool: SearchRow = {
+      id: "market:provisional:defillama:pool:usdc-navi",
+      instrument: "market:provisional:defillama:pool:usdc-navi",
+      ticker: null,
+      name: "NAVI Lending USDC",
+      kind: "market",
+      mic: null,
+      venue: null,
+      country: null,
+      currency: null,
+      source: "DefiLlama",
+    };
+    await answer("navi", [
+      {
+        id: pool.id,
+        name: pool.name,
+        kind: "market",
+        listings: 1,
+        rows: [pool],
+      },
+    ]);
+    // No ticker: the row reads with the pool's name and the plugin's label.
+    await until(() => expect(rows()).toEqual(["NAVI Lending USDC"]));
+    const option = document.querySelector('[role="option"]');
+    expect(option?.getAttribute("aria-label")).toBe(
+      "NAVI Lending USDC, from DefiLlama, Market",
+    );
+    expect(
+      option?.querySelector('[data-slot="investment-search-source"]')
+        ?.textContent,
+    ).toBe("from DefiLlama");
+    await press("Enter");
+    expect(selected).toEqual([pool.id]);
+  });
+
   it("does not open a previous query's row while the typed one loads", async () => {
     const { search, answer } = directory();
     await act(async () => root.render(<Harness search={search} />));

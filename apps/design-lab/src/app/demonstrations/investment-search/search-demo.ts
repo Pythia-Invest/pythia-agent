@@ -60,7 +60,9 @@ export function demoGroupListings(id: string): SearchRow[] {
 /** 0 exact ticker or ISIN, 1 ticker prefix, 2 name word prefix, 3 name text. */
 function score({ name, rows }: Company, query: string) {
   const q = query.toLowerCase();
-  const tickers = rows.map((row) => row.ticker.toLowerCase());
+  const tickers = rows.flatMap((row) =>
+    row.ticker ? [row.ticker.toLowerCase()] : [],
+  );
   const isins = rows.flatMap((row) =>
     row.id.startsWith("listing:isin:")
       ? [row.id.split(":")[2]?.toLowerCase()]

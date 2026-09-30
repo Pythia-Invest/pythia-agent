@@ -353,13 +353,13 @@ A genuinely new kind is a rare addition to core. New subjects never are.
 Today:
 
 - any plugin can add subjects and evidence through core's ingest, joined by
-  identifier and introduced only under the key schemes its contract declares;
-  its catalogue is read, or one identifier looked up, through Desk operations
-  with no scheduler, whose Desk controls are still to come, and search does
-  not cover device subjects yet;
+  identifier and introduced only under the key schemes its contract declares,
+  and search finds them; its catalogue is read, or one identifier looked up,
+  through Desk operations with no scheduler, whose Desk controls are still to
+  come;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
-  the ones it includes, but a device cannot yet remove an installed package;
+  the ones it includes, and a device can remove its installed package;
 - only confirm-level plugins bind, onto reference or device subjects, and a
   display plugin binds only a subject it introduced;
 - the build's open questions are queued only when an instrument is opened,
