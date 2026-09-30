@@ -25,11 +25,12 @@ export type SearchBackend = (
   signal: AbortSignal,
 ) => Promise<SearchResponse>;
 
-/** Runs one explicit lookup in one plugin. */
+/** Runs one explicit lookup in one plugin: the groups it found, or with how
+ * many subjects it stored that no group for the query lists. */
 export type LookupRunner = (
   request: LookupRequest,
   signal: AbortSignal,
-) => Promise<SearchGroup[]>;
+) => Promise<SearchGroup[] | { groups: SearchGroup[]; placed: number }>;
 
 /** Directory groups for the typed query. The previous answer stays on screen
  * while the next one loads, and a reopened panel answers from the cache. */
@@ -130,8 +131,8 @@ const lookupSchema = z.object({
 
 /** The explicit lookup through core's `identity-lookup` (an invoke: it calls
  * one plugin's provider once and stores what it answers). The answer is the
- * directory's groups for the query that hold a subject it placed; "no match"
- * is an empty answer, and a failure is an error, never "no match". */
+ * directory's groups for the query that hold a subject it placed, else how
+ * many it placed; "no match" is an empty answer, and a failure is an error. */
 export function transportLookup(transport: PluginTransport): LookupRunner {
   const search = transportSearch(transport);
   return async ({ plugin, query }, signal) => {
@@ -150,9 +151,10 @@ export function transportLookup(transport: PluginTransport): LookupRunner {
     const placed = new Set(answer.data.subjects);
     if (!placed.size) return [];
     const { groups } = await search({ query, limit: SEARCH_LIMIT }, signal);
-    return groups.filter(
+    const found = groups.filter(
       (group) =>
         placed.has(group.id) || group.rows.some((row) => placed.has(row.id)),
     );
+    return found.length ? found : { groups: [], placed: placed.size };
   };
 }

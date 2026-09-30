@@ -165,12 +165,16 @@ export function InvestmentSearch({
     // the arrow keys reach the rows it returns.
     input.current?.focus();
     try {
-      const groups = await lookup(
+      const answer = await lookup(
         { plugin: offer.plugin, query: trimmed },
         controller.signal,
       );
       if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "done", groups });
+        setLookupState({
+          ...base,
+          status: "done",
+          ...(Array.isArray(answer) ? { groups: answer } : answer),
+        });
     } catch {
       if (!controller.signal.aborted)
         setLookupState({ ...base, status: "error", groups: [] });

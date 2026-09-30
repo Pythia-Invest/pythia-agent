@@ -21,10 +21,10 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
   plugin's own lone, non-provisional subject), or the subject a confirm-level plugin's own provisional one is (a
   canonical CAIP-19 for a provisional coin), writes a device alias and re-points the rows. Two open keys never merge.
 
-No queue row is written; a record left unmatched or conflicting is placed again once the release, the plugin's trust or
-its contract changed. A record is kept under its native reference, or one without (a token a DeFi source names only
-by CAIP-19) under a digest of its level and identifiers (`claim_ref`). An unchanged record writes nothing, and a
-`complete` scope's last page marks the records no page of it carried `not_seen`, keeping their subjects and bindings.
+No queue row is written. A record left unmatched or conflicting is placed again once the release, the plugin's trust or
+its contract changed; a conflict stays one until the identifiers it states change. A record is kept under its native
+reference, or one without (a DeFi token named only by CAIP-19) under a digest of its level and identifiers. An unchanged
+record writes nothing; a `complete` scope's last page marks what no page carried `not_seen`, keeping subjects and bindings.
 """
 from __future__ import annotations
 
@@ -114,7 +114,9 @@ class _Ingest:
         db.execute("SAVEPOINT record")
         try:
             self.store.put_claim(self.plugin, self.manifest.provider, raw, self.batch.scope, native.wire())
-            state, subject = self._place(claim, native, before["subject_id"] if before is not None else None)
+            kept = before is not None and before["state"] == "conflict" and not self.fresh and \
+                _ids(json.loads(before["claim"])) == _ids(raw)  # a conflict lasts until its evidence changes
+            state, subject = self._place(claim, native, before["subject_id"] if before is not None else None, kept)
             device.place_claim(self.store, self.plugin, native, subject, state)
             row = device.subject_row(self.store, subject) if subject else None
             if row is not None and row["kind"] in device.PARENT and not self._in_reference(subject):  # its parent, settled
@@ -127,8 +129,8 @@ class _Ingest:
         self.changed = self.changed or state != "rejected"
         self._count(state, subject)
 
-    def _place(self, claim: RecordClaim, native: ProviderRef, previous: str | None) -> tuple[str, str | None]:
-        """The record's state and subject, writing what it introduces and states."""
+    def _place(self, claim: RecordClaim, native: ProviderRef, previous: str | None, kept: bool) -> tuple[str, str | None]:
+        """The record's state and subject, writing what it introduces and states; `kept`: it stays a conflict."""
         level, own = claim.level, self._own(claim)
         if level not in INSTRUMENT_KINDS:
             return self._native(claim)
@@ -155,7 +157,7 @@ class _Ingest:
         target = prior or (found[0] if found else None)
         if target is None:
             return self._introduce(claim, native, level, own)
-        conflict = len(set(found) - {target}) > 0 or self._contradicts(claim, self._load(target))
+        conflict = kept or len(set(found) - {target}) > 0 or self._contradicts(claim, self._load(target))
         row, held = device.subject_row(self.store, target), self._in_reference(target)
         own_subject = row is not None and row["introduced_by"] == self.plugin and target == prior and not held
         if own_subject:  # its own record, updated: a new name renames it (its parent is settled once placed)
@@ -383,6 +385,10 @@ def _order(pair: tuple[RecordClaim, dict]) -> tuple:
     claim, raw = pair
     native = (claim.native_ref.native_scope, claim.native_ref.native_id) if claim.native_ref else ("", "")
     return DEPTH.get(claim.level, len(DEPTH)), *native, json.dumps(raw, sort_keys=True)
+
+
+def _ids(record: dict) -> list[str]:
+    return sorted(json.dumps(item, sort_keys=True) for item in record.get("identifiers", []))
 
 
 def _tag(key: str) -> str:

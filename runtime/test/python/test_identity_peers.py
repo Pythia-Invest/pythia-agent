@@ -116,7 +116,7 @@ class PeersFixture(unittest.TestCase):
 
     def device(self, name):
         """A fresh device: its own store, the reference package installed at confirm, and no plugins yet."""
-        self.dirs, self.disabled, self.pages, self.calls = {}, set(), {}, []
+        self.dirs, self.disabled, self.pages, self.calls, self.syncs = {}, set(), {}, [], 0
         folder = self.root / name
         (folder / "world").mkdir(parents=True)
         World(folder / "world", ("asml.json", "failures.json", "crypto.json")).close()
@@ -147,16 +147,19 @@ class PeersFixture(unittest.TestCase):
         path.chmod(0o600)
 
     def dispatch(self, tool, arguments):
-        """The provider behind each plugin: one complete page per catalogue scope, from `self.pages`."""
+        """The provider behind each plugin: one complete page per catalogue scope, from `self.pages`, each sync a new
+        retrieval (`retrieved_at`), as a real one is, so every record is placed again."""
         self.calls.append((tool, arguments))
         key, _operation = tool.rsplit(".", 1)
         contract = json.loads((self.dirs[key] / "contract.json").read_text(encoding="utf-8"))
-        claims = self.pages.get((contract["plugin"], arguments["scope"]), [])
+        claims = [{**claim, "provenance": {**claim["provenance"], "retrieved_at": f"2026-09-30T08:{self.syncs:02d}:00Z"}}
+                  for claim in self.pages.get((contract["plugin"], arguments["scope"]), [])]
         return json.dumps({"data": {"plugin": contract["plugin"], "provider": contract["provider"],
                                     "adapter_version": "1", "origin": "catalogue", "scope": arguments["scope"],
                                     "complete": True, "claims": claims} if claims else None, "next_cursor": None})
 
     def sync(self, key):
+        self.syncs += 1
         body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": key}))
         self.assertEqual(body.get("issues", []), [])
         return body["data"]
@@ -173,6 +176,11 @@ class PeersFixture(unittest.TestCase):
         """What the page says about the plugin that introduced its subject."""
         [found] = [item for item in self.page(subject_id)["contributors"] if item["introduced"]]
         return found["label"], found["status"], found["not_offered_since"]
+
+    def found(self, query):
+        """The subjects local search answers for a query: its groups and their rows."""
+        body = json.loads(self.ops.search({"query": query}))
+        return {subject for group in body["data"]["groups"] for subject in (group["id"], *(row["id"] for row in group["rows"]))}
 
     def names(self):
         return json.loads(self.markets_ops.MarketReads(self.ops).overview({}))["data"]["names"]
@@ -222,6 +230,7 @@ class ContributionTest(PeersFixture):
         self.assertEqual((apple["subject"]["name"], apple["security"]["id"]), ("Apple Inc.", APPLE))
         self.assertEqual((self.source(SAP_BY_FIGI), self.sections(SAP_BY_FIGI)),
                          (("meridian", "enabled", None), {"quote": "ready"}))
+        self.assertTrue({SAP_BY_FIGI, APPLE_LINE} <= self.found("SAP SE") | self.found("Apple"))  # search finds them
         self.assertEqual(self.ops.store.queue_items(), [])
 
     def test_the_defi_source_introduces_sui_coin_types_a_pool_and_its_protocol(self):
@@ -242,8 +251,10 @@ class SavedReferenceTest(PeersFixture):
         key = self.meridian()
         self.sync(key)
         self.save(SAP_BY_FIGI)
+        self.assertIn(SAP_BY_FIGI, self.found("SAP SE"))
         before, calls = self.rows(), len(self.calls)
         self.disabled.add(key)  # a labelled stub: its own ID and name, "from Meridian, which is disabled"
+        self.assertNotIn(SAP_BY_FIGI, self.found("SAP SE"))  # out of search while its plugin is off
         view = self.page(SAP_BY_FIGI)
         self.assertEqual((view["subject"]["id"], view["subject"]["name"]), (SAP_BY_FIGI, "SAP SE"))
         self.assertEqual((self.source(SAP_BY_FIGI), self.sections(SAP_BY_FIGI)),
@@ -252,6 +263,7 @@ class SavedReferenceTest(PeersFixture):
         self.disabled.clear()  # its data is back, with no sync
         self.assertEqual((self.source(SAP_BY_FIGI), self.sections(SAP_BY_FIGI)),
                          (("meridian", "enabled", None), {"quote": "ready"}))
+        self.assertIn(SAP_BY_FIGI, self.found("SAP SE"))
         self.assertEqual(len(self.calls), calls)
         # A renamed record keeps its ID.
         self.pages[("meridian", "lines")][1] = line("SAP.DE", ("figi", SAP_FIGI), ticker="SAP", name="SAP SE (Xetra)")
@@ -265,16 +277,22 @@ class SavedReferenceTest(PeersFixture):
         self.assertEqual((view["subject"]["id"], view["security"]["id"], self.sections(SAP_BY_FIGI)),
                          (SAP_BY_ISIN, SAP, {"quote": "ready"}))
         self.assertEqual(self.names()[SAP_BY_FIGI], "SAP SE (Xetra)")
-        # A contradicting identifier is a conflict and re-keys nothing: another FIGI for the line keeps it where it is,
-        # and another company's ISIN leaves its security unresolved, never that company's.
-        for contradiction, security in ((("figi", OTHER_FIGI), ("isin", SAP_ISIN)), SAP), \
-                                       ((("figi", SAP_FIGI), ("isin", "GB00BN7SWP63")), None):
-            with self.subTest(contradiction=contradiction):
-                self.pages[("meridian", "lines")][1] = line("SAP.DE", *contradiction, ticker="SAP")
-                self.assertEqual(self.sync(key)["conflicts"], 1)
-                view = self.page(SAP_BY_FIGI)
-                self.assertEqual((self.placed("SAP.DE"), view["subject"]["id"], (view["security"] or {}).get("id")),
-                                 ((SAP_BY_ISIN, "conflict"), SAP_BY_ISIN, security))
+        # A contradicting identifier is a conflict, sync after sync, until the source states the kept value again: the
+        # line keeps its ID and its security, never another FIGI or another company's (GSK's ISIN).
+        for contradiction in ((("figi", OTHER_FIGI), ("isin", SAP_ISIN)), (("figi", SAP_FIGI), ("isin", "GB00BN7SWP63"))):
+            self.pages[("meridian", "lines")][1] = line("SAP.DE", *contradiction, ticker="SAP")
+            for again in range(2):
+                with self.subTest(contradiction=contradiction, sync=again):
+                    self.assertEqual(self.sync(key)["conflicts"], 1)
+                    view = self.page(SAP_BY_FIGI)
+                    self.assertEqual((self.placed("SAP.DE"), view["subject"]["id"], view["security"]["id"]),
+                                     ((SAP_BY_ISIN, "conflict"), SAP_BY_ISIN, SAP))
+        self.pages[("meridian", "lines")][1] = line("SAP.DE", ("figi", SAP_FIGI), ("isin", SAP_ISIN), ticker="SAP")
+        self.sync(key)
+        self.assertEqual((self.placed("SAP.DE"), self.page(SAP_BY_FIGI)["identifiers"]["figi"]),
+                         ((SAP_BY_ISIN, "introduced"), SAP_FIGI))
+        self.assertEqual(self.ops.store.select("SELECT subject_id FROM device_assertions WHERE native_id = 'SAP.DE'"
+                                               " AND subject_id NOT IN (?, ?)", (SAP_BY_ISIN, SAP)), [])
         # A record its complete scope no longer carries: "no longer offered by Meridian since …", still bound.
         del self.pages[("meridian", "lines")][1]
         self.assertEqual(self.sync(key)["not_seen"], 1)
@@ -286,13 +304,16 @@ class SavedReferenceTest(PeersFixture):
         self.sync(key)
         self.save(POOL)
         before = self.rows()
+        self.assertIn(POOL, self.found("Example Lend USDC"))
         self.disabled.add(key)
+        self.assertNotIn(POOL, self.found("Example Lend USDC"))
         view = self.page(POOL)
         self.assertEqual((view["subject"]["id"], view["subject"]["name"], self.source(POOL)),
                          (POOL, "Example Lend USDC", ("tidepool", "disabled", None)))
         self.assertEqual((self.names()[POOL], self.rows()), ("Example Lend USDC", before))
         self.disabled.clear()
         self.assertEqual(self.source(POOL), ("tidepool", "enabled", None))
+        self.assertIn(POOL, self.found("Example Lend USDC"))
         self.pages[("tidepool", "pools")] = pools(pool("Example Lend USDC (Sui)"))
         self.sync(key)
         self.assertEqual((self.page(POOL)["subject"]["name"], self.names()[POOL]), ("Example Lend USDC (Sui)",) * 2)
@@ -359,6 +380,17 @@ class PluginEffectTest(PeersFixture):
         self.assertEqual((lines["sole"]["count"], lines["saved"]["count"]), (2, 0))
         self.disabled.add("atlas")
         self.assertEqual(self.effect("pythia-meridian")[0]["saved"]["count"], 1)
+        # Enabled again but no longer offering the line (its complete scope dropped it), it keeps nothing, as in search;
+        # and a pool its own plugin no longer offers is not that plugin's to take away.
+        self.disabled.clear()
+        self.pages[("atlas", "lines")] = [record("atlas", "line", "X", "listing", ticker="X", operating_mic="XETR",
+                                                 currency="EUR")]
+        self.assertEqual(self.sync("atlas")["not_seen"], 1)
+        self.assertEqual(self.effect("pythia-meridian")[0]["saved"]["count"], 1)
+        self.pages[("tidepool", "pools")] = pools()
+        self.sync("tidepool-community")
+        self.assertEqual(self.effect("tidepool-community")[0]["sole"]["count"], 3)
+        self.assertNotIn(POOL, self.found("Example Lend USDC"))
 
     def test_without_a_plugin_it_lists_every_enabled_plugin_with_a_catalogue_or_resolve(self):
         self.meridian()

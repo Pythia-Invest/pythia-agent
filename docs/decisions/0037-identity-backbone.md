@@ -1330,10 +1330,11 @@ through it.
   it where its contract lets it), so a confirm-level record gives the parent
   of a line a display plugin introduced, and a display record never fills or
   replaces a confirm-level one's. The outcome is the same in either order.
-  A record kept as a conflict that now names another parent than the one its
-  own earlier statement named contests that parent, so a source contradicting
-  itself (a line's record that now states another company's ISIN) leaves the
-  parent unresolved, never that company's.
+  A record kept as a conflict whose own earlier statement named the current
+  parent (a conflict keeps that statement) still names that parent, so a
+  source contradicting itself (a line's record that now states another
+  company's ISIN) never re-parents the subject: it keeps its parent, never
+  that company's, for as long as the conflict lasts.
 - **Evidence.** A joined record's identifiers, and a listing's ticker at its
   operating MIC, become device evidence on the subject and its parents, counted
   at the plugin's trust level (amendment "evidence counts by kind and trust
@@ -1395,7 +1396,10 @@ through it.
 - **Unchanged and missing records.** A record that has not changed writes
   nothing. One left `unmatched` or `conflict` is placed again once the
   installed release, the plugin's trust level or its contract changed since
-  the plugin's last batch. The last page of a `complete` catalogue scope marks the scope's
+  the plugin's last batch. A conflict stays one, however often its record is
+  retrieved again, until the identifiers the record states change: a
+  contradiction is never dropped because a new retrieval no longer sees it.
+  The last page of a `complete` catalogue scope marks the scope's
   records that no page of it carried `not_seen`, with the time
   (`claims.last_seen`); their subjects and bindings stay.
 
@@ -1601,8 +1605,9 @@ a plugin would take away.
   device aliases, when core's curated tables do not name it: a watchlisted
   pool keeps its name while its plugin is off.
 - **`identity-plugin-effect {plugin}`** is a local read of what disabling a
-  plugin would take away: the device subjects only it supplies (no other
-  enabled plugin has a record or an identifier on them, and no installed
+  plugin would take away: the device subjects only it supplies, by search's
+  own rule (no other enabled plugin has a record still offered on them, or
+  one that states their identifiers; they are not inactive; and no installed
   reference package holds them), which leave search and data while it is off,
   and the markets overview's saved entries (`markets_watchlist`,
   `markets_cards`) that name them, through their aliases; each as a count with
@@ -1622,8 +1627,11 @@ a plugin would take away.
   Sui coin types. A saved watchlist ID of each survives disabling (a labelled
   stub, no row deleted), re-enabling (its data back with no sync), a renamed
   record (same ID), a better identifier (the old ID aliases), a contradicting
-  identifier (a conflict, the ID unchanged) and a record the source stops
-  offering. The same payload installed as a managed default or as a community
+  identifier (a conflict, sync after sync, with the ID and security unchanged
+  until the source states the kept value again) and a record the source stops
+  offering. Every sync of the fixture is a new retrieval, so each re-places
+  every record. Search finds the introduced subjects, and a disabled
+  plugin's leave it. The same payload installed as a managed default or as a community
   plugin, under one grant on its digest, gives identical IDs, rows, statuses
   and conflicts.
 

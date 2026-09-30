@@ -2,6 +2,7 @@ import type { PluginRequest, PluginTransport } from "@pythia/widget-sdk";
 import { expect, it } from "vitest";
 import type { SearchGroup, SearchRow } from "../src/search";
 import { transportLookup } from "../src/search-ui/controller";
+import { lookupEmpty } from "../src/search-ui/search-panel";
 
 const row = (id: string, ticker: string): SearchRow => ({
   id,
@@ -85,5 +86,30 @@ it("answers no groups for no match, and fails when the lookup fails", async () =
   });
   await expect(transportLookup(failed.value)(request, signal)).rejects.toThrow(
     "OpenFIGI lookup failed",
+  );
+});
+
+it("says what it stored when search lists none of it for the query, never no match", async () => {
+  const { value } = transport({
+    outcome: "ok",
+    data: {
+      joined: 1,
+      introduced: 1,
+      subjects: ["security:isin:X", "listing:figi:Y"],
+    },
+  });
+  const answer = await transportLookup(value)(request, signal);
+  expect(answer).toEqual({ groups: [], placed: 2 });
+  const state = {
+    plugin: "pythia-openfigi",
+    label: "OpenFIGI",
+    query: "JP3633400001",
+    status: "done" as const,
+  };
+  expect(lookupEmpty({ ...state, groups: [], placed: 2 })).toBe(
+    "OpenFIGI added 2 subjects, but none is listed for “JP3633400001”.",
+  );
+  expect(lookupEmpty({ ...state, groups: [] })).toBe(
+    "OpenFIGI has no match for “JP3633400001”.",
   );
 });

@@ -1,8 +1,9 @@
 """What disabling a plugin would take away, shown before it happens (ADR 0044 A3).
 
-`identity-plugin-effect {plugin}` is a local read. It answers the device subjects only that plugin supplies: those no
-other enabled plugin has a record or an identifier on, and no reference package holds. While the plugin is off they
-leave search and keep only their label (ADR 0037, amendment "device subjects"). It also answers the saved entries of
+`identity-plugin-effect {plugin}` is a local read. It answers the device subjects only that plugin supplies, by search's
+own rule: an offered record of no other enabled plugin is placed on them or states their identifiers, they are not
+inactive, and no reference package holds them. While the plugin is off they leave search and keep only their label
+(ADR 0037, amendment "device subjects"). It also answers the saved entries of
 the markets overview (`markets_watchlist`, `markets_cards`) that name them, through their aliases, each as a count with
 a short sample. Without `plugin`, it answers every enabled plugin that declares a bulk catalogue or a resolve, with its
 trust level, as the Desk's Data sources settings list them. It calls no provider and writes nothing. A Desk operation:
@@ -17,6 +18,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from .identity import CatalogueMode, device, location
+from .identity.search_device import OFFERED
 from .identity.trust import CONFIRM, DISPLAY
 
 if TYPE_CHECKING:
@@ -32,12 +34,14 @@ SCHEMA = {
     "parameters": {"type": "object", "properties": {"plugin": {"type": "string", "minLength": 1, "maxLength": 128}},
                    "additionalProperties": False},
 }
-# The device subjects a plugin supplies: it introduced them, or has a record or an identifier on them.
-_SUPPLIED = ("SELECT id, name FROM subjects WHERE (introduced_by = ?1 OR id IN (SELECT subject_id FROM claims WHERE"
-             " plugin = ?1 UNION SELECT subject_id FROM device_assertions WHERE plugin = ?1)) AND id NOT IN (SELECT"
-             " subject_id FROM claims WHERE subject_id IS NOT NULL AND plugin IN (SELECT value FROM json_each(?2))"
-             " UNION SELECT subject_id FROM device_assertions WHERE plugin IN (SELECT value FROM json_each(?2)))"
-             " ORDER BY name IS NULL, name, id")
+# The device subjects each plugin supplies as search counts them (`search_device.additions`): a record of it still
+# offered is placed on them, or states an identifier about them. A subject nobody offers any more is not supplied.
+_SUPPLIED = ("WITH offered AS (SELECT subject_id, plugin FROM claims WHERE subject_id IS NOT NULL AND state IN (SELECT"
+             " value FROM json_each(?1)) UNION SELECT a.subject_id, a.plugin FROM device_assertions a JOIN claims c ON"
+             " c.plugin = a.plugin AND c.native_scope = a.native_scope AND c.native_id = a.native_id WHERE c.state IN"
+             " (SELECT value FROM json_each(?1))) SELECT id, name FROM subjects WHERE status <> 'inactive' AND id IN"
+             " (SELECT subject_id FROM offered WHERE plugin = ?2) AND id NOT IN (SELECT subject_id FROM offered WHERE"
+             " plugin IN (SELECT value FROM json_each(?3))) ORDER BY name IS NULL, name, id")
 
 
 def register(ctx: Any, identity: Identity) -> None:
@@ -77,7 +81,7 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     """One plugin's sole subjects and the saved entries that name them."""
     plugin = info.manifest.plugin
     others = sorted({item.manifest.plugin for item in plugins if item.enabled} - {plugin})
-    sole = {row["id"]: row["name"] for row in store.select(_SUPPLIED, (plugin, json.dumps(others)))
+    sole = {row["id"]: row["name"] for row in store.select(_SUPPLIED, (OFFERED, plugin, json.dumps(others)))
             if ref is None or not device.in_reference(ref, row["id"])}
     named = [{"id": item, "name": sole[current], "setting": setting} for setting, items in saved.items()
              for item in items if (current := device.current_id(ref, store, item)) in sole]
