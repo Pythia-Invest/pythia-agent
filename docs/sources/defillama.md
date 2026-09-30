@@ -49,7 +49,7 @@ and "Yields" `/pools`, summarised in
 | pool `pool` | Pool id, used in `/chart/{pool}` (API) | Native reference, scope `pool`: the pool's ID | A UUID for every pool | Yes |
 | pool `project` | The project the pool belongs to (API) | `part_of` the protocol with that slug | Every one of 496 projects is a current `/protocols` slug | Yes |
 | pool `chain` | Chain name | Which pools a chain setting takes; Sui pools get token links | 288 pools on `Sui` | Yes |
-| pool `symbol`, `poolMeta` | Pool symbol; pool detail such as a fee tier | Label ("NAVI Lending USDC", "Cetus CLMM USDC-SUI (0.25%)") | 223 Sui pools carry `poolMeta` | Yes |
+| pool `symbol`, `poolMeta` | Pool symbol; pool detail such as a fee tier | Label ("NAVI Lending USDC", "Cetus CLMM USDC-SUI (0.25%)") | 223 Sui pools carry `poolMeta`; for Cetus CLMM it is the fee tier times 100 ("25%" for 0.25%), corrected in the label ([source corrections](#source-corrections)). Bluefin's and Turbos' are right | Yes |
 | pool `underlyingTokens` | The pool's underlying token addresses | On Sui, the coin types the pool holds: `market_asset` links | 484 entries on Sui, 132 distinct types; SUI written both `0x2::sui::SUI` (33) and in long form (100); null on 2 non-Sui pools | Yes |
 | pool `tvlUsd` | Total value locked, USD | A search rank signal only (`rank.tvl_usd`) | — | Yes |
 
@@ -102,6 +102,28 @@ Not yet sampled. The measured Sui cases:
 | Control character in a symbol | 1 pool (Starknet) | — | Record left out and counted | Handled |
 | One coin, several symbols | 5 of 39 labelled coin types | Sui Bridge USDT is `SBUSDT`, `SUIUSDT` and `USDT` | Labelled by its struct name where a pool uses it (`USDT`), else by the most common symbol; ties go alphabetically (Sui Bridge ETH is `SBETH`) | Accepted: a label is never evidence |
 | Suilend has no yield pool | — | Suilend is in `/protocols` only | A protocol without pools | Accepted |
+| Cetus CLMM fee tier in `poolMeta` | 93 Sui pools (measured 2026-09-30) | `25%` for a 0.25% pool, `100%` for 1%, `0.1%` for 0.001% | The label states the real tier and keeps DefiLlama's text as a source correction | Handled |
+
+### Source corrections
+
+DefiLlama writes a Cetus CLMM pool's fee tier one hundred times too large in `poolMeta` ("25%" for a 0.25% pool). The
+plugin states the corrected name and keeps what DefiLlama said in the record's `source_corrections` (field `name`,
+original "Cetus CLMM USDC-SUI (25%)"), as a labelled source correction
+([ADR 0044](../decisions/0044-product-direction.md), amendment "a source adapter corrects its own source"; the
+authority stays `source_asserted`). It is a correction of the label only: the plugin states no fee tier as data.
+
+- **Where:** pools of the project `cetus-clmm` only. Bluefin Spot's and Turbos' tiers read correctly ("0.01%",
+  "0.3%") and are passed through.
+- **Evidence (2026-09-30):** of the 93 `cetus-clmm` pools on Sui, 75 hold two coins of which Cetus's own pool list
+  (the top 500 pools by TVL of its public stats) also holds a pool. For every one of the eight `poolMeta` values
+  DefiLlama states there (0.1%, 1%, 5%, 10%, 20%, 25%, 100%, 200%), Cetus's pools on the same two coins include one
+  whose fee tier is the value divided by 100 (0.001%, 0.01%, 0.05%, 0.1%, 0.2%, 0.25%, 1%, 2%), and Cetus's tiers go
+  no higher than 4% in that list. The other 18 pools hold pairs outside it (17 read "1%", one "100%"), so the
+  evidence for them is the same scale, not a match of their own.
+- **Only while DefiLlama is wrong:** the plugin corrects a page's Cetus labels only while a Cetus pool of the read
+  states a tier above 4%, which a correct feed never does. When DefiLlama fixes its labels the raw text passes
+  through, and this entry is retired.
+- **Reported upstream:** not yet.
 
 ## 5. Judgement cases
 

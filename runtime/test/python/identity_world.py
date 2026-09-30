@@ -106,13 +106,13 @@ class World:
         return {section["section"]: section for section in page.compose(subject, plugins, **self.lookups(subject))}
 
     def ingest(self, info: page.PluginInfo, *claims: dict, scope: str | None = None, complete: bool = False,
-               seen=()) -> dict:
+               seen=(), order: tuple[str, ...] = ()) -> dict:
         """What core does with a page of the plugin's catalogue (`scope`), or with a resolve answer without one."""
         batch = identity.batch_from_json({
             "plugin": info.manifest.plugin, "provider": info.manifest.provider,
             "adapter_version": PROVENANCE["adapter_version"], "origin": "catalogue" if scope else "resolve",
             "scope": scope, "complete": complete, "claims": list(claims)})
-        return ingest.ingest(self.identity, self.ref, info, batch, plugins=self.plugins, now=NOW, seen=seen)
+        return ingest.ingest(self.identity, self.ref, info, batch, plugins=self.plugins, now=NOW, seen=seen, order=order)
 
     def touch(self, subject_id: str) -> int:
         """What `queue_ops.surface` does when the investor opens a subject: queue the conflicts its page raises."""

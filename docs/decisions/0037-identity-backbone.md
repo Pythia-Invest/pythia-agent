@@ -2097,3 +2097,89 @@ panel.
   fact is affected.
 - **The Desk matching questions to facts itself:** it would repeat core's rules
   for which question holds which fact.
+
+## Amendment (2026-09-30): ingest results do not depend on which plugin syncs first
+
+**Context.** [ADR 0044](0044-product-direction.md) A1 says plugins extend the
+universe on equal terms. The Sui experiment (five plugins replayed into one
+store in two orders) showed two places where core's ingest broke that. A
+link-only plugin (Suilend: markets that point at tokens other plugins
+introduce) that synced before those plugins left 20 of its 52 `market_asset`
+edges unplaced until it synced again, because a relation with an end no subject
+named yet was counted `unmatched` and then forgotten, and an unchanged record
+is not placed again. And 34 of 1,235 subjects showed a different name by order
+("DeepBook V3 SUI/USDC" against "DeepBook SUI_USDC", "Bucket Token" against
+"BUT"), because a subject carried the name of the plugin that introduced it.
+
+**Ruling.**
+
+- **A relation waits for its end.** A relation claim with an end that names no
+  subject yet (or several) is kept, as the plugin emitted it, in
+  `pending_relations`, under the end it waits for (an identifier as
+  `scheme:value`, the plugin's own record as its reference). When a batch
+  places a record (joined or introduced), ingest asks that one indexed table
+  for the waiting claims, of any enabled, unpaused plugin, whose end the record
+  states, and places those whose ends now resolve, by the rules a relation
+  placed at once follows. Such an end never resolves through a record placed as
+  a `conflict`: that record contests the subject it sits beside and names no
+  other. A claim that places, or that its plugin states again and places,
+  leaves the table; one stated again while still waiting keeps only its latest
+  statement, and for a one-target type (a pool's protocol) the latest
+  statement of a subject retires an older waiting one, so a stale target cannot
+  win later. A claim this core no longer accepts is dropped. Nothing is
+  scanned: the query is by the ends a batch answers.
+- **A subject's display name follows the investor's `source_order`.** Among the
+  records placed on a device subject (joined or introduced) by enabled plugins,
+  the name comes from the plugin first in `source_order`, else first by plugin
+  id (the order core already ranks sources by, `concepts.ranked`), then by the
+  record's native reference. The name is derived again whenever a record is
+  placed on the subject, changed or not, so a changed `source_order` or a
+  plugin that is disabled or paused shows at the next sync of any plugin that
+  states the subject. A subject no enabled plugin names keeps its label.
+- **What still follows the introducer.** `subjects.introduced_by` is whoever
+  arrived first and differs by order. Ingest reads it: only the introducer's
+  own record rewrites a subject's label (its `status` and `attributes`, and its
+  parent where the record states one), and it decides whether a record's
+  placement is an update of the plugin's own subject or a join. So `status`,
+  `attributes` and a device subject's parent can differ by order where plugins
+  state them differently; relations and display names cannot. Making them
+  deterministic too needs a ranking over the records' own attributes, which no
+  case has asked for.
+
+**Rationale.** A result that depends on the order of syncs is a hidden
+priority: the plugin that happened to run first wins, which the rule "every
+enabled plugin is equal" does not allow. The relation fix stores what cannot be
+placed yet instead of re-reading the plugin, which Pythia never does unasked
+(there is no scheduler). The name rule reuses the one order the investor
+already owns and core's default tie-break, so no new ranking exists.
+
+**Consequences.**
+
+- The identity store gains one table, `pending_relations`, and an index, in its
+  additive section (no schema bump). A replay of the five Sui plugins in
+  both orders now stores identical relations (2,222 each; 2,202 before for the
+  reverse order) and identical names (0 of 1,235 differ; 34 before);
+  43 subjects still have another `introduced_by`.
+- A disabled or paused plugin's waiting claims wait for its own next sync,
+  like the relations it already placed (kept and shown with their source, not
+  applied while it is off).
+- A relation end a new reference release starts to hold, or a parent a record
+  introduces, is not retried until a record states it; as before this change.
+- A parent a record introduces (an issuer or security a listing record names)
+  still takes its first name; only the name of a subject a record is itself
+  placed on follows the order.
+- A plugin that is removed leaves its waiting claims; they place only while the
+  plugin is installed.
+
+**Rejected alternatives.**
+
+- **Asking every plugin to sync again:** the syncs are the investor's acts, and
+  a result that needs a second run is the defect.
+- **Rescanning every stored relation on each batch:** cost grows with the
+  catalogue, for a few waiting claims.
+- **Keeping relation claims in `claims`:** that table is keyed by a record's
+  native reference and a relation has none; a second table for the claims that
+  wait is smaller than changing that key.
+- **Naming by a fixed plugin rank or by the newest record:** a rank no one can
+  set is a new priority list, and recency is arrival order again.
+

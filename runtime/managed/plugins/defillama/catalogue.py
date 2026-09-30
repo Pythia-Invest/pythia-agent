@@ -10,9 +10,12 @@ The plugin describes DefiLlama's own records; core's ingest joins or introduces 
 - A Sui coin type is a token deployment, a `listing` keyed by CAIP-19 in Pythia's Sui profile (ADR 0037): two coin
   types are two subjects whatever their symbols. A generic type or one past CAIP-19's 128 characters has no CAIP-19
   key; it is left out, since core refuses a batch with a malformed identifier.
+- DefiLlama writes a Cetus CLMM pool's fee tier one hundred times too large in `poolMeta` ("25%" for 0.25%). The
+  pool's name states the real tier and keeps what DefiLlama said as a source correction (`_fee_tier`).
 """
 from bisect import bisect_right
 from collections import Counter
+from decimal import Decimal
 import re
 import string
 from urllib.parse import unquote
@@ -29,6 +32,17 @@ SUI = 'sui'                          # DefiLlama's chain name, casefolded
 _SUI_COIN = re.compile(r'^0x([0-9a-fA-F]{1,64})(::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*)\Z')
 _SUI_NATIVE = '0x' + '2'.rjust(64, '0') + '::sui::SUI'
 _REFERENCE = frozenset('-.' + string.ascii_letters + string.digits)
+# DefiLlama's project slug for Cetus's concentrated-liquidity pools. Measured 2026-09-30 against Cetus's own pool list
+# (top 500 by TVL): for each of the 75 of DefiLlama's 93 Cetus CLMM Sui pools that list holds, Cetus's pools on the same
+# two coins include one whose fee is `poolMeta` / 100, for every poolMeta DefiLlama states (25% is 0.25%, 1% is 0.01%,
+# 100% is 1%). Its Bluefin and Turbos labels are right, so no other project is corrected.
+SCALED_TIERS = frozenset({'cetus-clmm'})
+CETUS_LARGEST_TIER = Decimal(4)  # Cetus's largest fee tier, in percent; a pool's fee above it is a scaling error
+# The fee tiers (percent) Cetus's own pool list held for the pools DefiLlama lists, each poolMeta divided by 100.
+MEASURED_TIERS = frozenset(Decimal(tier) for tier in ('0.001', '0.01', '0.05', '0.1', '0.2', '0.25', '1', '2'))
+_TIER = re.compile(r'^(\d+(?:\.\d+)?)%\Z')
+FEE_REASON = ("DefiLlama's poolMeta for a Cetus CLMM pool is the fee tier times 100 (25% for 0.25%, 100% for 1%): Cetus's "
+              "own pool list for the same coins states poolMeta / 100 as a fee tier, and Cetus charges no more than 4%.")
 
 
 def chains(value):
@@ -136,6 +150,7 @@ def page(scope, protocols, pools, wanted, cursor, observed_at):
             slugs.setdefault(row['slug'], []).append(row)
         owners = {slug: found[0] for slug, found in slugs.items() if len(found) == 1}
         labels = _labels(held)
+        scaled = _scaled_projects(held)
     claims, emitted, following = [], set(), None
     for index in range(start, len(rows)):
         row = rows[index]
@@ -144,7 +159,7 @@ def page(scope, protocols, pools, wanted, cursor, observed_at):
                     'attributes': {'name': row['name'], 'status': 'inactive' if row['inactive'] else 'active'},
                     'provenance': provenance}]
         else:
-            own = _pool_claims(row, owners.get(row['project']), emitted, labels, provenance)
+            own = _pool_claims(row, owners.get(row['project']), emitted, labels, provenance, scaled)
         if claims and len(claims) + len(own) > PAGE_CLAIMS:
             following = rows[index - 1][key]
             break
@@ -179,12 +194,40 @@ def _labels(pools):
     return labels
 
 
-def _pool_claims(row, protocol, emitted, labels, provenance):
+def _tier(meta):
+    """A fee tier `poolMeta` states in percent ("25%"), as a number, or None for any other text."""
+    found = _TIER.match(meta or '')
+    return Decimal(found[1]) if found else None
+
+
+def _scaled_projects(pools):
+    """The projects whose Sui pools' `poolMeta` still carries the scaling error: a project in `SCALED_TIERS` whose
+    pools state a fee above Cetus's largest tier, which a corrected feed never does, and whose every tier divided by
+    100 is one measured against Cetus (`MEASURED_TIERS`). A feed that fixes its labels, or one with a tier nobody
+    measured, leaves the set empty and the labels pass through as stated (the correction is then stale and deleted)."""
+    found = {}
+    for row in pools:
+        if row['project'] in SCALED_TIERS and row['chain'].casefold() == SUI and (tier := _tier(row['meta'])) is not None:
+            found.setdefault(row['project'], []).append(tier)
+    return {project for project, tiers in found.items()
+            if max(tiers) > CETUS_LARGEST_TIER and all(tier / 100 in MEASURED_TIERS for tier in tiers)}
+
+
+def _fee_tier(meta):
+    """The real fee tier for a scaled `poolMeta`, in DefiLlama's form ("25%" is "0.25%")."""
+    return f"{format((_tier(meta) / 100).normalize(), 'f')}%"
+
+
+def _pool_claims(row, protocol, emitted, labels, provenance, scaled=frozenset()):
     """A pool's record, the token records this page has not emitted yet, and its relations."""
     pool = _ref('pool', row['pool'])
     name = f"{protocol['name'] if protocol else row['project']} {row['symbol']}"
-    attributes = {'name': (f"{name} ({row['meta']})" if row['meta'] else name)[:512], 'asset_class': 'crypto',
+    meta = row['meta']
+    attributes = {'name': (f"{name} ({meta})" if meta else name)[:512], 'asset_class': 'crypto',
                   'status': 'active', **({'rank': {'tvl_usd': row['tvl']}} if row['tvl'] is not None else {})}
+    if row['project'] in scaled and row['chain'].casefold() == SUI and _tier(meta) is not None:
+        attributes['name'] = f"{name} ({_fee_tier(meta)})"[:512]
+        attributes['source_corrections'] = [{'field': 'name', 'original': f"{name} ({meta})"[:512], 'reason': FEE_REASON}]
     held = _held(row)
     tokens = [{'level': 'listing', 'identifiers': [{'scheme': 'caip19', 'value': key}],
                'attributes': {'asset_class': 'crypto', **({'name': labels[key]} if key in labels else {})},

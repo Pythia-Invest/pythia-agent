@@ -58,8 +58,9 @@ def keep(identity: Identity, info, batch, seen: Iterable[tuple[str, str]] = ()) 
     """Store one plugin batch through ingest, against the installed reference."""
     from .identity_ops import installed
     _path, ref = identity.reference()
+    plugins = installed()
     try:
-        return ingest.ingest(identity.store, ref, info, batch, plugins=installed(), seen=seen)
+        return ingest.ingest(identity.store, ref, info, batch, plugins=plugins, seen=seen, order=identity.order(plugins))
     finally:
         if ref is not None:
             ref.close()

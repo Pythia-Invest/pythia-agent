@@ -109,6 +109,9 @@ class DocFixture(unittest.TestCase):
                 {"level": "market", "attributes": {"name": "Example Lend USDC", "asset_class": "crypto"},
                  "identifiers": [], "provenance": provenance, "native_ref": ref("pool", POOL_ID)},
                 {"type": "part_of", "from_key": ref("pool", POOL_ID), "to_key": ref("protocol", "example-lend"),
+                 "provenance": provenance},
+                {"type": "market_asset", "from_key": ref("pool", POOL_ID),  # a token no plugin has introduced yet
+                 "to_key": {"scheme": "caip19", "value": "sui:mainnet/coin:0x" + "ab" * 32 + "%3A%3Acoin%3A%3ACOIN"},
                  "provenance": provenance}]
 
     @contextlib.contextmanager
@@ -144,7 +147,7 @@ class ExampleTest(DocFixture):
             values = {"family": self.family(db, TOYOTA), "subject": TOYOTA, "scheme": "isin", "value": TOYOTA_ISIN,
                       "plugin": "vendor", "source": db.execute("SELECT source FROM ref.assertions LIMIT 1").fetchone()[0]}
             for name in examples("sql", AGENT):
-                given = {**values, "subject": OLD_ID} if name == "alias" else (
+                given = {**values, "plugin": "tidepool"} if name == "waiting-relations" else {**values, "subject": OLD_ID} if name == "alias" else (
                     {**values, "subject": POOL, "family": self.family(db, POOL)} if name == "relations" else values)
                 results[name] = self.query(db, name, **given)
             results["plugin-added:tidepool"] = self.query(db, "plugin-added", **{**values, "plugin": "tidepool"})
@@ -229,6 +232,9 @@ class ExampleTest(DocFixture):
         with self.connection() as db:
             [row] = db.execute("SELECT source_version, adapter_version FROM relations WHERE type = 'part_of'").fetchall()
         self.assertEqual(tuple(row), ("2026-09-30", PROVENANCE["adapter_version"]))
+        [waiting] = found["waiting-relations"]  # the token edge that has no subject to end at yet
+        self.assertEqual((waiting["type"], waiting["waits_for"].split(":")[0], waiting["source_record"]),
+                         ("market_asset", "caip19", "https://example.test/pools"))
         added = {row["what"] for row in found["plugin-added:tidepool"]}
         self.assertEqual(added, {"subject introduced", "record introduced", "relation part_of", "binding confirmed"})
         # The record that placed the pool carries its own provenance in the claim as emitted.
