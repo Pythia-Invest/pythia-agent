@@ -68,6 +68,7 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     scheme = (item.get("scheme") or "").upper().replace("_", " ")
     values = ", ".join(f"{scheme} {value}".strip() for value in item.get("values") or ())
     own, candidates = own_identifier(item), item.get("candidate_ids") or ()
+    registrant = item["subject_ids"][0].startswith("issuer:cik:") and scheme == "LEI"  # asked which LEI it holds
     if own:
         relation = SAME[own]
     elif item["reason"] == "binding" and candidates and subject_kind(candidates[0]) == "issuer":
@@ -78,8 +79,9 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
         return ("The installed reference data now gives this company its own LEI or CIK, which rules out the company "
                 "you matched it to. Your match stays applied until you answer that it is its own company.", relation)
     text = {
-        "identifier": (f"Which {scheme} is this? " if own and not issuer else
-                       "Which company is this? " if issuer else "Who issued this security? ")
+        "identifier": _registrant_link(item, values) if registrant and values else
+        (f"Which {scheme} is this? " if own and not issuer else
+         "Which company is this? " if issuer else "Who issued this security? ")
         + (f"Its sources name {values}, which does not decide it." if values else "Its sources do not decide it."),
         "binding": f"Your answer and the installed reference data now disagree about {fact}"
                    + (f" ({values})" if values else "") + ". Which is it?",
@@ -89,6 +91,18 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
                     "underlying: which is it?",
     }[item["reason"]]
     return text, relation
+
+
+def _registrant_link(item: dict, values: str) -> str:
+    """The question of a CIK-only SEC registrant whose identifier links do not decide its LEI (the builder's `_decide`):
+    several LEIs claim the CIK, or one LEI is claimed by several registrants whose names match. It names the
+    registrant and what it is tied to, so two such questions about one LEI read differently."""
+    cik = item["subject_ids"][0].split(":")[2]
+    if len(item.get("values") or ()) > 1:
+        return (f"Which company is this? CIK {cik} is tied to more than one LEI ({values}), "
+                "and nothing decides which is its own.")
+    return (f"Which company is this? CIK {cik} and at least one other SEC registrant are tied to {values}, "
+            "and their names do not settle which of them it belongs to.")
 
 
 def about(path: Path, subject_ids: Iterable[str]) -> list[QueueItem]:

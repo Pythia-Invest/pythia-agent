@@ -369,10 +369,7 @@ def _name(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str)
     row = subject_row(store, subject_id)
     if row is not None:
         return row["name"]
-    table = {"security": "securities", "issuer": "issuers"}.get(subject_kind(subject_id))  # the tables with names
-    found = ref.execute(f"SELECT name FROM {table} WHERE id = ?", (subject_id,)).fetchone() \
-        if ref is not None and table else None
-    return found[0] if found else None
+    return reference.name_of(ref, subject_id) if ref is not None else None
 
 
 def _contributed(rows: Iterable[Mapping[str, Any]]) -> dict[str, str]:
