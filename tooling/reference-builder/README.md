@@ -169,10 +169,10 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   share; for a receipt, whose field 5 is the underlying issuer's LEI, the
   underlying's country), and otherwise the issuer is unknown. An unknown issuer
   is decided or asked only where there is something to decide with: when field 5
-  is only a venue operator's LEI, the SEC registrant a line joins to the
+  is only a venue operator's LEI (or a source correction retracted it and left no claim), the SEC registrant a line joins to the
   security by ISIN or share-class FIGI is its issuer (rule `registrant_join@1`,
-  `rule_confirmed`: the operator's LEI says nothing about the issuer, so it
-  cannot contradict the registrant; a LEI the registrant's CIK links to later,
+  `rule_confirmed`: the operator's LEI says nothing about the issuer, and a
+  retracted one is no claim, so neither can contradict the registrant; a LEI the registrant's CIK links to later,
   as for any SEC line, is the issuer instead); otherwise it is asked
   (`issuer_identity`) with the lines' issuers and any contested LEIs as
   candidates, and with no candidate nothing is asked: the security is counted
@@ -347,7 +347,8 @@ rule change bumps it with a line here:
   a security whose only issuer claim is a venue operator's LEI and that has
   nothing to choose between is counted, not asked (`issuer_unknown_venue_lei`,
   469); the SEC registrant joined to such a security is its issuer
-  (`registrant_join@1`, 141); a FIRDS receipt with no stated underlying takes
+  (`registrant_join@1`, 141, and Vishay Precision Group's, whose field 5 a
+  source correction retracts, 142); a FIRDS receipt with no stated underlying takes
   its issuer's one live share as a SEC ADR does, unless the receipt's name
   disagrees with its issuer's (`receipt_issuer_share@2`, 49 more edges, 3
   vetoed and asked; the rule id moves to `@2` because its evidence basis
@@ -442,8 +443,9 @@ cannot place (an admission-level key) is counted as `schema.source_corrections_u
 and listed in the build counts, since its original would not reach the package.
 A retraction removes the claim, so the security counts among those without an issuer
 LEI (`isins_without_issuer_lei` rises by one per retraction, and so do the securities
-without an issuer: 1,546 to 1,547 on the 2026-09-28 build). Each entry is a maintainer's
-to report to the source (the lists of entries and what was reported are in
+without an issuer unless an SEC line joins a registrant to the security, which
+then becomes its issuer by `registrant_join@1`: 1,546 to 1,547 on the 2026-09-28
+build). Each entry is a maintainer's to report to the source (the lists of entries and what was reported are in
 `docs/sources/<source>.md`); a build without FIRDS reads none.
 
 ### FIRDS field semantics

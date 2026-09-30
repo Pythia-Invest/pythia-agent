@@ -3,7 +3,7 @@
 - Issuer: RTS 23 field 5 (`assemble.issuer_lei`). An LEI ISO 10383 lists for a venue's operating entity decides
   nothing, nor does a share's field 5 its receipts contradict (`Claims.receipt_issuers`): the issuer is unknown. Then
   the registrant a SEC line joins to the security by ISIN or share-class FIGI is its issuer when field 5 is only a
-  venue operator's LEI (`registrant_join@1`); otherwise `issuer_identity` is asked, the receipts' issuer, field 5 and
+  venue operator's LEI or when a source correction retracted field 5 and left no claim (`registrant_join@1`); otherwise `issuer_identity` is asked, the receipts' issuer, field 5 and
   the lines' issuers as the candidates, and when there is no candidate to choose nothing is asked: the security is
   counted (`issuer_unknown_venue_lei`).
 - Primary: field 8 names the EEA admissions the issuer requested; it decides only an EEA primary. When a listing
@@ -66,14 +66,14 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
 def _issuer_unknown(snap: Snapshot, claims: Claims, venues: Venues, security, lines: list[Listing], evidence: list[str],
                     audit: Counter) -> None:
     """A live security whose field 5 decided no issuer. A registrant joined to it by ISIN or share-class FIGI (a SEC line)
-    is its issuer when field 5 is only a venue operator's LEI, which says nothing about the issuer and is no claim that
-    could contradict it (`registrant_join@1`, `rule_confirmed`); a LEI from GLEIF's EDGAR registration upgrades the
+    is its issuer when field 5 is only a venue operator's LEI, which says nothing about the issuer, or was retracted by a
+    source correction: neither is a claim that could contradict it (`registrant_join@1`, `rule_confirmed`); a LEI from GLEIF's EDGAR registration upgrades the
     CIK issuer as for any SEC line. Otherwise the issuer is asked, the candidates being the receipts' issuer, field 5
     and the lines' issuers; with none, nothing is asked and the security is counted."""
     leis = claims.isins[security.isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
     venue_only = bool(leis) and all(venues.operated.get(lei) for lei in leis)
     registrants = {line.issuer_id for line in lines if line.issuer_id and line.evidence == Evidence.REGISTRANT_FILING}
-    if venue_only and not security.issuer_candidates and len(registrants) == 1:
+    if (venue_only or not leis) and not security.issuer_candidates and len(registrants) == 1:
         security.issuer_id = next(iter(registrants))
         for line in lines:
             line.issuer_id = security.issuer_id

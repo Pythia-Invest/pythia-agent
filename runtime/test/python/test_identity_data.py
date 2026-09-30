@@ -64,7 +64,8 @@ class DocFixture(unittest.TestCase):
         with contextlib.closing(sqlite3.connect(self.world.path)) as db, db:  # what the contested query must not return
             for subject, level, scheme, value, source, ended in (
                     ("security:isin:JP3633400001", "security", "share_class_figi", "BBG000TYSCG9", "fixture", None),
-                    (TOYOTA, "listing", "figi", "BBG000TYTKX1", "legacy", "2020-01-01")):
+                    (TOYOTA, "listing", "figi", "BBG000TYTKX1", "legacy", "2020-01-01"),
+                    (TOYOTA, "listing", "ticker_mic", "7203@XJPX", "other", None)):  # a source in both stores
                 db.execute("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, valid_to, authority,"
                            " source, plugin, adapter_version, retrieved_at) VALUES (?, ?, ?, ?, ?, ?,"
                            " 'source_asserted', ?, ?, '1', ?)", (f"ev:{value}", subject, level, scheme, value, ended,
@@ -147,7 +148,7 @@ class ExampleTest(DocFixture):
             values = {"family": self.family(db, TOYOTA), "subject": TOYOTA, "scheme": "isin", "value": TOYOTA_ISIN,
                       "plugin": "vendor", "source": db.execute("SELECT source FROM ref.assertions LIMIT 1").fetchone()[0]}
             for name in examples("sql", AGENT):
-                given = {**values, "plugin": "tidepool"} if name == "waiting-relations" else {**values, "subject": OLD_ID} if name == "alias" else (
+                given = {**values, "plugin": "tidepool"} if name == "waiting-relations" else {**values, "plugin": "other"} if name == "plugin-facts" else {**values, "subject": OLD_ID} if name == "alias" else (
                     {**values, "subject": POOL, "family": self.family(db, POOL)} if name == "relations" else values)
                 results[name] = self.query(db, name, **given)
             results["plugin-added:tidepool"] = self.query(db, "plugin-added", **{**values, "plugin": "tidepool"})
@@ -239,6 +240,26 @@ class ExampleTest(DocFixture):
         self.assertEqual(added, {"subject introduced", "record introduced", "relation part_of", "binding confirmed"})
         # The record that placed the pool carries its own provenance in the claim as emitted.
         self.assertEqual({row["source_record"] for row in found["placing-records:pool"]}, {"https://example.test/pools"})
+
+    def test_the_facts_one_plugin_stated_about_a_subject_come_from_both_stores(self):
+        # "Which facts about Toyota come from `other`?": the build's ticker on the line, and what the plugin stated on
+        # the device (an identifier on the line, one on the security above it, its conflicting record). Asking about the
+        # security reaches the line below it; a plugin that stated nothing about the subject answers nothing.
+        with self.connection() as db:
+            db.row_factory = sqlite3.Row
+            sql = examples("sql", AGENT)["plugin-facts"]
+            facts = lambda subject, plugin: {(row["store"], row["what"], row["subject"], row["fact"]) for row in db.execute(  # noqa: E731
+                sql, {"family": self.family(db, subject), "plugin": plugin})}
+            security = "security:isin:JP3633400001"
+            expected = {("reference", "identifier", TOYOTA, "ticker_mic 7203@XJPX"),
+                        ("device", "identifier", TOYOTA, "figi BBG000TYTKY0"),
+                        ("device", "identifier", security, "isin US0378331005"),
+                        ("device", "record conflict", TOYOTA, "symbol:TM")}
+            self.assertEqual(facts(TOYOTA, "other"), expected)
+            self.assertEqual(facts(security, "other"), expected)  # the line is below the security
+            self.assertEqual(facts(TOYOTA, "tidepool"), set())
+            pool = {row[1] for row in facts(POOL, "tidepool")}
+            self.assertEqual(pool, {"subject introduced", "record introduced", "relation part_of"})
 
     def test_the_connection_the_doc_opens_cannot_write(self):
         with self.connection() as db:

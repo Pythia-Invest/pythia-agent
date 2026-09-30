@@ -1686,7 +1686,9 @@ a plugin would take away.
   own rule (no other enabled plugin has a record still offered on them, or
   one that states their identifiers, and no installed reference package holds
   them; an inactive subject counts, since search finds it flagged delisted), which leave search and data while it is off,
-  and the markets overview's saved entries (`markets_watchlist`,
+  the identifiers it states on subjects that stay (`stated`: its FIGI on a
+  package line, unless the package or another enabled plugin states the same
+  value), and the markets overview's saved entries (`markets_watchlist`,
   `markets_cards`) that name them, through their aliases; each as a count with
   a short sample. Without `plugin` it answers every enabled plugin that
   declares a bulk catalogue or a resolve, with its trust level. It is a Desk

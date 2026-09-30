@@ -8,6 +8,7 @@ from datetime import date
 from unittest import mock
 
 from reference_builder import assemble, claims, firds, linking, mic, reconcile, sec
+from reference_builder.source_corrections import Table
 from reference_builder.config import Scope
 from reference_builder.model import Evidence, Issuer, Listing, SecTicker, Security, Snapshot
 from reference_builder.pipeline import build_snapshot
@@ -84,6 +85,24 @@ class UnknownIssuerTest(unittest.TestCase):
         reconcile._issuer_unknown(Snapshot(as_of="2026-09-26"), found, claims.Venues(mic.parse(VENUE_CSV.encode())), security,
                                   lines, [], Counter())
         self.assertEqual((security.issuer_id, lines[1].issuer_id), ("lei:UPGRADED", "lei:UPGRADED"))
+
+    def test_a_retracted_field_5_leaves_no_claim_and_the_registrant_is_the_issuer(self):
+        # Vishay Precision Group: FIRDS names another company's LEI, the entry retracts it, and the SEC line joined by
+        # ISIN names the registrant. No claim is left to contradict it, as with a venue operator's LEI.
+        answers = {("ID_ISIN", WARBY_ISIN, "US"): [figi_row("WRBY", "US", "BBGWRBY00001", "BBGWRBYSC001")],
+                   ("TICKER", "WRBY", "US"): [figi_row("WRBY", "US", "BBGWRBY00001", "BBGWRBYSC001")]}
+        entry = {"source": firds.SOURCE, "key": f"isin:{WARBY_ISIN}", "field": "Issr", "original": VENUE_LEI,
+                 "value": None, "reason": "Retraction: the LEI is another company's and the company has none (test)"}
+        table, stated = Table([entry]), admissions(fulins([firds_record(WARBY_ISIN, "XAMS", VENUE_LEI,
+                                                                        name="WARBY PARKER INC")]))
+        found = claims.load(claims.corrected(firds.claims(stated), table), table)
+        registrants = sec.parse(sec_json([(int(WARBY_CIK), "Warby Parker Inc.", "WRBY", "NYSE")]))
+        snap = build_snapshot(
+            assemble.Inputs(date(2026, 9, 26), Scope(mics=("XAMS",), sec=True), mic.parse(VENUE_CSV.encode()), stated,
+                            None, registrants, {"XAMS"}, firds_claims=found), gleif_fetch, FakeOpenFigi(answers))
+        self.assertEqual(snap.securities[f"isin:{WARBY_ISIN}"].issuer_id, f"cik:{WARBY_CIK}")
+        self.assertEqual(issuer_questions(snap), [])
+        self.assertEqual(snap.audit["reconcile"][reconcile.REGISTRANT_JOIN], 1)
 
     def test_a_venue_operators_lei_beside_another_field_5_claim_is_no_join(self):
         answers = {("ID_ISIN", WARBY_ISIN, "US"): [figi_row("WRBY", "US", "BBGWRBY00001", "BBGWRBYSC001")],

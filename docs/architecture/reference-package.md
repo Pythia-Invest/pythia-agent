@@ -179,7 +179,7 @@ exceeds them by more than 2%):
   questions). It asks no `home_market` question (10,271 before), and none that
   offers nothing to choose: 469 securities whose only issuer claim is a venue
   operator's LEI are counted (`issuer_unknown_venue_lei`). The SEC registrant
-  joined to 141 more is their issuer (`registrant_join@1`). Known gap: a security's issuer link states no basis (`securities.issuer_id` has no authority column), so nothing in the package says that this issuer is rule-derived; only the build counts do.
+  joined to 142 more is their issuer (`registrant_join@1`). Known gap: a security's issuer link states no basis (`securities.issuer_id` has no authority column), so nothing in the package says that this issuer is rule-derived; only the build counts do.
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
   OTC-only shares, which no rule places, and 20 shares whose most liquid
   venue has no line. A security without a written primary is priced on its

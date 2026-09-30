@@ -245,6 +245,45 @@ FROM ref.assertions WHERE source = :source GROUP BY scheme, authority
 UNION ALL SELECT 'relations', type, authority, count(*) FROM ref.relations WHERE source = :source GROUP BY type, authority;
 ```
 
+## Which facts about this subject come from one plugin?
+
+Asked about a subject and a source ("which facts about Toyota come from
+OpenFIGI?"), always read both stores: the reference package holds what the
+build's source stated, and the device store holds what the plugin of the same name
+stated since, including the lines it introduced and the identifiers it states on
+the package's own subjects. One store alone misses half the answer. `:plugin` is
+the name in its `contract.json` and the `source` of the reference's rows (`openfigi`
+is both). `:family` is the subject's family (above); the query widens it to
+everything below it (an issuer's securities, a security's listings, a
+device subject's children), since a plugin often introduced a line.
+
+```sql
+-- example: plugin-facts
+WITH RECURSIVE tree(id) AS (
+  SELECT value FROM json_each(:family)
+  UNION SELECT s.id FROM ref.securities s, tree WHERE s.issuer_id = tree.id
+  UNION SELECT l.id FROM ref.listings l, tree WHERE l.security_id = tree.id
+  UNION SELECT c.id FROM subjects c, tree WHERE c.parent_id = tree.id)
+SELECT 'reference' AS store, 'identifier' AS what, subject_id AS subject, scheme || ' ' || value AS fact,
+       source_record, retrieved_at AS at
+FROM ref.assertions WHERE source = :plugin AND subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'reference', 'relation ' || type, from_id, to_id, source_record, retrieved_at
+FROM ref.relations WHERE source = :plugin AND (from_id IN (SELECT id FROM tree) OR to_id IN (SELECT id FROM tree))
+UNION ALL SELECT 'device', 'subject introduced', id, name, NULL, first_seen
+FROM subjects WHERE introduced_by = :plugin AND id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'identifier', d.subject_id, d.scheme || ' ' || d.value,
+       json_extract(c.claim, '$.provenance.source_record'), d.retrieved_at
+FROM device_assertions d
+LEFT JOIN claims c ON c.plugin = d.plugin AND c.native_scope = d.native_scope AND c.native_id = d.native_id
+WHERE d.plugin = :plugin AND d.subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'record ' || coalesce(state, 'unplaced'), subject_id, native_scope || ':' || native_id,
+       json_extract(claim, '$.provenance.source_record'), last_seen
+FROM claims WHERE plugin = :plugin AND subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'relation ' || type, from_id, to_id, source_record, retrieved_at
+FROM relations WHERE plugin = :plugin AND (from_id IN (SELECT id FROM tree) OR to_id IN (SELECT id FROM tree))
+ORDER BY 1, 3, 2, 4;
+```
+
 ## Which answers and overrides apply?
 
 The user's resolved answers are the local overrides that every read applies until

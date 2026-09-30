@@ -1281,7 +1281,10 @@ list in a rule, or a question every device answers again.
 - The SEC cases (Theravance's and ioneer's state codes) wait for the builder to
   emit incorporation; they are recorded in `docs/sources/sec.md`. The first
   entry is a retraction: Concord Medical's ADR carries China Medical System's LEI
-  in FIRDS, and Concord has no LEI in GLEIF (`docs/sources/firds.md`).
+  in FIRDS, and Concord has no LEI in GLEIF (`docs/sources/firds.md`). The
+  second retracts the issuer FIRDS states on Vishay Precision Group's share (Vishay
+  Intertechnology's LEI; VPG has none in GLEIF); the registrant the SEC joins to
+  the share is then its issuer (`registrant_join@1`).
 - No Desk surface is added beyond the view list.
 
 ### Rejected alternatives

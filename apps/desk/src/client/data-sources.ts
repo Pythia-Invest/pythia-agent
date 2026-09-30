@@ -35,6 +35,12 @@ export const dataSourceSchema = z.object({
   paused: z.boolean().default(false),
   /** The device subjects only this plugin supplies. */
   sole: z.object({ count: z.number().int(), sample: z.array(sample) }),
+  /** The identifiers it states on subjects that stay (the package's, or
+   * another source's) and no other source or the package states too: they
+   * leave those subjects while it is off. */
+  stated: z
+    .object({ count: z.number().int(), subjects: z.number().int() })
+    .default({ count: 0, subjects: 0 }),
   /** The saved watchlist and card entries that name them. */
   saved: z.object({
     count: z.number().int(),

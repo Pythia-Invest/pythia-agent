@@ -2,7 +2,7 @@
 name: identity-data
 title: Where Pythia's data comes from
 description: Trace where an identifier, link, price source, plugin contribution or user answer in Pythia's identity data comes from, by reading its two SQLite stores read-only.
-version: 0.3.0
+version: 0.4.0
 license: Apache-2.0
 platforms: [linux, macos]
 metadata:
@@ -27,11 +27,19 @@ its record, when, and the rule or answer behind a decision:
 - The installed reference package, which `store/reference/installed.json` and
   its `package.json` point to: open identifiers, listings, securities, issuers.
 
+A question about what a source or plugin stated ("which facts about Toyota come
+from OpenFIGI?") always needs both stores: the reference package holds what the
+build read from that source, and the device store holds what the plugin stated
+since, the lines it introduced and the identifiers it states on the package's own
+subjects. Reading one store alone gives half the answer. Run the `plugin-facts`
+query, which reads both, and say which store each fact came from.
+
 Load `references/queries.md` with `skill_view` (name `pythia:identity-data`,
 `file_path` `references/queries.md`). It has the snippet that opens both files
 read-only, and worked queries for which source states an identifier, why a price
-uses one source, why a listing sits under a security, what a plugin added, and
-which answers apply. Never write to either file. The terminal tool has
+uses one source, why a listing sits under a security, what a plugin added, which
+facts about a subject one plugin stated (both stores), and which answers
+apply. Never write to either file. The terminal tool has
 `PYTHIA_DATA_ROOT`; the code-execution sandbox does not, and the file says what
 to do then.
 
