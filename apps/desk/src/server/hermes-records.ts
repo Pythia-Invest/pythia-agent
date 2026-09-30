@@ -64,11 +64,13 @@ export function session(value: unknown): HermesSession {
     );
   const result: HermesSession = { id };
   const title = nullableString(source.title);
+  const startedAt = number(source.started_at);
   const lastActive = number(source.last_active);
   const preview = nullableString(source.preview);
   const messageCount = number(source.message_count);
   const endedAt = number(source.ended_at);
   if (title !== undefined) result.title = title;
+  if (startedAt !== undefined) result.started_at = startedAt;
   if (lastActive !== undefined) result.last_active = lastActive;
   if (preview !== undefined) result.preview = preview;
   if (messageCount !== undefined) result.message_count = messageCount;

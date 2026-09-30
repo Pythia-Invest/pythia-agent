@@ -16,6 +16,7 @@ import { useChatReading } from "@/client/use-chat-attention";
 import { workRevision, workState } from "@/client/work-state";
 import type { WorkAgent } from "@/work/types";
 import { AgentDirectory } from "./agent-panel";
+import { AgentTray } from "./agent-tray";
 import { AgentDetail } from "./agent-work";
 import type { ConversationPosition } from "./conversation";
 import { TurnWork } from "./turn-work";
@@ -144,6 +145,7 @@ export function ChatWork({
         hidden={Boolean(agent)}
         className="flex-none @[48rem]/chat:px-6 px-4 pb-2.5"
       >
+        <AgentTray agents={state.agents} onSelect={select} />
         {composer}
       </div>
     </section>

@@ -3,6 +3,7 @@ import type { ModelCatalog, ModelSelection } from "./model-catalog";
 export type HermesSession = {
   id: string;
   title?: string | null;
+  started_at?: number | null;
   last_active?: number | null;
   preview?: string | null;
   message_count?: number | null;

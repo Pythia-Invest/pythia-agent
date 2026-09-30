@@ -15,6 +15,10 @@ export type WorkAgent = {
   model?: string;
   status: "running" | "completed" | "stopped" | "failed" | "unknown" | "ended";
   summary?: string;
+  /** When Hermes started the child's session, in epoch seconds. */
+  startedAt?: number;
+  /** The child's latest native activity, in epoch seconds. */
+  lastActive?: number;
   /** When Hermes ended the child's session, in epoch seconds. */
   endedAt?: number;
 };

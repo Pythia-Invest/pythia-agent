@@ -86,7 +86,10 @@ labelled Task; its Background it was given disclosure shows the parent-supplied
 delegation context when the assignment can be uniquely matched; it is not a
 generated summary or private reasoning. The child view refreshes saved
 messages while completion is unconfirmed, without child token streaming or a
-composer. These
+composer. A tray on the composer's top edge counts the chat's agents that are
+running, quiet or finished in the last 30 minutes, and opens upward into them
+with their native times; choosing one opens its conversation
+([ADR 0047](../../docs/decisions/0047-background-agents-tray.md)). These
 are read-only projections; see [ADR 0016](../../docs/decisions/0016-native-work-visibility.md)
 for refresh, pagination, and native API limitations. No raw tool result viewer,
 inferred plan, child steering, or model-formatting override is added.

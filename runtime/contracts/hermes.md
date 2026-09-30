@@ -674,7 +674,7 @@ change when those roots differ.
 
 Desk qualifies `GET /api/sessions?include_children=true&source=subagent&limit=200&offset=…`
 for bounded discovery. Native session summaries expose `source`,
-`parent_session_id`, `model`, and `ended_at`; other parent edges can represent
+`parent_session_id`, `model`, `started_at`, `last_active` and `ended_at`; other parent edges can represent
 branches or compaction, so parentage alone is not delegation. The API has no
 parent-session filter. `GET /api/sessions/{id}` verifies selected-child
 parentage, and messages with `order=oldest` recover its initial assignment.
@@ -840,6 +840,8 @@ test data, which guards Pythia behavior but cannot detect Hermes drift.
 | bearer auth and error body | `api_server.py:_check_auth`, `_openai_error` | Loud | wire capture; fixture `test/hermes.test.ts` |
 | `GET /v1/capabilities` `features.run_steer`, `model_options` | `api_server.py:_handle_capabilities` | Silent: steering hidden | wire capture |
 | `GET /api/sessions` including `source=subagent` (also `server/work.ts`) | `_handle_list_sessions`, `_session_response` | Silent: optional fields missing | wire capture; fixture `hermes.test.ts`, `work.test.ts` |
+| child `started_at` and `last_active` shown as elapsed and quiet times in the chat's agent tray (`server/work.ts`, `components/chat/agent-tray.tsx`, ADR 0047) | `api_server.py:_session_response` | Silent: times missing | fixture `work.test.ts` |
+| no HTTP call lists active delegations or stops one child; child `end_reason` is always `agent_close` (why the tray is read-only and says only "ended") | `tools/delegate_tool.py:interrupt_subagent`, `list_active_subagents` (TUI JSON-RPC only); `run_agent.py` `end_session(..., "agent_close")` | Silent: a newer pin may allow a stop control Desk does not yet offer | manual |
 | child `ended_at` and `last_active` read as ended, working (active within 1200s) or unknown in `server/work.ts` | `hermes_state_common.py:_sql_session_last_active` (includes the mid-turn heartbeat); `tools/delegate_tool.py:_HEARTBEAT_STALE_CYCLES_IN_TOOL` | Silent: a working agent reads as unknown | fixture `work.test.ts` |
 | `POST`/`GET`/`PATCH /api/sessions[/{id}]`, `invalid_title` retry (also `server/routes.ts`, `server/work.ts`) | `_handle_create_session`, `_handle_get_session`, `_handle_patch_session` | Mostly loud | wire capture (create, `invalid_title`); fixture `routes.test.ts` (PATCH) |
 | `GET /api/sessions/{id}/messages?order=` and `pagination` | `_handle_session_messages`, `_message_response` | Silent | wire capture; fixture `hermes.test.ts` |
