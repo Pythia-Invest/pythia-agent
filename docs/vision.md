@@ -360,7 +360,8 @@ Today:
   from Settings (search calls no plugin); Settings has a switch per source that
   pauses it at once, without a restart, and shows first which subjects only it
   supplies and which saved entries name them; a paused source counts as disabled for data,
-  and its subjects and saved references keep resolving, labelled as paused;
+  and the subjects only it supplies are hidden from search and selection, while a saved
+  reference still opens, labelled as paused;
   enabling a plugin stays Hermes's command;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
@@ -384,7 +385,7 @@ Today:
 - the stores record who stated each identifier, binding, relation and answer,
   and the `pythia:identity-data` skill teaches the agent to read them with SQL,
   so there is no explanation panel;
-- DeFiLlama and NAVI each introduce their own pools and protocols and share
+- DeFiLlama and NAVI each introduce their own pools or reserves and protocols and share
   the tokens both name; the pools of different sources stay separate subjects.
 
 This is roadmap stage 0 ([ADR 0044](decisions/0044-product-direction.md),

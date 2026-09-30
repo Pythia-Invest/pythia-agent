@@ -2,7 +2,8 @@
 
 *Reading this record.* The ruling below is the first version, and many amendments
 follow it. Where a later amendment changes an earlier passage, the earlier one
-carries a dated note, and the original wording stays as history. The current
+carries a dated note or is covered by the amendment "no trust levels" below, and the
+original wording stays as history. The current
 state is in [identity data](../architecture/identity-data.md) (what the stores
 hold) and in the "Today" list of [ADR 0044](0044-product-direction.md).
 

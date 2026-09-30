@@ -307,8 +307,9 @@ shows "open data conflict" with a link to its repair, never a blank.
 
 Settings → Data → Data sources lists each data plugin that Hermes has enabled
 and that ships a contract. A switch beside each pauses it at once, with no
-restart: a paused source counts as disabled for data, and its subjects and saved
-references keep resolving, labelled as paused. Beside the switch, before it is
+restart: a paused source counts as disabled for data. The subjects only it
+supplies are hidden from search and selection, while a saved reference still
+opens, labelled as paused. Beside the switch, before it is
 turned off, a line says how many subjects only that source supplies and which
 saved watchlist and card entries name them. A source with a bulk catalogue has
 "Sync now", and one that can resolve an identifier has a form that looks one up

@@ -300,7 +300,8 @@ below).*
      category does not make it irrelevant.
    - An agent's answer to any identity question is a suggestion and changes
      nothing until the user confirms it. *Modified on 2026-09-30: a calibrated
-     verdict above its threshold applies for read-only use, and everything
+     verdict above its threshold applies for read-only use (decided, not built;
+     see Today), and everything
      else stays a suggestion
      ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
 
@@ -425,8 +426,8 @@ central curator exists.
   of incorporation (amendment "a source adapter corrects its own source").
 - **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
-  for data, with no restart, and its subjects and saved references keep
-  resolving, labelled as paused. The section shows first which subjects only
+  for data, with no restart. The subjects only it supplies are hidden from
+  search and selection, while a saved reference still opens, labelled as paused. The section shows first which subjects only
   that source supplies and which saved watchlist and card entries name them.
   Enabling a plugin Hermes does not run, and disabling one for good, stay
   Hermes's commands ([ADR 0037](0037-identity-backbone.md), amendment

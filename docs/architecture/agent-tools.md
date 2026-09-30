@@ -164,7 +164,7 @@ own controls apply to them: toolsets, availability checks, `pre_tool_call` hooks
 and approvals, as for any plugin tool.
 
 - Every provider tool is read-only by construction (rule 2).
-- The one Pythia record the agent writes, an identity answer, is a suggestion; it changes nothing until the investor confirms it.
+- The agent's two Pythia writes, an identity answer and a catalogue-correction proposal, are suggestions; neither changes anything until the investor confirms it.
 - An operation tool that a provider tool runs is dispatched in-process, so a
   `pre_tool_call` hook sees the provider tool, not the operation tool.
 

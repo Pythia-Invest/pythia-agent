@@ -1,6 +1,6 @@
 # 0046: One required CI gate
 
-*Numbered 0037 until 2026-09-30, when the identity backbone's ADR on the `identity-backbone` branch took the same number; renumbered 0046 and every link updated.*
+*Numbered 0037 until 2026-09-30, when the identity backbone ADR took the same number; renumbered 0046 and every link updated.*
 
 ## Context
 
