@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fieldDescription, fieldLabel } from "@/components/settings/field-copy";
 import { searchSettings } from "@/components/settings/search";
-import {
-  resolvePage,
-  settingsPages,
-  settingsSections,
-} from "@/components/settings/sections";
+import { resolvePage, settingsPages } from "@/components/settings/sections";
 import { hermesPages, pageFields } from "@/settings/hermes-pages";
 
 describe("settings addresses", () => {
@@ -27,10 +23,6 @@ describe("settings addresses", () => {
       (item) => item.view.kind === "hermes",
     ))
       expect(hermesPages.map((item) => item.id)).toContain(page.id);
-    // Groups start after a spacer, as in Hermes Desktop's sidebar.
-    expect(
-      settingsSections.filter((section) => section.gapBefore).map((s) => s.id),
-    ).toEqual(["providers", "about"]);
   });
 });
 

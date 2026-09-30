@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { agentStatus, projectWork, readAgent, readWork } from "@/server/work";
 import { workState, planRows, mergeObservedWork } from "@/client/work-state";
 import { RunEventMapper } from "@/client/hermes-run-mapper";
-import { activityTurn } from "@/components/chat/turn-model";
 import type { DeskUIMessage } from "@/client/chat-message";
 import type { HermesClient, HermesMessage } from "@/server/types";
 import type { WorkPage } from "@/work/types";
@@ -230,6 +229,8 @@ describe("native work projection", () => {
     expect(status("ended", false)).toBe("ended");
     expect(status("unknown", false)).toBe("unknown");
     expect(status("unknown", true)).toBe("running");
+    // Parent completion is not child completion.
+    expect(workState([], started, true).agents[0]?.status).toBe("running");
     expect(workState([], started, false).agents[0]?.status).toBe("unknown");
   });
 
@@ -337,55 +338,5 @@ describe("live activity", () => {
         summary: "Dates verified",
       },
     });
-  });
-
-  it("does not turn parent completion into child completion", () => {
-    const messages: DeskUIMessage[] = [
-      {
-        id: "run",
-        role: "assistant",
-        parts: [
-          {
-            type: "data-agent",
-            data: { id: "child", goal: "Verify", status: "running" },
-          },
-        ],
-      },
-    ];
-    expect(workState([], messages, true).agents[0]?.status).toBe("running");
-    expect(workState([], messages, false).agents[0]?.status).toBe("unknown");
-  });
-
-  it("keeps live prose separate and archives earlier commentary after completion", () => {
-    const message: DeskUIMessage = {
-      id: "run",
-      role: "assistant",
-      parts: [
-        { type: "text", text: "Checking the sources." },
-        {
-          type: "dynamic-tool",
-          toolName: "web_search",
-          toolCallId: "tool",
-          input: {},
-          state: "output-available",
-          output: "",
-        },
-        { type: "text", text: "The result.", state: "streaming" },
-      ],
-    };
-    expect(activityTurn(message, true).steps.map((s) => s.kind)).toEqual([
-      "tool",
-    ]);
-    expect(
-      activityTurn(message, true).prose.map((block) => block.part.text),
-    ).toEqual(["Checking the sources.", "The result."]);
-    expect(activityTurn(message, true).answer).toBeUndefined();
-    expect(activityTurn(message, false).answer?.text).toBe("The result.");
-    expect(activityTurn(message, false).steps).toHaveLength(2);
-    message.parts.push({
-      type: "data-run-status",
-      data: { state: "cancelled" },
-    });
-    expect(activityTurn(message, false).answer).toBeUndefined();
   });
 });

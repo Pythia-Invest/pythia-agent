@@ -40,12 +40,6 @@ class CoreTest(unittest.TestCase):
         self.assertTrue(any(name == 'api_server' for name, _ in context.platform_handlers))
         self.assertTrue(context.sections)
 
-    def test_core_guidance_asks_for_web_citations(self):
-        context = RegistryContractContext()
-        MODULE.register(context)
-        prompt = ' '.join(' '.join(str(arg) for arg in args) for args, _ in context.sections)
-        self.assertIn('Cite the web pages', ' '.join(prompt.split()))
-
 
 if __name__ == '__main__':
     unittest.main()

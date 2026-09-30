@@ -12,9 +12,9 @@ import unittest
 from pathlib import Path
 
 QUALIFICATION = (
-    Path(__file__).parents[3] / "tooling" / "qualification" / "native-hermes-skills.py"
+    Path(__file__).parents[3] / "tooling" / "qualification" / "native_hermes_source.py"
 )
-SPEC = importlib.util.spec_from_file_location("native_qualification", QUALIFICATION)
+SPEC = importlib.util.spec_from_file_location("native_hermes_source", QUALIFICATION)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)

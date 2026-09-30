@@ -5,6 +5,9 @@ import {
   userText,
 } from "../src/client/chat-message";
 import type { HermesMessage } from "../src/server/types";
+import { captured } from "./hermes-capture";
+
+const { steer_marker } = captured<{ steer_marker: string }>("formatters.json");
 
 describe("history to UI messages", () => {
   it("keeps a saved steer row inside the turn it steered", () => {
@@ -28,8 +31,8 @@ describe("history to UI messages", () => {
         id: "s1",
         role: "user",
         display_kind: "steer",
-        content:
-          "[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; not tool output and not a new delivery when replayed from conversation history]\nUse euros\n[/OUT-OF-BAND USER MESSAGE]",
+        // Hermes's own marker, captured from the pinned formatter.
+        content: steer_marker,
         timestamp: 112,
       },
       { id: "a2", role: "assistant", content: "EUR 700", timestamp: 120 },
@@ -45,7 +48,7 @@ describe("history to UI messages", () => {
       "text",
     ]);
     expect(messages[1]?.parts[1]).toMatchObject({
-      data: { text: "Use euros", at: 112_000, worked: 12 },
+      data: { text: "Focus on 2025 only.", at: 112_000, worked: 12 },
     });
     expect(messages[1]?.metadata?.run).toMatchObject({
       durationSeconds: 20,

@@ -1,7 +1,10 @@
+// @vitest-environment jsdom
+// DOMPurify needs a DOM; the document preview sanitizes before injecting HTML.
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import type { WorkspaceEntry } from "@/workspace/types";
 import { WorkspacePreview } from "@/components/workspace/workspace-preview";
+import { DocumentPreview } from "@/components/workspace/previews/document";
 import { WorkspaceSearchResults } from "@/components/workspace/workspace-search-results";
 
 function entry(
@@ -32,34 +35,8 @@ it("previews raster through same-origin revision-pinned URLs", () => {
     'src="/api/workspace/content?path=research%2Fchart.png&amp;revision=observed%3A1"',
   );
 });
-it("escapes display-only scripts and explains unavailable previews without duplicate actions", () => {
-  const code = renderToStaticMarkup(
-    <WorkspacePreview
-      entry={entry("text", "models/test.py")}
-      text={'<script>alert("never run")</script>'}
-      onOpen={open}
-    />,
-  );
-  expect(code).not.toContain("<script>");
-  expect(code).toContain("&lt;script&gt;");
-  for (const file of [
-    entry("download", "inputs/book.xlsx", false),
-    entry("markdown", "research/large.md", false),
-  ]) {
-    const html = renderToStaticMarkup(
-      <WorkspacePreview entry={file} onOpen={open} />,
-    );
-    expect(html).toContain(
-      file.kind === "markdown"
-        ? "too large to preview"
-        : "No preview available.",
-    );
-    expect(html).not.toContain("<a");
-    expect(html).not.toContain("<iframe");
-  }
-});
-it("escapes filenames and reports actual incomplete scans", () => {
-  const file = entry("markdown", "research/<not-html>.md");
+it("shows the store's incomplete-scan issues", () => {
+  const file = entry("markdown", "research/notes.md");
   const html = renderToStaticMarkup(
     <WorkspaceSearchResults
       data={{
@@ -79,8 +56,23 @@ it("escapes filenames and reports actual incomplete scans", () => {
       onOpenFile={open}
     />,
   );
-  expect(html).toContain("&lt;not-html&gt;");
-  expect(html).not.toContain("<not-html>");
   expect(html).toContain("Some files could not be read.");
-  expect(html).toContain('href="/workspace/research/%3Cnot-html%3E.md"');
+});
+it("strips scripts, event handlers, unsafe links and remote images from converted documents", () => {
+  const html = renderToStaticMarkup(
+    <DocumentPreview
+      html={
+        '<p onclick="steal()">Memo<script>steal()</script></p>' +
+        '<a href="javascript:steal()">Run</a>' +
+        '<a href="https://example.com/source">Source</a>' +
+        '<img src="https://tracker.example/pixel.png">' +
+        '<iframe src="https://bad.example"></iframe>'
+      }
+    />,
+  );
+  expect(html).toContain("Memo");
+  expect(html).toContain('href="https://example.com/source"');
+  expect(html).not.toMatch(
+    /<script|<iframe|onclick|javascript:|tracker\.example/i,
+  );
 });

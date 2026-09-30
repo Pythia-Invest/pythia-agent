@@ -170,11 +170,12 @@ it("failed native reads never become reusable cache entries even with a supplied
 });
 
 it("preference revision adapters reject malformed native revisions and preserve read-only authority", async () => {
-  for (const value of [
-    { outcome: "ok", data: { revision: 1 } },
-    { schema_version: 1, outcome: "ok", data: { revision: -1 } },
-    { schema_version: 1, outcome: "ok", data: { revision: 1.5 } },
-  ]) {
+  for (const [value, expected] of [
+    [{ schema_version: 1, outcome: "ok", data: { revision: 3 } }, 3],
+    [{ outcome: "ok", data: { revision: 1 } }, null],
+    [{ schema_version: 1, outcome: "ok", data: { revision: -1 } }, null],
+    [{ schema_version: 1, outcome: "ok", data: { revision: 1.5 } }, null],
+  ] as const) {
     const service = createFinancialDataService(
       { NODE_ENV: "test" },
       async (call) => {
@@ -185,8 +186,9 @@ it("preference revision adapters reject malformed native revisions and preserve 
         return JSON.stringify(value);
       },
     );
-    await expect(
-      service.preferences(new AbortController().signal),
-    ).rejects.toThrow("preferences_unavailable");
+    const preferences = service.preferences(new AbortController().signal);
+    await (expected === null
+      ? expect(preferences).rejects.toThrow("preferences_unavailable")
+      : expect(preferences).resolves.toEqual({ revision: expected }));
   }
 });

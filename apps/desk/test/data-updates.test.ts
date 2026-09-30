@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { type DeskApi, DeskApiError } from "../src/client/api";
 import { DataUpdates } from "../src/client/data-updates";
 import {
@@ -7,10 +7,25 @@ import {
   type DataUpdate,
 } from "../src/client/data-protocol";
 
+let page: EventTarget & { hidden: boolean };
+beforeEach(() => {
+  vi.useFakeTimers();
+  page = Object.assign(new EventTarget(), { hidden: false });
+  vi.stubGlobal("document", page);
+  vi.stubGlobal("window", new EventTarget());
+});
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
+
+const channel = (stream: unknown) =>
+  new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+/** Holds a stream open until its channel is released. */
+const untilAborted = (signal: AbortSignal) =>
+  new Promise<void>((resolve) =>
+    signal.addEventListener("abort", () => resolve(), { once: true }),
+  );
 const resource = (symbol: string): DataResource => ({
   plugin: "synthetic-plugin",
   operation: "synthetic",
@@ -27,12 +42,6 @@ const snapshot = (index: number): DataUpdate => ({
 });
 
 test("one channel groups demand, shares duplicate resources and releases only its last consumer", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   const signals: AbortSignal[] = [];
   const stream = vi.fn(async function* (
     resources: DataResource[],
@@ -43,11 +52,9 @@ test("one channel groups demand, shares duplicate resources and releases only it
       yield snapshot(index);
       yield snapshot(index);
     }
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   });
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const a: DataUpdate[] = [],
     b: DataUpdate[] = [],
     c: DataUpdate[] = [];
@@ -85,17 +92,11 @@ test("one channel groups demand, shares duplicate resources and releases only it
 });
 
 test("auth revocation clears the retained snapshot and never replays it to a new listener", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   const stream = async function* () {
     yield snapshot(0);
     throw new DeskApiError("Revoked", 403, "access_denied");
   };
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(11);
@@ -110,10 +111,6 @@ test("auth revocation clears the retained snapshot and never replays it to a new
 });
 
 test("background suspension preserves data and reconnects once without reporting cancellation as failure", async () => {
-  vi.useFakeTimers();
-  const page = Object.assign(new EventTarget(), { hidden: false });
-  vi.stubGlobal("document", page);
-  vi.stubGlobal("window", new EventTarget());
   const signals: AbortSignal[] = [];
   const stream = vi.fn(async function* (
     _: DataResource[],
@@ -129,7 +126,7 @@ test("background suspension preserves data and reconnects once without reporting
       ),
     );
   });
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(11);
@@ -172,21 +169,13 @@ test("fragmented SSE frames and heartbeats preserve complete snapshots", async (
 });
 
 test("an unexpected connection failure remains visible and recovers on reconnect", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   let connections = 0;
   const stream = async function* (_: DataResource[], signal: AbortSignal) {
     yield snapshot(0);
     if (++connections === 1) throw Error("Connection lost");
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   };
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(11);
@@ -201,17 +190,11 @@ test("an unexpected connection failure remains visible and recovers on reconnect
 });
 
 test("unsupported update intent is visible and waits for explicit retry", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   // biome-ignore lint/correctness/useYield: A rejected subscription fails before emitting its first frame.
   const stream = vi.fn(async function* () {
     throw new DeskApiError("Not declared", 400, "unsupported_operation");
   });
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(60_000);
@@ -230,22 +213,14 @@ test("unsupported update intent is visible and waits for explicit retry", async 
 });
 
 test("equivalent nested argument objects share demand regardless of insertion order", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   const stream = vi.fn(async function* (
     resources: DataResource[],
     signal: AbortSignal,
   ) {
     for (const [index] of resources.entries()) yield snapshot(index);
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   });
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const first = {
     ...resource("A"),
     arguments: { a: 1, nested: { b: 2, c: [3, 4] } },
@@ -265,20 +240,12 @@ test("equivalent nested argument objects share demand regardless of insertion or
 });
 
 test("explicit reads publish to peers and native replay cursors survive channel rebuilds", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   let event = snapshot(0);
   const stream = async function* (_: DataResource[], signal: AbortSignal) {
     yield event;
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   };
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const observed: { value: DataUpdate; origin: string }[] = [];
   const stop = owner.watch(resource("A"), (value, origin) =>
     observed.push({ value, origin }),
@@ -314,19 +281,11 @@ test("explicit reads publish to peers and native replay cursors survive channel 
 });
 
 test("failed explicit reads retain only transient qualified data and clear native denial for peers", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   const stream = async function* (_: DataResource[], signal: AbortSignal) {
     yield snapshot(0);
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   };
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(11);
@@ -344,12 +303,6 @@ test("failed explicit reads retain only transient qualified data and clear nativ
 });
 
 test("reconnection removes only transport failure, preserving a provider stale qualifier", async () => {
-  vi.useFakeTimers();
-  vi.stubGlobal(
-    "document",
-    Object.assign(new EventTarget(), { hidden: false }),
-  );
-  vi.stubGlobal("window", new EventTarget());
   let connected = false;
   const stream = async function* (_: DataResource[], signal: AbortSignal) {
     yield {
@@ -362,11 +315,9 @@ test("reconnection removes only transport failure, preserving a provider stale q
       connected = true;
       throw Error("Disconnected");
     }
-    await new Promise<void>((resolve) =>
-      signal.addEventListener("abort", () => resolve(), { once: true }),
-    );
+    await untilAborted(signal);
   };
-  const owner = new DataUpdates({ dataUpdates: stream } as unknown as DeskApi);
+  const owner = channel(stream);
   const events: DataUpdate[] = [];
   const stop = owner.watch(resource("A"), (event) => events.push(event));
   await vi.advanceTimersByTimeAsync(11);
@@ -383,12 +334,6 @@ test("reconnection removes only transport failure, preserving a provider stale q
 test.each(["resource", "channel", "manual"] as const)(
   "%s withdrawal accepts a subsequently authorized snapshot at the same native revision",
   async (kind) => {
-    vi.useFakeTimers();
-    vi.stubGlobal(
-      "document",
-      Object.assign(new EventTarget(), { hidden: false }),
-    );
-    vi.stubGlobal("window", new EventTarget());
     let denied = false;
     const stream = async function* (_: DataResource[], signal: AbortSignal) {
       if (denied && kind === "channel") throw new DeskApiError("Denied", 403);
@@ -401,13 +346,9 @@ test.each(["resource", "channel", "manual"] as const)(
             code: "access_denied",
           }
         : snapshot(0);
-      await new Promise<void>((resolve) =>
-        signal.addEventListener("abort", () => resolve(), { once: true }),
-      );
+      await untilAborted(signal);
     };
-    const owner = new DataUpdates({
-      dataUpdates: stream,
-    } as unknown as DeskApi);
+    const owner = channel(stream);
     const events: DataUpdate[] = [];
     const stop = owner.watch(resource("A"), (event) => events.push(event));
     await vi.advanceTimersByTimeAsync(11);

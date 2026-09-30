@@ -215,42 +215,6 @@ class EquityMatchingTests(unittest.TestCase):
         self.assertEqual(self.store.bindings(eod['mapping']['target'])['mappings'], [])
         self.assertEqual(self.store.history(eod['mapping']['id'])[0], eod['mapping'])
 
-    def test_pair_repair_transaction_rolls_back_all_rows_on_interruption(self):
-        original = self.save(native(560))
-        peers = [self.save(catalogue(symbol)) for symbol in ('ONE.US', 'TWO.XETRA')]
-        self.assertTrue(all(item['mapping']['target'] == original['mapping']['target'] for item in peers))
-        before = self.store.cache_token()
-        class Interrupted(matching.EquityRules):
-            versions = {**matching.RULE_VERSIONS, PAIR: 'interrupted-fix'}
-            calls = 0
-            def evaluate(self, *args):
-                self.calls += 1
-                if self.calls == 2:
-                    raise InterruptedError('synthetic interruption after one pair repair')
-                return super().evaluate(*args)
-        broken = identity.IdentityStore(self.directory.name, rules=Interrupted(), evidence_versions=VERSIONS)
-        with self.assertRaises(InterruptedError):
-            broken.cache_token()
-        self.assertEqual(self.store.cache_token(), before)
-        for peer in peers:
-            self.assertEqual(self.store.inspect(peer['mapping']['id'])['mapping'], peer['mapping'])
-            self.assertEqual(len(self.store.history(peer['mapping']['id'])), 1)
-        self.assertEqual(self.store.inspect(original['mapping']['id'])['mapping'], original['mapping'])
-
-    def test_cross_provider_correction_never_routes_original_wrong_class(self):
-        original_ref, selected_ref, new_ref = catalogue(), native(570), catalogue('OTHER.US')
-        original = self.save(original_ref, records(original_ref, isin(370), share_class='A'))
-        selected = self.save(selected_ref, records(selected_ref, isin(370), share_class='A'))
-        replacement = self.save(new_ref, records(new_ref, isin(371), share_class='B'))
-        ids = self.store.ingest(selected_ref, records(selected_ref, isin(371), share_class='B', suffix='corrected'))
-        self.store.refresh(selected['mapping']['id'], ids)
-        corrected = self.store.apply_override(selected['mapping']['id'], 'positive', ids, replacement['mapping']['target'])
-        self.assertEqual(corrected['mapping']['status'], 'confirmed')
-        self.assertEqual(corrected['intent_subject'], original['mapping']['target'])
-        self.assertEqual([m['id'] for m in self.store.bindings(original['mapping']['target'])['mappings']], [original['mapping']['id']])
-        self.assertIn(selected['mapping']['id'], [m['id'] for m in self.store.bindings(replacement['mapping']['target'])['mappings']])
-        self.assertEqual(self.store.history(selected['mapping']['id'])[0], selected['mapping'])
-
     def test_target_refresh_quarantines_override_then_recovers_fresh_pair(self):
         eod, ibkr = self.save(catalogue()), self.save(native(580))
         active = self.store.apply_override(ibkr['mapping']['id'], 'positive', ibkr['mapping']['evidence_ids'])

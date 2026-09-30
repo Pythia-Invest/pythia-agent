@@ -10,12 +10,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import {
+  MANAGED_CORE_FILES,
   PLUGIN_COPY_RECEIPT,
   refreshManagedPlugin,
 } from "../../scripts/dev/files.mjs";
+import { inspectManagedPluginCopy } from "../../scripts/dev/plugin-copy.mjs";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -41,8 +43,50 @@ function fixture() {
   return { root, source, destination };
 }
 
+const repositoryRoot = resolve(import.meta.dirname, "../..");
+const core = join(repositoryRoot, "runtime/managed/core");
+// The two-file core plugin as shipped at 562dfc9, before copy receipts.
+function shippedCopy(root: string, label: string) {
+  const destination = join(root, label, "plugins/pythia");
+  mkdirSync(destination, { recursive: true });
+  for (const name of ["__init__.py", "plugin.yaml"])
+    copyFileSync(
+      join(repositoryRoot, "test/fixtures/plugin-562dfc9", name),
+      join(destination, name),
+    );
+  return destination;
+}
+
+it("adopts the shipped unreceipted release, ignores its bytecode, and rejects an edited copy", () => {
+  const { root } = fixture();
+  const destination = shippedCopy(root, "shipped");
+  put(
+    join(destination, "__pycache__/__init__.cpython-314.pyc"),
+    "synthetic bytecode",
+  );
+  const before = readdirSync(destination);
+  expect(
+    inspectManagedPluginCopy(core, destination, MANAGED_CORE_FILES),
+  ).toMatchObject({ safe: true, kind: "adopted" });
+  expect(readdirSync(destination)).toEqual(before);
+  refreshManagedPlugin(core, destination);
+  expect(
+    JSON.parse(readFileSync(join(destination, PLUGIN_COPY_RECEIPT), "utf8")),
+  ).toMatchObject({ schema_version: 1, name: "pythia" });
+  expect(refreshManagedPlugin(core, destination).status).toBe("updated");
+
+  const edited = shippedCopy(root, "edited");
+  put(join(edited, "__init__.py"), "local customization\n");
+  expect(refreshManagedPlugin(core, edited).status).toBe("preserved");
+  expect(readFileSync(join(edited, "__init__.py"), "utf8")).toBe(
+    "local customization\n",
+  );
+  expect(existsSync(join(edited, PLUGIN_COPY_RECEIPT))).toBe(false);
+});
+
 it("updates an owned nested payload, removes retired owned files and discards only recognized Python cache", () => {
   const { source, destination } = fixture();
+  put(`${destination}.previous`, "foreign sibling\n");
   expect(refreshManagedPlugin(source, destination, files).status).toBe(
     "installed",
   );
@@ -69,7 +113,13 @@ it("updates an owned nested payload, removes retired owned files and discards on
     existsSync(join(destination, "skills/research/assets/example.html")),
   ).toBe(false);
   expect(existsSync(join(destination, "__pycache__"))).toBe(false);
-  expect(readdirSync(dirname(destination))).toEqual(["example"]);
+  expect(readdirSync(dirname(destination)).sort()).toEqual([
+    "example",
+    "example.previous",
+  ]);
+  expect(readFileSync(`${destination}.previous`, "utf8")).toBe(
+    "foreign sibling\n",
+  );
 });
 
 it.each([
@@ -133,7 +183,7 @@ it("preserves missing or malformed ownership evidence after a local change", () 
   expect(existsSync(join(destination, "__init__.py"))).toBe(false);
 });
 
-it("refuses path traversal and intermediate source links without changing an installed copy", () => {
+it("refuses path traversal and linked source files or parents without changing an installed copy", () => {
   const { root, source, destination } = fixture();
   refreshManagedPlugin(source, destination, files);
   expect(() =>
@@ -145,9 +195,17 @@ it("refuses path traversal and intermediate source links without changing an ins
   expect(() => refreshManagedPlugin(source, destination, files)).toThrow(
     /real parent/,
   );
+  rmSync(join(source, "__init__.py"));
+  symlinkSync(join(source, "plugin.yaml"), join(source, "__init__.py"));
+  expect(() =>
+    refreshManagedPlugin(source, destination, ["__init__.py"]),
+  ).toThrow(/input must be a regular file/);
   expect(
     readFileSync(join(destination, "skills/research/SKILL.md"), "utf8"),
   ).toBe("skills/research/SKILL.md\n");
+  expect(readFileSync(join(destination, "__init__.py"), "utf8")).toBe(
+    "__init__.py\n",
+  );
 });
 
 it("does not replace destination links or write through a linked plugins directory", () => {
@@ -158,6 +216,12 @@ it("does not replace destination links or write through a linked plugins directo
   expect(refreshManagedPlugin(source, destination, files).status).toBe(
     "preserved",
   );
+  rmSync(destination);
+  symlinkSync(join(root, "missing"), destination);
+  expect(refreshManagedPlugin(source, destination, files).status).toBe(
+    "preserved",
+  );
+  expect(existsSync(join(root, "missing"))).toBe(false);
   rmSync(dirname(destination), { recursive: true });
   symlinkSync(join(root, "foreign"), dirname(destination));
   expect(refreshManagedPlugin(source, destination, files).status).toBe(

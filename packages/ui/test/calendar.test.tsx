@@ -43,14 +43,18 @@ describe("calendar-date boundary", () => {
       <Calendar
         aria-label="Publication date"
         month="2024-03-01"
-        today="2024-03-10"
+        today="2024-03-12"
         value="2024-03-10"
       />,
     );
+    const daysWith = (attribute: string) =>
+      (html.match(/<td[^>]*>/gu) ?? [])
+        .filter((cell) => cell.includes(attribute))
+        .map((cell) => cell.match(/data-day="([^"]+)"/u)?.[1]);
     expect(html).toContain('aria-label="Publication date"');
     expect(html).toContain('role="grid"');
-    expect(html).toContain('aria-selected="true"');
-    expect(html).toContain('data-today="true"');
+    expect(daysWith('aria-selected="true"')).toEqual(["2024-03-10"]);
+    expect(daysWith('data-today="true"')).toEqual(["2024-03-12"]);
   });
 
   it("disables both month-navigation actions", () => {

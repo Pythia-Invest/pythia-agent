@@ -36,7 +36,8 @@ millisecond interval.
 
 `runtime/managed/plugins/market-data/wire_schema.py` owns the closed structural
 shapes. Regenerate the package artifact from the repository root with
-`python3 packages/market-data/test/export_schema.py`; use `--check` to verify it.
+`python3 packages/market-data/test/export_schema.py`; `test:unit` fails when the
+artifact differs.
 TypeScript types are maintained alongside that artifact. They describe values,
 but do not validate untrusted JSON. JSON Schema checks structure, enum values,
 decimal syntax and calendar formats (enable a format checker). Python `wire.py`
@@ -136,7 +137,6 @@ none are recorded provider responses. Verification from the repository root:
 ```sh
 pnpm --filter @pythia/market-data check
 pnpm --filter @pythia/market-data test:unit
-python3 packages/market-data/test/export_schema.py --check
 uv run --no-project --with jsonschema==4.26.0 python packages/market-data/test/check_wire.py --json-schema
 node tooling/check-structure.mjs
 ```

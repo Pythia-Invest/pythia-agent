@@ -35,7 +35,6 @@ async function updateFixture(page: Page) {
         model_auth: {
           provider: "openai-codex",
           status: "missing",
-          setup_command: "hermes auth login",
         },
         skills_status: "ready",
         skills: [],

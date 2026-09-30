@@ -158,20 +158,19 @@ describe("pinned Hermes run stream", () => {
       run_id: runId,
       accepted: true,
     });
-    const events = await stream(client, runId);
-    const steered = events.find((event) => event.event === "run.steered");
-    expect(steered).toBeDefined();
     const mapper = new RunEventMapper(runId);
-    const chunks = mapper.steered(steered as DeskRunEvent, {
-      id: "steer-1",
-      text: "Focus on 2025 only.",
-    });
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: "data-steer",
-        data: expect.objectContaining({ text: "Focus on 2025 only." }),
-      }),
+    const chunks = (await stream(client, runId)).flatMap((event) =>
+      event.event === "run.steered"
+        ? mapper.steered(event, { id: "steer-1", text: "Focus on 2025 only." })
+        : mapper.map(event),
     );
+    // Placed and timed by Hermes's own timestamps: steered at 1767225603.0,
+    // two seconds after the first event (tool.started at 1767225601.0).
+    expect(chunks).toContainEqual({
+      type: "data-steer",
+      id: "steer-1",
+      data: { text: "Focus on 2025 only.", at: 1767225603000, worked: 2 },
+    });
   });
 
   it("reports a failed run with Hermes's error", async () => {

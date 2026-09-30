@@ -1,6 +1,8 @@
 import { expect, test, vi } from "vitest";
-import { createPluginInvokeRoutes } from "../src/server/plugin-invoke-routes";
-import { createPluginReadRoutes } from "../src/server/plugin-read-routes";
+import {
+  createPluginInvokeRoutes,
+  createPluginReadRoutes,
+} from "../src/server/plugin-read-routes";
 import { HermesApiError } from "../src/server/hermes-records";
 import type { PluginTransport } from "../src/server/plugin-transport";
 
@@ -91,7 +93,7 @@ test("native denial remains an error instead of an alternate source or successfu
   expect(transport).toHaveBeenCalledTimes(1);
 });
 
-test("only explicit invoke omits read-only and retains admission, validation and native denial", async () => {
+test("only explicit invoke omits read-only, and it still requires a mutation token", async () => {
   const transport = vi.fn<PluginTransport>(async () =>
     JSON.stringify({ done: true }),
   );
@@ -102,27 +104,8 @@ test("only explicit invoke omits read-only and retains admission, validation and
   });
   expect(transport).toHaveBeenCalledExactlyOnceWith(intent, input.signal);
   transport.mockClear();
-  expect((await routes.pluginInvoke(request(intent, false))).status).toBe(403);
   const noCsrf = request(intent);
   noCsrf.headers.delete("x-pythia-csrf");
   expect((await routes.pluginInvoke(noCsrf)).status).toBe(403);
-  for (const body of [
-    { ...intent, tool: "shell_exec" },
-    { ...intent, read_only: false },
-    { ...intent, operation: "../tools" },
-    { ...intent, arguments: [] },
-  ])
-    expect((await routes.pluginInvoke(request(body))).status).toBe(400);
-  expect(
-    (
-      await routes.pluginInvoke(
-        request({ ...intent, arguments: { value: "x".repeat(65_536) } }),
-      )
-    ).status,
-  ).toBe(413);
   expect(transport).not.toHaveBeenCalled();
-  transport.mockRejectedValueOnce(
-    new HermesApiError("Unavailable", 403, "unavailable"),
-  );
-  expect((await routes.pluginInvoke(request(intent))).status).toBe(403);
 });

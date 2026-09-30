@@ -1,4 +1,4 @@
-import { fixture, roots } from "../helpers/workspace-transition-fixture";
+import { fixture, roots } from "../support/workspace-transition-fixture";
 import { workspaceTransitionChat } from "../../scripts/update/workspace-transition-chat.mjs";
 import { applyUpdate } from "../../scripts/update/apply-operation.mjs";
 import {
@@ -27,18 +27,6 @@ afterEach(() => {
 });
 
 describe("explicit workspace storage transition", () => {
-  it("does not claim a staged plugin replacement when a local plugin is preserved", () => {
-    const f = fixture();
-    const local = join(f.paths.profileRoot, "plugins/pythia/plugin.yaml");
-    f.write(local, "name: investor-owned\n");
-    // Ownership is checked before the receipt, the import or any native change.
-    expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
-      /ownership is unrecognized.*Preserved without changes/,
-    );
-    expect(readFileSync(local, "utf8")).toBe("name: investor-owned\n");
-    expect(() => assertStagedWorkspaceTransition(f.paths)).toThrow(/No staged/);
-  });
-
   it("previews concrete custom seed diffs, legacy links and binding without writes", () => {
     const f = fixture();
     const result = previewWorkspaceTransition(f.paths, {
@@ -140,7 +128,6 @@ describe("explicit workspace storage transition", () => {
         "utf8",
       ),
     ).toBe("synthetic preserved executable");
-    expect(runtime.environment.PYTHIA_PYTHON).toBeUndefined();
     expect(
       applyWorkspaceTransition(f.paths, {
         nativeConfig: f.nativeConfig,
@@ -269,7 +256,7 @@ describe("explicit workspace storage transition", () => {
     });
     expect(preview.plugin.safe).toBe(false);
     expect(() => applyWorkspaceTransition(f.paths, f.options())).toThrow(
-      plugin,
+      `ownership is unrecognized at ${plugin}`,
     );
     expect(readFileSync(join(f.paths.workspace, "AGENTS.md"))).toEqual(seed);
     expect(readFileSync(join(f.paths.profileRoot, "config.yaml"))).toEqual(

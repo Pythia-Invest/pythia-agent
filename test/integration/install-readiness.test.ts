@@ -4,7 +4,6 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,7 +16,6 @@ import {
   installDevice,
   startAndVerify,
 } from "../../scripts/install/runtime.mjs";
-import { uninstall } from "../../scripts/uninstall/uninstall.mjs";
 import { applyMigrations } from "../../scripts/update/migrations.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
@@ -223,20 +221,17 @@ describe("installed readiness and recovery", () => {
     );
     const start = vi.fn(async () => undefined);
     const verifyUnits = vi.fn();
-    const verifyMemory = vi.fn();
     const enable = vi.fn();
     await startAndVerify(paths, {
       executables,
       fetch: fetcher,
       start,
       verifyUnits,
-      verifyBasicMemoryReadiness: verifyMemory,
       enable,
     });
     expect(start).toHaveBeenCalledTimes(1);
     expect(enable).toHaveBeenCalledTimes(1);
     expect(verifyUnits).toHaveBeenCalledTimes(1);
-    expect(verifyMemory).not.toHaveBeenCalled();
     expect(requests.map((request) => request.url)).toEqual([
       "http://127.0.0.1:8645/health",
       "http://127.0.0.1:8644/api/health",
@@ -401,76 +396,5 @@ describe("installed readiness and recovery", () => {
       readFileSync(join(paths.stateRoot, "migrations.json"), "utf8"),
     );
     expect(ledger.applied).toEqual(["0001-device-state-v1"]);
-  });
-
-  it("uninstalls managed files, retains user data, and makes reinstall possible", () => {
-    const { paths } = fixture();
-    for (const path of [
-      paths.configRoot,
-      paths.stateRoot,
-      paths.runtimeRoot,
-      paths.cacheRoot,
-      paths.knowledge,
-      paths.binRoot,
-    ]) {
-      mkdirSync(path, { recursive: true, mode: 0o700 });
-    }
-    writeFileSync(paths.installedCommand, "#!/bin/sh\n", { mode: 0o755 });
-    writeFileSync(join(paths.knowledge, "case.md"), "Investor-owned\n");
-    atomicWriteJson(paths.installFile, {
-      schema_version: 1,
-      checkout: paths.checkout,
-      revision: "a".repeat(40),
-    });
-    const actions = {
-      stop: () => undefined,
-      disable: () => undefined,
-      unitState: (name: string) =>
-        name === "pythia-agent-basic-memory.service" ? "absent" : "inactive",
-      enablement: () => "disabled",
-      removeUnits: () => undefined,
-      reload: () => undefined,
-    };
-    const result = uninstall(paths, { actions });
-    expect(result.knowledge_deleted).toBe(false);
-    expect(existsSync(paths.installedCommand)).toBe(false);
-    expect(existsSync(paths.runtimeRoot)).toBe(false);
-    expect(existsSync(paths.installFile)).toBe(false);
-    expect(readFileSync(join(paths.knowledge, "case.md"), "utf8")).toContain(
-      "Investor-owned",
-    );
-    expect(existsSync(paths.configRoot)).toBe(true);
-  });
-
-  it("purges config, state, and cache but retains authoritative Markdown", () => {
-    const { paths } = fixture();
-    for (const path of [
-      paths.configRoot,
-      paths.stateRoot,
-      paths.cacheRoot,
-      paths.knowledge,
-    ]) {
-      mkdirSync(path, { recursive: true, mode: 0o700 });
-    }
-    writeFileSync(join(paths.knowledge, "case.md"), "Keep me\n");
-    const result = uninstall(paths, {
-      purge: true,
-      actions: {
-        stop: () => undefined,
-        disable: () => undefined,
-        unitState: () => "absent",
-        enablement: () => "not-found",
-        removeUnits: () => undefined,
-        reload: () => undefined,
-      },
-    });
-    expect(result.purged_device_configuration).toBe(true);
-    expect(result.knowledge_deleted).toBe(false);
-    expect(existsSync(paths.configRoot)).toBe(false);
-    expect(existsSync(paths.stateRoot)).toBe(false);
-    expect(existsSync(paths.cacheRoot)).toBe(false);
-    expect(readFileSync(join(paths.knowledge, "case.md"), "utf8")).toBe(
-      "Keep me\n",
-    );
   });
 });

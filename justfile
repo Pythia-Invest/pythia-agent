@@ -35,6 +35,7 @@ check-static:
     node tooling/check-structure.mjs
     node tooling/check-boundaries.mjs
     node tooling/check-public-source.mjs
+    node tooling/check-tests.mjs
     just check-ai-workspace
     node tooling/check-workflows.mjs
 

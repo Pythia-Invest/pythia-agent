@@ -22,7 +22,7 @@ export interface ChatPanelProps {
   /** Shell-level query from the top bar, applied on top of the local filter. */
   globalQuery?: string;
   id?: string;
-  onHide?: () => void;
+  onHide: () => void;
   onNewChat: () => void;
   onRetry?: () => void;
   onRename: (sessionId: string, title: string) => Promise<void>;
@@ -144,13 +144,11 @@ export function ChatPanel({
           >
             <Search className="stroke-[1.6]" />
           </IconButton>
-          {onHide ? (
-            // Not the panel glyph: the rail's collapse button sits beside this
-            // one, and two adjacent controls must not share an icon.
-            <IconButton label="Hide chats" onClick={onHide} size="sm">
-              <ChevronsLeft className="stroke-[1.6]" />
-            </IconButton>
-          ) : null}
+          {/* Not the panel glyph: the rail's collapse button sits beside this
+              one, and two adjacent controls must not share an icon. */}
+          <IconButton label="Hide chats" onClick={onHide} size="sm">
+            <ChevronsLeft className="stroke-[1.6]" />
+          </IconButton>
         </div>
         {searchOpen ? (
           <label className="motion-fast flex h-8 min-w-0 cursor-text items-center gap-2 rounded-control border border-border bg-raised px-2.5 text-foreground-secondary transition-colors focus-within:border-border-strong">

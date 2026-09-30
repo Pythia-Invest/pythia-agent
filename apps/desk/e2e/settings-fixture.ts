@@ -12,7 +12,6 @@ export const device = {
   model_auth: {
     provider: "openai-codex",
     status: "configured",
-    setup_command: "hermes auth login",
   },
   skills_status: "ready",
   skills: [

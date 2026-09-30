@@ -190,17 +190,13 @@ describe("pinned Hermes work projection", () => {
     );
     const [listed] = work.agents;
     expect(listed?.goal).toMatch(/\.\.\.$/u);
+    const goal =
+      "Summarize the risk factors in the 2025 annual report and compare them with 2024.";
     const delegation = {
       type: "dynamic-tool",
       toolCallId: "call_delegate",
       toolName: "delegate_task",
-      input: {
-        tasks: [
-          {
-            goal: "Summarize the risk factors in the 2025 annual report and compare them with 2024.",
-          },
-        ],
-      },
+      input: { tasks: [{ goal }] },
       state: "input-available",
     } as DynamicToolUIPart;
     const [found] = turnAgents(
@@ -209,5 +205,7 @@ describe("pinned Hermes work projection", () => {
       work.agents,
     );
     expect(found?.id).toBe("capture-child-session");
+    // The delegation holds the full task where the listing shortened it.
+    expect(found?.goal).toBe(goal);
   });
 });

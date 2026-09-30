@@ -1,17 +1,9 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { createServer, type Server } from "node:net";
-import { tmpdir } from "node:os";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { atomicWriteJson } from "../../scripts/dev/files.mjs";
-import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import {
   assertPortsFree,
   processIdentity,
@@ -20,63 +12,19 @@ import {
   resetDerivedDevelopmentState,
   requestHermesRestart,
   supervise,
-  stopStack,
   validateReceipt,
-  waitForNoReuseAddressPortRelease,
 } from "../../scripts/dev/supervisor.mjs";
-import { waitForHermesPortRelease } from "../../scripts/dev/supervisor-processes.mjs";
-import { copySourceSnapshot } from "../../tooling/source-snapshot.mjs";
-
-const repositoryRoot = new URL("../../", import.meta.url).pathname.replace(
-  /\/$/u,
-  "",
-);
-const temporaryRoots: string[] = [];
-const children: ChildProcess[] = [];
-const servers: Server[] = [];
-
-function temporaryRoot() {
-  const root = mkdtempSync(join(tmpdir(), "pythia-dev-test-"));
-  temporaryRoots.push(root);
-  return root;
-}
-
-function environment(root: string, repo?: string) {
-  const checkout = repo ?? join(root, "checkout");
-  // Port identity follows the checkout, not XDG roots. Give each fixture its
-  // own source path so running tests never claims an open developer stack.
-  if (repo === undefined && !existsSync(checkout))
-    copySourceSnapshot(repositoryRoot, checkout);
-  return {
-    ...process.env,
-    PYTHIA_DEV_REPO_ROOT: checkout,
-    PYTHIA_DEV_CONFIG_HOME: join(root, "config"),
-    PYTHIA_DEV_STATE_HOME: join(root, "state"),
-    PYTHIA_DEV_DATA_HOME: join(root, "data"),
-    PYTHIA_DEV_CACHE_HOME: join(root, "cache"),
-  };
-}
-
-async function waitUntil(check: () => boolean, timeout = 8_000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    if (check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 40));
-  }
-  throw new Error("Timed out waiting for fixture state");
-}
-
-afterEach(async () => {
-  for (const child of children.splice(0)) {
-    if (child.exitCode === null) child.kill("SIGKILL");
-  }
-  for (const server of servers.splice(0)) {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
-  for (const root of temporaryRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+import {
+  waitForHermesPortRelease,
+  waitForNoReuseAddressPortRelease,
+} from "../../scripts/dev/supervisor-processes.mjs";
+import {
+  developmentPaths,
+  ownChild,
+  ownServer,
+  temporaryRoot,
+  waitUntil,
+} from "../support/dev-stack";
 
 describe("port and receipt ownership", () => {
   it("uses native no-reuse-address semantics for Hermes port release", async () => {
@@ -101,8 +49,7 @@ describe("port and receipt ownership", () => {
       }),
     ).resolves.toBeUndefined();
 
-    const occupied = createServer();
-    servers.push(occupied);
+    const occupied = ownServer(createServer());
     await new Promise<void>((resolve) =>
       occupied.listen(0, "127.0.0.1", resolve),
     );
@@ -124,7 +71,7 @@ describe("port and receipt ownership", () => {
 
   it("runs the lifecycle probe from the prepared Hermes interpreter without a legacy environment", async () => {
     const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths(root);
     const bin = join(paths.hermesSource, ".venv", "bin");
     mkdirSync(bin, { recursive: true });
     const marker = join(root, "hermes-python-invoked");
@@ -155,8 +102,7 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
     expect(existsSync(paths.legacyPython)).toBe(false);
 
     rmSync(marker);
-    const occupied = createServer();
-    servers.push(occupied);
+    const occupied = ownServer(createServer());
     await new Promise<void>((resolve) =>
       occupied.listen(address.port, "127.0.0.1", resolve),
     );
@@ -181,10 +127,8 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
   });
 
   it("fails actionably instead of taking over a foreign listener", async () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
-    const server = createServer();
-    servers.push(server);
+    const paths = developmentPaths();
+    const server = ownServer(createServer());
     await new Promise<void>((resolve) =>
       server.listen(paths.ports.hermes, "127.0.0.1", resolve),
     );
@@ -201,8 +145,7 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
   });
 
   it("refuses foreign and stale receipts without signaling", async () => {
-    const root = temporaryRoot();
-    const paths = resolveStackPaths({ environment: environment(root) });
+    const paths = developmentPaths();
     mkdirSync(paths.processRoot, { recursive: true, mode: 0o700 });
     const foreign = {
       schema_version: 1,
@@ -216,11 +159,9 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
     );
     rmSync(paths.receipt);
 
-    const sleeper = spawn(process.execPath, [
-      "-e",
-      "setInterval(() => {}, 1000)",
-    ]);
-    children.push(sleeper);
+    const sleeper = ownChild(
+      spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]),
+    );
     const sleeperPid = sleeper.pid;
     if (!sleeperPid) throw new Error("Fixture sleeper did not start");
     await waitUntil(() => Boolean(processIdentity(sleeperPid)));
@@ -235,17 +176,11 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
       supervisor: { ...identity, command_sha256: "0".repeat(64) },
       children: [],
     });
+    // Setting aside such a receipt on stop is covered by dev-stale-receipt.
     await expect(requestHermesRestart(paths, 500)).rejects.toThrow(
       /supervisor receipt is stale or foreign/u,
     );
-    // The PID now runs another command, so the recorded supervisor has exited:
-    // stop sets the record aside and never signals the process holding the PID.
-    await expect(stopStack(paths)).resolves.toMatchObject({
-      stopped: false,
-      reason: "already-exited",
-    });
     expect(processIdentity(sleeperPid)).not.toBeNull();
-    expect(existsSync(paths.receipt)).toBe(false);
 
     // A receipt whose supervisor still runs is never set aside or signalled.
     atomicWriteJson(paths.receipt, {

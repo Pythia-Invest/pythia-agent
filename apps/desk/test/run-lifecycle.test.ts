@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { DeskApi } from "../src/client/api";
+import { DeskApi, DeskApiError } from "../src/client/api";
 import { historyToMessages } from "../src/client/chat-message";
 import { DeskChats } from "../src/client/desk-chat";
 import type { DeskRunEvent, RunStart, RunStatus } from "../src/server/types";
@@ -139,6 +139,29 @@ describe("SDK chat and native run lifetime", () => {
     expect(f.session.chat.status).toBe("ready");
   });
 
+  it("remembers the active run for a reload and forgets it when the run ends", async () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal("sessionStorage", storage);
+    const f = fixture();
+    f.session.send("Question");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(storage.setItem).toHaveBeenCalledWith(
+      "pythia-desk:active-run:chat",
+      expect.any(String),
+    );
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    await f.session.stop();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(f.session.chat.status).toBe("ready");
+    expect(storage.removeItem).toHaveBeenCalledWith(
+      "pythia-desk:active-run:chat",
+    );
+  });
+
   it("recovers a completed run from status without opening its expired event queue", async () => {
     const f = fixture();
     vi.stubGlobal("sessionStorage", {
@@ -235,4 +258,65 @@ it("refreshes an idle retained chat but preserves a submitted local turn", async
   ]);
   expect(f.session.chat.messages).toEqual(submitted);
   await f.session.chat.stop();
+});
+
+describe("steering", () => {
+  /** A run that keeps working until `finish` is called. */
+  async function steering() {
+    const f = fixture();
+    const done = Promise.withResolvers<void>();
+    f.stream.mockImplementation(async function* () {
+      await done.promise;
+      yield { event: "run.completed", run_id: "run", output: "Answer" };
+    });
+    const steer = vi.spyOn(f.api, "steerRun");
+    f.session.send("First");
+    await vi.advanceTimersByTimeAsync(0);
+    return { ...f, steer, finish: () => done.resolve() };
+  }
+
+  it("shows guidance at once and keeps it while Hermes accepts it", async () => {
+    const f = await steering();
+    f.steer.mockResolvedValue({ run_id: "run", accepted: true });
+    const sent = f.session.steer("Use euros");
+    expect(f.session.snapshot().steers.map((s) => s.text)).toEqual([
+      "Use euros",
+    ]);
+    await sent;
+    expect(f.session.snapshot().steers).toHaveLength(1);
+    f.finish();
+  });
+
+  it("withdraws guidance the running reply refuses, in plain words", async () => {
+    const f = await steering();
+    f.steer.mockRejectedValue(
+      new DeskApiError(
+        "Run is not currently accepting steer input: run",
+        409,
+        "run_not_accepting_steer",
+      ),
+    );
+    await expect(f.session.steer("Use euros")).rejects.toThrow(
+      "Pythia can't take direction at this point in the reply.",
+    );
+    expect(f.session.snapshot().steers).toEqual([]);
+    expect(f.start).toHaveBeenCalledTimes(1);
+    f.finish();
+  });
+
+  it("sends guidance as the next message when the reply finished first", async () => {
+    const f = await steering();
+    const refused = Promise.withResolvers<never>();
+    f.steer.mockReturnValue(refused.promise);
+    const sent = f.session.steer("Use euros");
+    f.finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.session.chat.status).toBe("ready");
+    refused.reject(new DeskApiError("Run is not currently accepting", 409));
+    await sent;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.session.snapshot().steers).toEqual([]);
+    expect(f.start).toHaveBeenCalledTimes(2);
+    expect(f.start.mock.calls[1]?.[1]).toBe("Use euros");
+  });
 });

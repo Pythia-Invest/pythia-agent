@@ -283,9 +283,63 @@ describe("shared custom provider inheritance", () => {
     expect(f.run()).toBe(true);
   });
 
-  it("preserves a partial existing model without reading shared provider settings", () => {
-    const f = fixture({}, { model: { provider: "custom:owned" } });
+  it.each([{ provider: "custom:owned" }, "my-model"])(
+    "preserves an existing model choice (%j) without reading shared settings",
+    (model) => {
+      const f = fixture({}, { model });
+      expect(f.run()).toBe(false);
+      expect(f.execute).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("inherits only native model selection fields, never a shared model credential", () => {
+    const f = fixture({
+      model: {
+        provider: "openai-codex",
+        default: "fixture-model",
+        api_key: "must-not-copy",
+      },
+    });
+    expect(f.run()).toBe(true);
+    expect(f.local.model).toEqual({
+      provider: "openai-codex",
+      default: "fixture-model",
+    });
+    expect(JSON.stringify(f.execute.mock.calls)).not.toContain("must-not-copy");
+  });
+
+  it("leaves an unconfigured profile alone when the root has no model", () => {
+    const f = fixture({ model: "" });
     expect(f.run()).toBe(false);
-    expect(f.execute).toHaveBeenCalledTimes(1);
+    expect(f.execute).toHaveBeenCalledTimes(2);
+    expect(f.local.model).toBe("");
+  });
+
+  it.each([
+    "https://user:secret@models.example/v1",
+    "https://models.example/v1?key=secret",
+    "https://models.example/v1#secret",
+  ])(
+    "rejects a credential-bearing shared model endpoint before writing: %s",
+    (base_url) => {
+      const f = fixture({
+        model: { provider: "openrouter", default: "small", base_url },
+      });
+      expect(f.run).toThrow("Shared model endpoint must not contain");
+      expect(f.execute.mock.calls.some(([, args]) => args[3] === "set")).toBe(
+        false,
+      );
+    },
+  );
+
+  it("requires native readback of the written model", () => {
+    const f = fixture({ model: { provider: "openrouter", default: "small" } });
+    const original = f.execute.getMockImplementation();
+    if (!original) throw new Error("Missing fixture command");
+    // Hermes acknowledges the write but does not keep it.
+    f.execute.mockImplementation((paths, args) =>
+      args[1] === "test" && args[3] === "set" ? "saved" : original(paths, args),
+    );
+    expect(f.run).toThrow("Hermes did not retain the shared model selection");
   });
 });

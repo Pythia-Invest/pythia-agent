@@ -1,28 +1,4 @@
-/** Shared literal matching; query syntax never becomes a regular expression. */
 export type MatchRange = [number, number];
-// Keep offsets in the original string even when Unicode lowercasing expands it.
-export function matchRanges(
-  text: string,
-  terms: readonly string[],
-  limit = 200,
-): MatchRange[] {
-  const folded = text.toLowerCase();
-  const ranges: MatchRange[] = [];
-  for (const term of terms) {
-    const needle = term.toLowerCase();
-    if (!needle) continue;
-    let from = 0;
-    for (let count = 0; count < limit; count++) {
-      const index = folded.indexOf(needle, from);
-      if (index < 0) break;
-      const endIndex = index + needle.length;
-      ranges.push([index, endIndex]);
-      from = endIndex;
-    }
-  }
-  return originalMatchRanges(text, ranges, folded.length);
-}
-
 /** Map lowercase match offsets to the original text and merge overlaps. */
 export function originalMatchRanges(
   text: string,

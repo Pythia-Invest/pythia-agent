@@ -164,9 +164,15 @@ function verifyRemoteTag(repository, tag, allowedSigners) {
   const directory = mkdtempSync(join(tmpdir(), "pythia-release-check-"));
   try {
     runGit(directory, ["init", "--bare", "."]);
+    // The scratch repository is removed below, so it must not start Git's
+    // detached background maintenance, which can still be writing into it.
     runGit(directory, [
       "-c",
       "core.hooksPath=/dev/null",
+      "-c",
+      "gc.auto=0",
+      "-c",
+      "maintenance.auto=false",
       "fetch",
       "--no-tags",
       remoteUrl(repository),
@@ -174,7 +180,12 @@ function verifyRemoteTag(repository, tag, allowedSigners) {
     ]);
     return verifyStableTag(directory, tag, allowedSigners);
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    rmSync(directory, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
   }
 }
 

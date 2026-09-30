@@ -12,8 +12,8 @@ import { afterEach } from "vitest";
 import {
   atomicWriteJson,
   copyPrivateFile,
-} from "../../../scripts/install/files.mjs";
-import { resolveInstallPaths } from "../../../scripts/install/paths.mjs";
+} from "../../scripts/install/files.mjs";
+import { resolveInstallPaths } from "../../scripts/install/paths.mjs";
 const roots: string[] = [];
 
 afterEach(() => {

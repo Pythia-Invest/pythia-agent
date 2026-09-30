@@ -46,7 +46,7 @@ function request(path: string, extra: RequestInit = {}) {
     },
   );
 }
-it("browses ordinary files, searches names, resolves host references and retains attachment exclusions", async () => {
+it("browses ordinary files, resolves host references and excludes attachments from listing and search", async () => {
   const { root, store } = await fixture();
   await mkdir(join(root, "Research"));
   await writeFile(
@@ -58,11 +58,10 @@ it("browses ordinary files, searches names, resolves host references and retains
   expect((await store.list("")).entries.map((e) => e.name)).toEqual([
     "Research",
   ]);
-  expect((await store.search("", "[risk]")).matches).toEqual([]);
-  expect((await store.search("", "café ntoes")).matches[0]?.entry.path).toBe(
-    "Research/café notes.md",
-  );
-  expect((await store.search("", "does not exist")).matches).toEqual([]);
+  // Excluded folders are skipped during traversal, not reported as unreadable.
+  const hidden = await store.search("", "hidden");
+  expect(hidden.matches).toEqual([]);
+  expect(hidden.partial).toBe(false);
   expect(
     await store.resolveHostPath(join(root, "Research", "café notes.md")),
   ).toBe("Research/café notes.md");
@@ -99,7 +98,9 @@ it("enforces admission, decoded containment and no symlinks", async () => {
     "/etc/passwd",
     "a\\b",
   ])
-    await expect(store.entry(path)).rejects.toBeDefined();
+    await expect(store.entry(path)).rejects.toMatchObject({
+      code: "workspace_path",
+    });
   expect(
     (
       await routes.workspaceContent(
@@ -169,7 +170,6 @@ it("serves accurate bounded ranges, safe downloads and rejects changed streams",
   await downloadedPdf.body?.cancel();
   await writeFile(join(root, "large.txt"), Buffer.alloc(3 * 1024 * 1024, 65));
   expect((await store.entry("large.txt")).previewable).toBe(false);
-  expect((await store.search("", "absent")).partial).toBe(false);
   const response = await store.response("large.txt", request("large.txt"));
   if (!response.body) throw new Error("Expected a file stream");
   const reader = response.body.getReader();
@@ -269,6 +269,9 @@ it("pins preview ranges to the observed revision and permits explicit latest rea
   const latest = await routes.workspaceContent(request("paper.pdf"));
   expect(latest.status).toBe(200);
   expect(await latest.text()).toBe("%PDF-1.7\nreplacement");
+  expect(latest.headers.get("x-workspace-revision")).toBe(
+    (await store.entry("paper.pdf")).revision,
+  );
 });
 
 it("ranks deep exact names before more than 100 partial filename matches", async () => {
@@ -293,11 +296,6 @@ it("ranks deep exact names before more than 100 partial filename matches", async
 
 it("finds every file format by name without opening even a large file", async () => {
   const { root, store } = await fixture();
-  await mkdir(join(root, "Aurora"));
-  await writeFile(
-    join(root, "Aurora", "scenario-assumptions.md"),
-    "Fictional research only.",
-  );
   await writeFile(
     join(root, "operating-margin.csv"),
     "metric,value\nbody-only-marker,24",
@@ -310,12 +308,6 @@ it("finds every file format by name without opening even a large file", async ()
     await large.close();
   }
   const opened = vi.spyOn(filesystem, "open");
-  expect((await store.search("", "aur assumptinos")).matches[0]?.match).toBe(
-    "path",
-  );
-  expect((await store.search("", '"scenario assumptions"')).matches).toEqual(
-    [],
-  );
   const result = await store.search("", "margin");
   expect(result.matches.map((match) => match.entry.path)).toEqual([
     "margin-chart.png",

@@ -278,20 +278,3 @@ it.each(["legacy", "unavailable"] as const)(
     );
   },
 );
-it("does not treat legacy guidance as an eligible first scoped input", async () => {
-  const f = await fixture();
-  f.setNative({
-    status: "ok",
-    guidance: "legacy",
-    firstInputEligible: true,
-    scope: { status: "none" },
-  });
-  await expect(
-    f.compose(request(), "legacy-session", "Scope this", {
-      context: {
-        references: [],
-        startStrategyPath: "strategies/quality/README.md",
-      },
-    }),
-  ).rejects.toMatchObject({ code: "fresh_session_required" });
-});

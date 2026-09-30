@@ -49,7 +49,7 @@ Read additional guidance by the surface being changed:
 | Settings, credentials, lifecycle or updates | [Credential custody](docs/architecture/credential-custody.md) and [development](docs/development.md) |
 | Hermes-facing code, the Hermes pin or an upgrade | The [Hermes touchpoint index](runtime/contracts/hermes.md#touchpoint-index) and the Hermes paragraph below; upgrades use the explicit `upgrade-hermes` skill |
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
-| Tests | [Test allocation](.agents/testing.md) |
+| Tests | [Test allocation](.agents/testing.md) and the `test-audit` skill's authoring gate |
 | CI workflows, `justfile` checks, turbo tasks or merging | [ADR 0037](docs/decisions/0037-one-required-ci-gate.md) and [keeping CI clean](.agents/change-validation.md#keeping-ci-clean) |
 | Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
 | Feature plugin packaging or operation exports | [Plugin authoring](docs/architecture/plugins.md) and [plugin rule](.agents/rules/plugin-authoring.md) |

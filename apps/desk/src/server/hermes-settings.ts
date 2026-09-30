@@ -120,10 +120,7 @@ function required(value: unknown, label: string, maximum = 256) {
 export function createHermesSettings(
   environment: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch,
-  capability: {
-    restartHermes?: () => Promise<void>;
-    lockPath?: string;
-  } = {},
+  capability: { restartHermes?: () => Promise<void> } = {},
 ) {
   const call = transport(environment, fetcher);
   // Plugins and MCP servers are loaded by Pythia's chat server when it starts,
@@ -131,13 +128,10 @@ export function createHermesSettings(
   // skills and toolsets do.
   const restartHermes = capability.restartHermes ?? defaultRestart(environment);
   const changeCapability = (write: () => Promise<unknown>) =>
-    withFileLock(
-      capability.lockPath ?? capabilityMutationLock(environment),
-      async () => {
-        await write();
-        await restartHermes();
-      },
-    );
+    withFileLock(capabilityMutationLock(environment), async () => {
+      await write();
+      await restartHermes();
+    });
 
   const service = {
     async config() {

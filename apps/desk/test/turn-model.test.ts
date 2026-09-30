@@ -20,19 +20,6 @@ const pending: DynamicToolUIPart = {
 };
 
 describe("transcript presentation", () => {
-  it.each([
-    { action: "list" },
-    { preview: "stop sa-1-example" },
-    { action: "steer" },
-    { tasks: [{ task: "Find sources" }] },
-  ])("keeps delegation calls out of the activity rows: %j", (input) => {
-    const copy = toolCopy(
-      toolView({ ...pending, toolName: "delegate_task", input }),
-    );
-    expect(copy.hidden).toBe(true);
-    expect(copy.status).not.toContain("sa-");
-  });
-
   it("never moves previously displayed prose into reasoning when a tool arrives", () => {
     const parts: DeskUIMessage["parts"] = [
       { type: "text", text: "I will check.", state: "done" },
@@ -129,17 +116,7 @@ describe("transcript presentation", () => {
     ).toBe("completed");
   });
 
-  it("reads deferred tool identity from stored arguments and avoids claiming a memory write", () => {
-    expect(
-      toolView({
-        ...pending,
-        toolName: "tool_call",
-        input: { name: "pythia_eod_prices", arguments: { ticker: "EXAMPLE" } },
-      }),
-    ).toMatchObject({
-      toolName: "pythia_eod_prices",
-      input: { ticker: "EXAMPLE" },
-    });
+  it("does not claim a memory write for a removal", () => {
     expect(
       toolCopy(
         toolView({
@@ -175,6 +152,7 @@ describe("live answer placement", () => {
     ]);
     expect(live.steps.map((step) => step.kind)).toEqual(["commentary", "tool"]);
     expect(live.prose).toEqual(done.prose);
+    expect(live.answer).toBeUndefined();
     expect(done.answer?.text).toBe("I found a source.");
   });
 
@@ -202,22 +180,19 @@ describe("live answer placement", () => {
     ).toEqual(["Source preview", "I found a source."]);
   });
 
-  it("retains partial prose when the run fails instead of hiding it in activity", () => {
-    const failed: DeskUIMessage = {
-      ...message,
-      parts: [
-        ...message.parts,
-        {
-          type: "data-run-status",
-          data: { state: "failed", message: "Provider disconnected." },
-        },
-      ],
-    };
-    expect(activityTurn(failed, false).prose).toEqual(
-      activityTurn(message, true).prose,
-    );
-    expect(activityTurn(failed, false).answer).toBeUndefined();
-  });
+  it.each(["failed", "cancelled"] as const)(
+    "retains partial prose when the run is %s instead of hiding it in activity",
+    (state) => {
+      const ended: DeskUIMessage = {
+        ...message,
+        parts: [...message.parts, { type: "data-run-status", data: { state } }],
+      };
+      expect(activityTurn(ended, false).prose).toEqual(
+        activityTurn(message, true).prose,
+      );
+      expect(activityTurn(ended, false).answer).toBeUndefined();
+    },
+  );
 });
 
 describe("steered runs", () => {

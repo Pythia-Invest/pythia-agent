@@ -1,6 +1,11 @@
 import { expect, it } from "vitest";
 import { parsePreview } from "@/workspace/previews/parse";
-import { codeLanguage, OFFICE_BYTES } from "@/workspace/previews/formats";
+import { bundledLanguages } from "shiki";
+import {
+  codeLanguage,
+  languages,
+  OFFICE_BYTES,
+} from "@/workspace/previews/formats";
 import { parseNotebook } from "@/workspace/previews/notebook";
 import { describeBytes } from "@/server/workspace/files";
 import type { Stats } from "node:fs";
@@ -47,6 +52,7 @@ it("shows formatted spreadsheet values and missing formula results without recal
   expect(result.table.names).toEqual(["Comparison", "Assumptions"]);
   expect(result.table.rows[1]?.[2]).toBe("20.0%");
   expect(result.table.formulas["2:2"]).toBe("=B2*2");
+  expect(result.table.rows[2]?.[2]).toBe("Value unavailable");
   const other = await parsePreview({ ...input, sheet: 1 });
   expect(other.kind === "table" && other.table.rows[1]?.[0]).toBe(
     "Fictional data",
@@ -107,15 +113,16 @@ it("rejects oversized and malformed inputs", async () => {
   ).rejects.toThrow("Unsupported");
 });
 it.each([
-  ["model.mjs", "javascript"],
-  ["types.mts", "typescript"],
-  ["engine.rs", "rust"],
   ["Dockerfile", "dockerfile"],
   ["unknown.xyz", "text"],
-])("maps %s to a maintained grammar", (name, lang) =>
+])("maps %s by filename or falls back to plain text", (name, lang) =>
   expect(codeLanguage(name)).toBe(lang),
 );
-it("recognizes passive previews without making HTML or SVG executable", () => {
+it("maps extensions only to grammars the highlighter bundles", () => {
+  for (const language of [...Object.values(languages), "makefile"])
+    expect(language in bundledLanguages, language).toBe(true);
+});
+it("classifies office archives and UTF-8 text from content and extension together", () => {
   const stat = {
     isDirectory: () => false,
     size: 100,
@@ -124,10 +131,6 @@ it("recognizes passive previews without making HTML or SVG executable", () => {
   expect(
     describeBytes("script.mjs", stat, Buffer.from("const a = 1")).kind,
   ).toBe("text");
-  expect(
-    describeBytes("page.html", stat, Buffer.from("<script>evil()</script>"))
-      .mediaType,
-  ).toBe("text/plain; charset=utf-8");
   expect(
     describeBytes("model.xlsx", stat, Buffer.from(workbookBytes())).kind,
   ).toBe("spreadsheet");
