@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "build": "next build --webpack",
-    "check": "next typegen && tsc --noEmit --project tsconfig.json",
+    "check": "next typegen && tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
     "dev": "next dev --webpack",
     "test": "pnpm run test:unit",
-    "test:unit": "tsc --noEmit --project tsconfig.test.json && vitest run --passWithNoTests"
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@pythia/ui": "workspace:*",

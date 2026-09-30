@@ -14,6 +14,13 @@ test("inspects live tool details without requesting extra history", async ({
     .getByRole("button")
     .first();
   await expect(toggle).toHaveText("Reading example.md");
+  const historyReads: string[] = [];
+  page.on("request", (request) => {
+    if (
+      /^\/api\/sessions\/[^/]+\/messages$/.test(new URL(request.url()).pathname)
+    )
+      historyReads.push(request.url());
+  });
   await toggle.focus();
   await page.keyboard.press("Enter");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -33,6 +40,8 @@ test("inspects live tool details without requesting extra history", async ({
   await expect(
     row.getByText("reports/example.md", { exact: true }),
   ).toBeVisible();
+  // The details come from the stream; inspecting them reads no history.
+  expect(historyReads).toEqual([]);
   await f.emit([{ event: "message.delta", delta: "A synthetic answer." }]);
   // The answer does not close a record the reader opened.
   await expect(toggle).toHaveAttribute("aria-expanded", "true");

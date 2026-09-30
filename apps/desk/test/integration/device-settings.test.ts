@@ -19,7 +19,7 @@ import {
 import { defaultRestart, withFileLock } from "@/server/device-settings-native";
 import { atomicWriteStore, requireStore } from "@/server/device-settings-store";
 import type { HermesClient, HermesSkill, HermesToolset } from "@/server/types";
-import { capturedCli } from "./hermes-capture";
+import { capturedCli } from "../hermes-capture";
 
 const roots: string[] = [];
 

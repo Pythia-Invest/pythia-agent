@@ -75,23 +75,11 @@ test("a credential saves in place and comes back only as a stand-in", async ({
     .toEqual({ key: "SYNTHETIC_API_KEY", value: null });
 });
 
-test("provider keys and accounts go through Hermes, not the browser", async ({
+test("provider accounts show Hermes sign-ins and the command for outside sign-in", async ({
   page,
 }) => {
   await checkedToday(page);
   const state = await settingsFixture(page);
-  await page.goto("/?settings=providers/keys");
-  await page
-    .getByRole("textbox", { name: "Synthetic API key" })
-    .fill("synthetic-key-9a7c");
-  await page.getByRole("button", { name: "Save" }).click();
-  await expect
-    .poll(() => state.writes.at(-1))
-    .toEqual({
-      method: "POST",
-      path: "/api/hermes/keys",
-      body: { key: "SYNTHETIC_API_KEY", value: "synthetic-key-9a7c" },
-    });
   await page.goto("/?settings=providers/accounts");
   const connected = page.getByRole("region", { name: "Connected" });
   await expect(connected).toContainText("Synthetic Subscription");

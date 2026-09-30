@@ -8,17 +8,20 @@
     "tsconfig.base.json"
   ],
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "public/_pdfjs/**"]
     },
     "check": {
-      "dependsOn": ["^check"],
+      "dependsOn": ["transit"],
       "outputs": []
     },
     "test:unit": {
       "cache": false,
-      "dependsOn": ["^test:unit"],
+      "dependsOn": ["transit"],
       "outputs": []
     },
     "test:integration": {

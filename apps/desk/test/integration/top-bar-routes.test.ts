@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { createTopBarRoutes } from "../src/server/top-bar-routes";
-import { createWorkspaceStore } from "../src/server/workspace/store";
-import { TOP_BAR_CONFIG_PATH } from "../src/top-bar/config";
+import { createTopBarRoutes } from "../../src/server/top-bar-routes";
+import { createWorkspaceStore } from "../../src/server/workspace/store";
+import { TOP_BAR_CONFIG_PATH } from "../../src/top-bar/config";
 
 const directories: string[] = [];
 afterEach(async () => {

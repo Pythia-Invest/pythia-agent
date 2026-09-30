@@ -50,6 +50,7 @@ Read additional guidance by the surface being changed:
 | Hermes-facing code, the Hermes pin or an upgrade | The [Hermes touchpoint index](runtime/contracts/hermes.md#touchpoint-index) and the Hermes paragraph below; upgrades use the explicit `upgrade-hermes` skill |
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) |
+| CI workflows, `justfile` checks, turbo tasks or merging | [ADR 0037](docs/decisions/0037-one-required-ci-gate.md) and [keeping CI clean](.agents/change-validation.md#keeping-ci-clean) |
 | Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
 | Feature plugin packaging or operation exports | [Plugin authoring](docs/architecture/plugins.md) and [plugin rule](.agents/rules/plugin-authoring.md) |
 
@@ -80,6 +81,9 @@ inject this file or `.agents/` into Hermes. Explicit, user-approved source
 maintenance may read them like any other source file. Runtime inputs remain
 role-scoped allowlists; the seeded workspace `AGENTS.md` is separate native
 investor context and must never be projected as builder guidance.
+
+Run `just check-static` before pushing and merge only when the required
+`CI gate` check is green; a red `main` or nightly run is fixed before new work.
 
 Do not commit credentials, investment records, provider responses, generated
 model output, or device state. Hermes protocol and formatter goldens captured

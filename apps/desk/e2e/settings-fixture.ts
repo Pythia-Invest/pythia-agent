@@ -177,6 +177,3 @@ export async function checkedToday(page: Page) {
     );
   });
 }
-
-export const isPhone = (page: Page) =>
-  (page.viewportSize()?.width ?? 1280) < 900;

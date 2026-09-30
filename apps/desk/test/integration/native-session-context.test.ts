@@ -170,7 +170,7 @@ it.skipIf(!nativeSource)(
     roots.push(root);
     const profile = join(root, "profiles", "synthetic");
     await mkdir(profile, { recursive: true });
-    const repository = join(import.meta.dirname, "../../..");
+    const repository = join(import.meta.dirname, "../../../..");
     const receipt = JSON.parse(
       await readFile(join(source, ".pythia-source.json"), "utf8"),
     );

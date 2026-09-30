@@ -36,7 +36,6 @@ export async function fixture(
   let queueAvailable = true;
   let streamRequests = 0;
   let steerFailure = false;
-  let creating: Promise<void> | undefined;
   const stops: string[] = [];
   const sessions = [{ id: "synthetic-chat", title: "Synthetic chat review" }];
   await page.exposeFunction("claimSyntheticQueue", () => {
@@ -189,7 +188,6 @@ export async function fixture(
       submissions.push(body.input);
       workspaces.push(body.workspace);
       selections.push(body.selection);
-      if (creating) await creating;
       queueAvailable = true;
       status = { run_id: "synthetic-run", status: "running" };
       return route.fulfill({
@@ -290,14 +288,23 @@ export async function fixture(
     };
   });
   // Synthetic API fixtures do not own the host filesystem. Exercise the
-  // unseeded fallback for workspace documents rather than reading real files.
+  // unseeded fallback for workspace documents rather than reading real files:
+  // a foreign Origin makes Desk refuse the server-rendered snapshot. The browser
+  // drops that header from a navigation, so fetch the page outside it.
+  // Next prefetches these pages, so a fetch can outlive the test's page.
   await page.route(/^https?:\/\/[^/]+\/workspace(?:\/|\?|$)/, async (route) => {
-    return route.continue({
-      headers: {
-        ...route.request().headers(),
-        origin: "https://synthetic.invalid",
-      },
-    });
+    const response = await route
+      .fetch({
+        headers: {
+          ...route.request().headers(),
+          origin: "https://synthetic.invalid",
+        },
+        maxRedirects: 0,
+      })
+      .catch(() => null);
+    await (response ? route.fulfill({ response }) : route.abort()).catch(
+      () => {},
+    );
   });
   await page.goto("/c/synthetic-chat");
   await expect(
@@ -309,9 +316,6 @@ export async function fixture(
     streamRequests: () => streamRequests,
     rejectSteer: () => {
       steerFailure = true;
-    },
-    delayCreation: (pending: Promise<void>) => {
-      creating = pending;
     },
     setStatus: (next: RunStatus) => {
       status = next;
@@ -366,6 +370,9 @@ export async function fixture(
     },
   };
 }
+
+/** Below 900px Desk uses its phone layout: drawers and sheets, no tab strips. */
+export const isPhone = (page: Page) => (page.viewportSize()?.width ?? 0) < 900;
 
 export async function send(page: Page) {
   await expect(
