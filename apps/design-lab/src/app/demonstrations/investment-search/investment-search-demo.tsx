@@ -12,16 +12,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import {
   demoGroupListings,
-  demoLookup,
-  demoLookupOffers,
-  demoLookupGroup,
   demoSearch,
   searchDemoDirectory,
 } from "./search-demo";
 
 const ignore = () => {};
 const search = demoSearch(180);
-const lookup = demoLookup(900);
 const crypto = TYPE_FILTERS.find((type) => type.value === "crypto")?.kinds;
 
 function options(
@@ -31,7 +27,6 @@ function options(
 ) {
   return searchOptions(
     searchDemoDirectory(query, { kinds }).groups,
-    "directory",
     expanded,
     new Map(
       [...(expanded ?? [])].map((id) => [id, demoGroupListings(id)] as const),
@@ -39,9 +34,6 @@ function options(
   );
 }
 
-/** A synthetic lookup answer: a group of the search shape with subject ids. */
-const lookupGroup = demoLookupGroup("ASML.MI");
-const found = searchOptions([lookupGroup], "lookup");
 const asml = new Set(["issuer:lei:724500Y6DUVHQD6OXN27"]);
 
 function Specimen({
@@ -64,10 +56,10 @@ function Specimen({
             status="ready"
             fresh
             filter="all"
-            offers={props.query ? demoLookupOffers : []}
+            includeDelisted
             onFilter={ignore}
+            onIncludeDelisted={ignore}
             onRetry={ignore}
-            onLookup={ignore}
             onChoose={ignore}
             {...props}
             options={list}
@@ -95,8 +87,8 @@ export function InvestmentSearchDemo() {
     <div className="grid gap-10">
       <p className="max-w-measure text-body text-foreground-secondary">
         Names, tickers, venues and ISINs mirror public reference data so the
-        cases are recognisable. Bindings, ranking and lookup results are
-        synthetic, nothing is provider data, and rows carry no prices.
+        cases are recognisable. Bindings and ranking are synthetic, nothing is
+        provider data, and rows carry no prices.
       </p>
       <Section title="Anchored search">
         <QueryClientProvider client={client}>
@@ -108,7 +100,6 @@ export function InvestmentSearchDemo() {
               query={query}
               onQueryChange={setQuery}
               search={search}
-              lookup={lookup}
               onSelect={setChosen}
               className="max-w-[60%] flex-none"
             />
@@ -116,10 +107,10 @@ export function InvestmentSearchDemo() {
           </div>
         </QueryClientProvider>
         <p className="text-foreground-secondary text-xs">
-          Try asml, asmlf, alphabet, shell, bitcoin, IE00B4L5Y983 or zzzz. Arrow
-          keys move through listings and a company&apos;s “All listings” toggle,
-          Enter opens a listing or toggles, Esc closes, Tab reaches the type
-          pills and the lookup action.
+          Try asml, asmlf, alphabet, shell, bitcoin, IE00B4L5Y983, milkiland or
+          zzzz. Arrow keys move through listings and a company&apos;s “All
+          listings” toggle, Enter opens a listing or toggles, Esc closes, Tab
+          reaches the type pills and the delisted toggle.
         </p>
         <output className="text-body text-foreground">
           {chosen
@@ -180,34 +171,21 @@ export function InvestmentSearchDemo() {
             options={options("", crypto)}
           />
           <Specimen
+            title="A delisted line"
+            note="Found by name, ticker or ISIN, marked Delisted and ranked below live lines; the toggle hides it."
+            query="milkiland"
+            options={options("milkiland")}
+          />
+          <Specimen
+            title="Delisted lines hidden"
+            note="With “Include delisted” off, a delisted-only match is no result."
+            query="milkiland"
+            includeDelisted={false}
+          />
+          <Specimen
             title="No result"
-            note="The only way past the directory is an explicit lookup."
+            note="Search answers from local data only; nothing else is asked."
             query="zzzz"
-          />
-          <Specimen
-            title="Lookup result"
-            note="One provider per action; its rows are listed apart."
-            query="asml.mi"
-            options={found}
-            lookup={{
-              plugin: "yahoo",
-              label: "Yahoo Finance",
-              query: "asml.mi",
-              status: "done",
-              groups: [lookupGroup],
-            }}
-          />
-          <Specimen
-            title="Lookup in progress"
-            note="The action waits; typing stays local."
-            query="adyen"
-            lookup={{
-              plugin: "yahoo",
-              label: "Yahoo Finance",
-              query: "adyen",
-              status: "running",
-              groups: [],
-            }}
           />
           <Specimen
             title="Search unavailable"

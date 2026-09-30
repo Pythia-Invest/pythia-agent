@@ -57,16 +57,16 @@ function directory() {
         groups: [
           { ...group(rows), id: request.group, listings: rows.length, rows },
         ],
-        lookup: [],
       });
     }
     return new Promise<SearchResponse>((resolve) =>
-      pending.set(request.query, (groups) => resolve({ groups, lookup: [] })),
+      pending.set(request.query, (groups) => resolve({ groups })),
     );
   };
   async function answer(query: string, groups: SearchGroup[]) {
     await until(() => expect(pending.has(query)).toBe(true));
     await act(async () => pending.get(query)?.(groups));
+    pending.delete(query);
   }
   return { search, requests, answer };
 }
@@ -324,7 +324,7 @@ describe("investment search", () => {
     const held = new Map<string, () => void>();
     const search: SearchBackend = (request, signal) => {
       if (!request.group)
-        return Promise.resolve({ groups: [a, b], lookup: [] });
+        return Promise.resolve({ groups: [a, b] });
       const rows = everything.get(request.group) ?? [];
       return new Promise((resolve, reject) => {
         signal.addEventListener("abort", () => reject(signal.reason));
@@ -333,7 +333,6 @@ describe("investment search", () => {
             groups: [
               { ...a, id: request.group ?? "", listings: rows.length, rows },
             ],
-            lookup: [],
           }),
         );
       });
@@ -438,5 +437,41 @@ describe("investment search", () => {
         ?.click(),
     );
     expect(selected).toEqual(["security:ASML?listing=listing:ASML-US"]);
+  });
+
+  it("marks a delisted line, and the toggle asks the directory for live lines only", async () => {
+    const { search, answer, requests } = directory();
+    await act(async () => root.render(<Harness search={search} />));
+    await type("milk");
+    const delisted = { ...row("MLK", "Warsaw"), delisted: true };
+    await answer("milk", [group([row("MILK")]), group([delisted])]);
+    await until(() => expect(rows()).toEqual(["MILK", "MLK"]));
+    const mark = (ticker: string) =>
+      document
+        .querySelector(`[role="option"][aria-label^="${ticker},"]`)
+        ?.querySelector('[data-slot="investment-search-delisted-mark"]')
+        ?.textContent;
+    expect(mark("MLK")).toBe("Delisted");
+    expect(mark("MILK")).toBeUndefined();
+    expect(
+      document
+        .querySelector('[role="option"][aria-label^="MLK,"]')
+        ?.getAttribute("aria-label"),
+    ).toBe("MLK, MLK Holding, Warsaw, delisted, EUR, Stock");
+    // Delisted lines are asked for until the toggle is turned off.
+    expect(requests.at(-1)).not.toHaveProperty("include_delisted");
+    const toggle = () =>
+      [...document.querySelectorAll("button")].find(
+        (button) => button.textContent === "Include delisted",
+      );
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => toggle()?.click());
+    await answer("milk", [group([row("MILK")])]);
+    await until(() => expect(rows()).toEqual(["MILK"]));
+    expect(requests.at(-1)).toMatchObject({
+      query: "milk",
+      include_delisted: false,
+    });
+    expect(toggle()?.getAttribute("aria-pressed")).toBe("false");
   });
 });

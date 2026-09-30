@@ -3,7 +3,6 @@ import { type PluginTransport, useQueries, useQuery } from "@pythia/widget-sdk";
 import { useCallback } from "react";
 import { z } from "zod";
 import {
-  type LookupRequest,
   type SearchRequest,
   type SearchResponse,
   type SearchGroup,
@@ -25,13 +24,6 @@ export type SearchBackend = (
   signal: AbortSignal,
 ) => Promise<SearchResponse>;
 
-/** Runs one explicit lookup in one plugin: the groups it found, or with how
- * many subjects it stored that no group for the query lists. */
-export type LookupRunner = (
-  request: LookupRequest,
-  signal: AbortSignal,
-) => Promise<SearchGroup[] | { groups: SearchGroup[]; placed: number }>;
-
 /** Directory groups for the typed query. The previous answer stays on screen
  * while the next one loads, and a reopened panel answers from the cache. */
 export function useDirectorySearch(
@@ -39,13 +31,19 @@ export function useDirectorySearch(
   query: string,
   filter: TypeFilter,
   enabled: boolean,
+  includeDelisted = true,
 ) {
   const kinds = TYPE_FILTERS.find((type) => type.value === filter)?.kinds;
   return useQuery<SearchResponse>({
-    queryKey: [...searchQueryKey, query, filter],
+    queryKey: [...searchQueryKey, query, filter, includeDelisted],
     queryFn: ({ signal }) =>
       search(
-        { query, limit: SEARCH_LIMIT, ...(kinds ? { kinds } : {}) },
+        {
+          query,
+          limit: SEARCH_LIMIT,
+          ...(kinds ? { kinds } : {}),
+          ...(includeDelisted ? {} : { include_delisted: false }),
+        },
         signal,
       ),
     enabled: enabled && query.length > 0,
@@ -63,6 +61,7 @@ export function useGroupListings(
   search: SearchBackend,
   query: string,
   filter: TypeFilter,
+  includeDelisted: boolean,
   groups: readonly SearchGroup[],
 ) {
   const kinds = TYPE_FILTERS.find((type) => type.value === filter)?.kinds;
@@ -86,9 +85,17 @@ export function useGroupListings(
   );
   return useQueries({
     queries: groups.map((group) => ({
-      queryKey: [...searchQueryKey, "group", group.id, filter],
+      queryKey: [...searchQueryKey, "group", group.id, filter, includeDelisted],
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        search({ query, group: group.id, ...(kinds ? { kinds } : {}) }, signal),
+        search(
+          {
+            query,
+            group: group.id,
+            ...(kinds ? { kinds } : {}),
+            ...(includeDelisted ? {} : { include_delisted: false }),
+          },
+          signal,
+        ),
       staleTime: 30_000,
       gcTime: 5 * 60_000,
       retry: false,
@@ -121,40 +128,5 @@ export function transportSearch(transport: PluginTransport): SearchBackend {
     if (envelope.outcome === "error")
       throw Error("Investment search is unavailable.");
     return searchResponseSchema.parse(envelope.data);
-  };
-}
-
-const lookupSchema = z.object({
-  data: z.object({ subjects: z.array(z.string()) }).nullish(),
-  issues: z.array(z.object({ message: z.string() })).default([]),
-});
-
-/** The explicit lookup through core's `identity-lookup` (an invoke: it calls
- * one plugin's provider once and stores what it answers). The answer is the
- * directory's groups for the query that hold a subject it placed, else how
- * many it placed; "no match" is an empty answer, and a failure is an error. */
-export function transportLookup(transport: PluginTransport): LookupRunner {
-  const search = transportSearch(transport);
-  return async ({ plugin, query }, signal) => {
-    const answer = lookupSchema.parse(
-      await transport.invoke(
-        {
-          plugin: SEARCH_PLUGIN,
-          operation: "identity-lookup",
-          arguments: { plugin, query },
-        },
-        signal,
-      ),
-    );
-    if (!answer.data)
-      throw Error(answer.issues[0]?.message ?? "The lookup failed.");
-    const placed = new Set(answer.data.subjects);
-    if (!placed.size) return [];
-    const { groups } = await search({ query, limit: SEARCH_LIMIT }, signal);
-    const found = groups.filter(
-      (group) =>
-        placed.has(group.id) || group.rows.some((row) => placed.has(row.id)),
-    );
-    return found.length ? found : { groups: [], placed: placed.size };
   };
 }

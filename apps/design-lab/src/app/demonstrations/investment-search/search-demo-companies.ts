@@ -266,6 +266,20 @@ export const demoCompanies: readonly Company[] = [
       ),
     ],
   },
+  // A line that no longer trades: found, marked, and ranked below live ones.
+  {
+    id: "security:isin:NL0009508712",
+    name: "Milkiland",
+    kind: "ordinary",
+    rows: [
+      line("listing:isin:NL0009508712:XWAR:EUR", "MLK", "Milkiland", "Warsaw", {
+        mic: "XWAR",
+        country: "PL",
+        currency: "EUR",
+        delisted: true,
+      }),
+    ],
+  },
   {
     id: "index:demo:AEX",
     name: "AEX Index",

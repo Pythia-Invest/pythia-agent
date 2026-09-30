@@ -42,14 +42,16 @@ SEARCH_SCHEMA = {
     "description": "Search the device's local directory of securities, listings, crypto assets and the pools and "
                    "protocols plugins added, by name, ticker or identifier (ISIN, LEI, FIGI, CIK). Answers groups "
                    "(a company, a fund, a crypto asset, a pool or a protocol), each with its most relevant listings "
-                   "and its total listing count. Pass `group` with a group's "
+                   "and its total listing count. A delisted line is found too, flagged `delisted` and ranked below "
+                   "live ones; `include_delisted: false` leaves them out. Pass `group` with a group's "
                    f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
                    "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
         "query": {"type": "string", "minLength": 1, "maxLength": 128},
         "group": {"type": "string", "minLength": 1, "maxLength": 256},
         "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.KINDS)}, "maxItems": 16},
-        "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "include_delisted": {"type": "boolean"}},
         "additionalProperties": False},
 }
 SUBJECT_SCHEMA = {
@@ -118,18 +120,18 @@ class Identity:
     # ---- operations ----------------------------------------------------------------------------------------------
 
     def search(self, arguments: dict, **_context: Any) -> str:
-        empty = {"groups": [], "lookup": []}
+        empty = {"groups": []}
         query = str(arguments.get("query") or "").strip()[:128]
         group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
             path, plugins = self.reference_path(), installed()  # with no package, the device's subjects alone
             directory, kinds = self.directory(path, plugins), arguments.get("kinds")
-            data = (directory.group(group, kinds=kinds) if group
+            delisted = arguments.get("include_delisted") is not False  # delisted lines show unless asked to hide
+            data = (directory.group(group, kinds=kinds, delisted=delisted) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
-                                          suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
-            from .platform.request_context import usage  # "Look up in X" is the investor's Desk action, never the agent's
-            data["lookup"] = search_device.offers(query, plugins) if query and not group and usage.get() == "dashboard" else []
+                                          suffixes=search_venues.suffixes, priced=search_venues.priced,
+                                          delisted=delisted) if query else empty)
         except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")

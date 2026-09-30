@@ -62,6 +62,7 @@ function optionLabel(option: SearchOption) {
     ownDetail(option),
     row.venue ?? row.mic,
     row.source ? `from ${row.source}` : null,
+    row.delisted ? "delisted" : null,
     row.currency,
     KIND_LABELS[row.kind],
   ]
@@ -89,8 +90,8 @@ function GroupHeading({ option }: { option: SearchOption }) {
 
 /** One listing of a group on one line: ticker, the venue with its country
  * flag, what the listing is when it is not the plain share (a class, registry
- * shares), the plugin that introduced a subject the reference lacks, currency
- * and type. No prices and no provider logos: search shows what exists; data
+ * shares), the plugin that introduced a subject the reference lacks, a
+ * "Delisted" mark for a line that no longer trades, currency and type. No prices and no provider logos: search shows what exists; data
  * sources belong on the instrument page.
  *
  * A group's first listing carries the group's heading inside the same option,
@@ -136,6 +137,14 @@ export function SearchRowOption({
             className="min-w-0 truncate"
           >
             {venue || detail ? "· " : ""}from {row.source}
+          </span>
+        ) : null}
+        {row.delisted ? (
+          <span
+            data-slot="investment-search-delisted-mark"
+            className="flex-none rounded-control border border-border px-1.5 text-foreground-secondary"
+          >
+            Delisted
           </span>
         ) : null}
       </span>

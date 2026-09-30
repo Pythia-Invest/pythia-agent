@@ -1,34 +1,20 @@
-import { Button, ComboboxList, EmptyState, Skeleton } from "@pythia/widget-sdk";
-import { LoaderCircle } from "lucide-react";
+import {
+  Button,
+  ComboboxList,
+  EmptyState,
+  Skeleton,
+  Toggle,
+} from "@pythia/widget-sdk";
 import { Fragment, type MouseEvent, useEffect, useRef } from "react";
-import type { LookupOffer, SearchGroup } from "../search";
 import {
   type SearchOption,
   TYPE_FILTERS,
   type TypeFilter,
 } from "./search-model";
-import { ConnectorMark, SearchRowOption, ToggleOption } from "./search-row";
+import { SearchRowOption, ToggleOption } from "./search-row";
 import { TypePills } from "./type-pills";
 
 export type PanelStatus = "prompt" | "loading" | "error" | "ready";
-
-export type LookupState = {
-  plugin: string;
-  label: string;
-  query: string;
-  status: "running" | "done" | "error";
-  groups: SearchGroup[];
-  /** Subjects the lookup stored that no group for the query lists. */
-  placed?: number | undefined;
-};
-
-/** A finished lookup that shows no rows: no match, or what it stored that
- * search does not list for the query (never "no match" then). */
-export function lookupEmpty({ label, query, placed }: LookupState) {
-  return placed
-    ? `${label} added ${placed} ${placed === 1 ? "subject" : "subjects"}, but none is listed for “${query}”.`
-    : `${label} has no match for “${query}”.`;
-}
 
 export type SearchPanelProps = {
   /** Trimmed query the panel describes. */
@@ -37,13 +23,12 @@ export type SearchPanelProps = {
   /** The listed rows answer the current query and filter. */
   fresh: boolean;
   filter: TypeFilter;
+  /** Delisted lines are listed, below the live ones. */
+  includeDelisted: boolean;
   options: readonly SearchOption[];
-  /** Plugins the user may explicitly look the query up in. */
-  offers: readonly LookupOffer[];
-  lookup?: LookupState | undefined;
   onFilter(value: TypeFilter): void;
+  onIncludeDelisted(value: boolean): void;
   onRetry(): void;
-  onLookup(offer: LookupOffer): void;
   /** A row was chosen by pointer or Enter. */
   onChoose(option: SearchOption): void;
   /** Groups showing all their listings, by group id. */
@@ -58,11 +43,11 @@ export type SearchPanelProps = {
 const keepInputFocus = (event: MouseEvent) => event.preventDefault();
 
 /** Body of the anchored search panel: type pills, one listbox, explicit
- * states and a footer with the key hints and the lookup actions. It
+ * states and a footer with the key hints. It
  * renders inside a `Combobox`, which owns highlighting and selection;
  * `InvestmentSearch` is the stateful composition. */
 export function SearchPanel(props: SearchPanelProps) {
-  const { query, status, fresh, filter, lookup } = props;
+  const { query, status, fresh, filter } = props;
   const body = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new query or type starts at the top of its rows.
   useEffect(() => {
@@ -71,8 +56,6 @@ export function SearchPanel(props: SearchPanelProps) {
   // Rows exist only while they are shown, so the combobox never highlights or
   // selects a hidden one.
   const shown = status === "ready" ? props.options : [];
-  const directory = shown.filter((option) => option.source === "directory");
-  const found = shown.filter((option) => option.source === "lookup");
   // A group's first listing carries its heading in the same option; the
   // toggle closes the group.
   const renderRow = (
@@ -100,7 +83,7 @@ export function SearchPanel(props: SearchPanelProps) {
       )}
     </Fragment>
   );
-  const companies = new Set(directory.map((option) => option.group.id)).size;
+  const companies = new Set(shown.map((option) => option.group.id)).size;
   const filterLabel = TYPE_FILTERS.find((type) => type.value === filter)?.label;
   const announcement =
     status === "loading"
@@ -115,8 +98,16 @@ export function SearchPanel(props: SearchPanelProps) {
       data-slot="investment-search-panel"
       className="flex h-full min-h-0 flex-col"
     >
-      <div className="flex-none px-3 pt-3 pb-2">
+      <div className="flex flex-none items-center gap-2 px-3 pt-3 pb-2">
         <TypePills value={filter} onChange={props.onFilter} />
+        <Toggle
+          label="Include delisted"
+          size="sm"
+          pressed={props.includeDelisted}
+          onPressedChange={props.onIncludeDelisted}
+          onMouseDown={keepInputFocus}
+          className="ml-auto flex-none rounded-pill data-pressed:border-border-strong"
+        />
       </div>
       <div
         ref={body}
@@ -150,7 +141,7 @@ export function SearchPanel(props: SearchPanelProps) {
             </Button>
           </div>
         ) : null}
-        {status === "ready" && fresh && !directory.length ? (
+        {status === "ready" && fresh && !shown.length ? (
           <div
             data-slot="investment-search-no-results"
             className="grid justify-items-center gap-1 px-4 py-8 text-center"
@@ -162,9 +153,7 @@ export function SearchPanel(props: SearchPanelProps) {
             <p className="text-foreground-secondary text-xs">
               {filter !== "all"
                 ? "Other types may still match."
-                : props.offers.length
-                  ? "Check the spelling, or look it up below."
-                  : "Check the spelling, or try a ticker or ISIN."}
+                : "Check the spelling, or try a ticker or ISIN."}
             </p>
             {filter !== "all" ? (
               <Button
@@ -187,76 +176,19 @@ export function SearchPanel(props: SearchPanelProps) {
           // widening every row past the panel.
           className="grid max-h-none grid-cols-1 overflow-visible"
         >
-          {directory.map(renderRow)}
-          {found.length && lookup ? (
-            <div
-              aria-hidden="true"
-              className="flex items-center gap-1.5 px-2.5 pt-2 text-foreground-secondary text-xs"
-            >
-              <ConnectorMark plugin={lookup.plugin} />
-              From {lookup.label}
-            </div>
-          ) : null}
-          {found.map(renderRow)}
+          {shown.map(renderRow)}
         </ComboboxList>
-        {lookup?.status === "running" ? (
-          <p className="flex items-center gap-2 px-2.5 py-3 text-foreground-secondary text-xs">
-            <LoaderCircle
-              aria-hidden="true"
-              className="size-3.5 animate-spin motion-reduce:animate-none"
-            />
-            Looking up “{lookup.query}” in {lookup.label}…
-          </p>
-        ) : null}
-        {lookup?.status === "done" && !found.length ? (
-          <p className="px-2.5 py-3 text-foreground-secondary text-xs">
-            {lookupEmpty(lookup)}
-          </p>
-        ) : null}
-        {lookup?.status === "error" ? (
-          <p role="alert" className="px-2.5 py-3 text-error text-xs">
-            The {lookup.label} lookup failed. You can try again.
-          </p>
-        ) : null}
         <p role="status" className="sr-only">
           {announcement}
         </p>
       </div>
       <div
         data-slot="investment-search-footer"
-        className="@container flex min-h-10 flex-none items-center justify-end gap-2 border-border border-t px-3 py-1.5 text-foreground-secondary text-xs"
+        className="flex min-h-10 flex-none items-center border-border border-t px-3 py-1.5 text-foreground-secondary text-xs"
       >
-        {/* Key hints yield to the lookup actions in a narrow panel. */}
-        <span className="@md:block hidden min-w-0 flex-1 truncate">
+        <span className="min-w-0 truncate">
           ↑↓ to move · Enter to open · Esc to close
         </span>
-        {props.offers.map((offer) => {
-          const running =
-            lookup?.status === "running" && lookup.plugin === offer.plugin;
-          return (
-            <button
-              key={offer.plugin}
-              type="button"
-              data-slot="investment-search-lookup"
-              aria-label={`Look up “${query}” in ${offer.label}`}
-              aria-busy={running}
-              disabled={lookup?.status === "running"}
-              onMouseDown={keepInputFocus}
-              onClick={() => props.onLookup(offer)}
-              className="motion-fast inline-flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-control px-2 font-semibold text-foreground text-xs transition-colors hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-disabled motion-reduce:transition-none"
-            >
-              {running ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-3 flex-none animate-spin motion-reduce:animate-none"
-                />
-              ) : (
-                <ConnectorMark plugin={offer.plugin} />
-              )}
-              <span className="truncate">Look up in {offer.label}</span>
-            </button>
-          );
-        })}
       </div>
     </div>
   );
