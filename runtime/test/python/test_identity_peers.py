@@ -109,22 +109,26 @@ class PeersFixture(unittest.TestCase):
             key: {operation: f"{key}.{operation}" for operation in ("catalogue", "latest", "resolve")} for key in keys}))
         self.device("device")
 
-    def device(self, name):
-        """A fresh device: its own store, the reference package installed, and no plugins yet."""
+    def device(self, name, *, package=True):
+        """A fresh device: its own store, the reference package installed (unless `package` is False: a device that
+        never had one), and no plugins yet."""
         self.dirs, self.disabled, self.pages, self.calls, self.syncs = {}, set(), {}, [], 0
         folder = self.root / name
         (folder / "world").mkdir(parents=True)
-        World(folder / "world", ("asml.json", "failures.json", "crypto.json")).close()
-        reference_package.install(make_package(folder / "package", source=folder / "world" / "reference-20260926.sqlite3"),
-                                  folder / "core")
+        if package:
+            World(folder / "world", ("asml.json", "failures.json", "crypto.json")).close()
+            reference_package.install(
+                make_package(folder / "package", source=folder / "world" / "reference-20260926.sqlite3"), folder / "core")
         self.ops = self.identity_ops.Identity(
             types.SimpleNamespace(manifest=types.SimpleNamespace(path=str(CORE.parent))), data_dir=folder / "core")
         self.addCleanup(lambda ops=self.ops: ops.store.db.close())
 
     def install(self, key, contract):
         """A plugin payload in its own directory, as Hermes finds it."""
-        directory = self.root / "plugins" / f"{len(self.dirs)}-{key}"
-        directory.mkdir(parents=True)
+        plugins = self.root / "plugins"
+        plugins.mkdir(exist_ok=True)
+        directory = plugins / f"{len(list(plugins.iterdir()))}-{key}"  # one per install, whatever the device
+        directory.mkdir()
         (directory / "contract.json").write_text(json.dumps(contract, indent=2), encoding="utf-8")
         (directory / "definition.py").write_text("OPERATIONS = ('catalogue', 'latest')\n", encoding="utf-8")
         self.dirs[key] = directory
@@ -230,6 +234,43 @@ class ContributionTest(PeersFixture):
                          {("part_of", PROTOCOL), *(("market_asset", token) for token in TOKENS)})
         for token in TOKENS:  # two coin types the source calls USDC stay two subjects
             self.assertEqual(self.page(token)["subject"]["id"], token)
+
+
+class NoPackageTest(PeersFixture):
+    """The acceptance without a reference package (S1): on a device that never had one, `identity-sync` introduces
+    subjects from the IDs their identifiers give, the same whatever the device or the order the sources are read in,
+    and their pages, labels and search work from the device alone."""
+
+    COLUMNS = {"claims": "plugin, native_id, subject_id, state", "subjects": "id, kind, parent_id, name, introduced_by",
+               "device_assertions": "subject_id, scheme, value, plugin", "relations": "type, from_id, to_id, plugin",
+               "device_aliases": "old_id, new_id"}
+
+    def cold(self, name, order):
+        """A device with no package, both sources installed and synced in `order`; what its identity store holds."""
+        self.device(name, package=False)
+        keys = {"meridian": self.meridian(), "tidepool": self.tidepool()}
+        self.assertIsNone(reference_package.current(self.ops.data_dir))
+        for source in order:
+            self.sync(keys[source])
+        return {table: sorted(tuple(row) for row in self.ops.store.select(f"SELECT {columns} FROM {table}"))
+                for table, columns in self.COLUMNS.items()}
+
+    def test_two_fresh_devices_and_both_orders_of_the_sources_give_the_same_subjects_and_pages_read_and_search_work(self):
+        seen = [self.cold("first", ("meridian", "tidepool")), self.cold("second", ("tidepool", "meridian"))]
+        self.assertEqual(seen[0], seen[1])
+        placed = {native: (subject, state) for _plugin, native, subject, state in seen[0]["claims"]}
+        self.assertEqual({placed[name] for name in ("ASML.AS", "SAP.DE", "AAPL.OQ")},  # ASML's ID is the one a build gives it
+                         {(ASML_LINE, "introduced"), (SAP_BY_FIGI, "introduced"), (APPLE_LINE, "introduced")})
+        self.assertEqual(placed[POOL_ID], (POOL, "introduced"))
+        self.assertLessEqual({ASML_LINE, SAP_BY_FIGI, APPLE_LINE, POOL, PROTOCOL}, {row[0] for row in seen[0]["subjects"]})
+        apple = self.page(APPLE_LINE)  # the second order's device, read with no package
+        self.assertEqual((apple["subject"]["name"], apple["security"]["id"], self.source(APPLE_LINE)),
+                         ("Apple Inc.", APPLE, ("meridian", "enabled", None)))
+        self.assertEqual(self.sections(SAP_BY_FIGI), {"quote": "ready"})
+        self.assertEqual((self.page(POOL)["subject"]["name"], self.source(POOL)), ("Example Lend USDC", ("tidepool", "enabled", None)))
+        for subject, query in ((ASML_LINE, "ASML"), (APPLE_LINE, "Apple"), (POOL, "Example Lend")):
+            self.assertIn(subject, self.found(query))
+        self.assertEqual(self.ops.store.queue_items(), [], "ingest queues nothing")
 
 
 class SavedReferenceTest(PeersFixture):

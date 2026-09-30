@@ -172,9 +172,8 @@ suggest identity and confirm identity. Only confirming identity requires this
 standard's full audit and sign-off. A display-only plugin, including a user's
 own licensed vendor, needs declared coverage and terms only. As direction,
 display will also include introducing subjects, which confers no authority
-over them. Today no plugin creates subjects; the rule that a source creates no
-subjects before sign-off changes for introduced subjects when roadmap stage 0
-lands, while establishing facts about them still depends on trust level.
+over them. Roadmap stage 0 has landed: any enabled plugin introduces subjects,
+signed off or not (the amendment of 2026-09-30 below removes the levels).
 
 The code gate maps onto them without a new field: `unsigned` is display, and
 `signed_off` or `grandfathered` is confirm.
