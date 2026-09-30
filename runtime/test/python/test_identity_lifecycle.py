@@ -13,7 +13,7 @@ from test_identity_contracts import identity
 from test_identity_page import ASML, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer, load_core
 from test_reference_package import make_package
-from pythia_identity_fixture import lifecycle, page, reference_package, store  # noqa: E402
+from pythia_identity_fixture import corrections, device, lifecycle, page, reference_package, store  # noqa: E402
 
 SECURITY = "security:isin:NL0010273215"
 NEW_SECURITY, NEW_LISTING = "security:figi:BBG001S7Q066", "listing:figi:BBG000C1HT47"
@@ -126,6 +126,33 @@ class LifecycleTest(QueueFixture):
         self.assertEqual(self.identity.misses(NEW_LISTING), {"pythia-yahoo": "no match"})
         with closing(store.open_reference(path)) as ref:
             self.assertEqual(page.load_subject(ref, ASML)["id"], NEW_LISTING)
+
+    def test_the_investors_corrections_follow_a_re_keyed_subject_and_a_collision_keeps_the_newest(self):
+        def correct(kind, subject, scheme, value):
+            return corrections.put(self.identity, {"kind": kind, "subject_id": subject, "scheme": scheme, "value": value},
+                                   now=NOW, user_turn="desk:identity-correction:test", note=None)
+
+        correct("identifier", SECURITY, "isin", "US0378331005")
+        correct("price_source", ASML, None, "eodhd")
+        correct("identifier", NEW_SECURITY, "isin", "US5949181045")  # the same fact, already under the new key: newer
+        before = device.generation(self.identity)
+        path = self.release("reference-20261001", renames=[(ASML, NEW_LISTING), (SECURITY, NEW_SECURITY)],
+                            aliases=[(ASML, NEW_LISTING), (SECURITY, NEW_SECURITY)])
+        self.assertEqual(self.rekey(path)["moved"], 2)
+        found = [(row["kind"], row["subject_id"], row["value"], row["state"]) for row in
+                 self.identity.select("SELECT * FROM corrections ORDER BY rowid")]
+        self.assertEqual(found, [("identifier", NEW_SECURITY, "US0378331005", "undone"),
+                                 ("price_source", NEW_LISTING, "eodhd", "active"),
+                                 ("identifier", NEW_SECURITY, "US5949181045", "active")])
+        self.assertGreater(device.generation(self.identity), before)
+        self.assertEqual(self.rekey(path, again=True), {"release": "reference-20261001", "moved": 0, "rows": 0, "vanished": 0})
+
+    def test_a_correction_about_a_subject_a_release_drops_is_kept_and_flagged_with_it(self):
+        corrections.put(self.identity, {"kind": "price_source", "subject_id": ASML, "scheme": None, "value": "eodhd"},
+                        now=NOW, user_turn="desk:identity-correction:test", note=None)
+        self.rekey(self.release("reference-20261001", drop=[ASML]))
+        self.assertEqual(lifecycle.vanished(self.identity), [ASML])
+        self.assertEqual([row["state"] for row in self.identity.select("SELECT state FROM corrections")], ["active"])
 
     def test_a_vanished_subject_keeps_its_rows_and_is_flagged(self):
         binding = self.bind()

@@ -4,7 +4,7 @@
 plugins' contracts; neither calls a provider. With no reference package, search finds the device's subjects and a
 saved instrument opens as a labelled stub (`stub`). `identity-resolve` runs one plugin's declared resolve tool, bounded
 by a short timeout, and stores the decided binding or queue item. `reference-status` describes the installed reference
-package. The resolution-queue operations live in `queue_ops`.
+package. The resolution-queue operations live in `queue_ops`, the investor's corrections in `correction_ops`.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, device, flags, search_device, stub
+from .identity import corrections, declared, device, flags, search_device, stub
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -217,7 +217,7 @@ class Identity:
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
             return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
-        named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
+        named = [info.manifest.provider for info in plugins if info.key in (*lookups["order"], lookups["pinned"])]  # a pin names it
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
                 "named": named, "reason": None}
 
@@ -270,7 +270,8 @@ class Identity:
                 "queue": identity_store.open_queue(subject_ids),
                 "misses": {(target, plugin): reason for target in subject_ids
                            for plugin, reason in identity_store.misses(target).items()},
-                "order": self.order(plugins), **read_checks.lookups(self, subject_ids)}
+                "order": self.order(plugins), "pinned": corrections.pinned(identity_store, subject["ids"], plugins or installed()),
+                **read_checks.lookups(self, subject_ids)}
 
     def directory(self, path: Path | None, plugins: list | None = None) -> search.Directory:  # with what plugins add
         return search_device.directory(path, self.store, installed() if plugins is None else plugins)
@@ -394,5 +395,6 @@ def register(ctx: Any) -> None:
         declare_operation(schema, plugin=PLUGIN, operation=operation, handler=handler, read_only=read_only)
         ctx.register_tool(name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
                           description=schema["description"])
-    from . import concept_ops
-    concept_ops.register(ctx, identity)
+    from . import concept_ops, correction_ops
+    for module in (concept_ops, correction_ops):
+        module.register(ctx, identity)

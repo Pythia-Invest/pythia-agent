@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { correctionSchema } from "../src/client/corrections";
 import { identityQuestionSchema } from "../src/client/identity-queue";
-import { identityRepair } from "../src/client/repairs";
+import { correctionRepair, identityRepair } from "../src/client/repairs";
+import { correctionContext } from "../src/components/repairs/correction-kind";
 import {
   answerText,
   identityContext,
@@ -90,5 +92,85 @@ describe("a reference build question in Repairs", () => {
       chosen_id: ISSUER,
     });
     expect(description).toMatch(/^Issued by ASML Holding N\.V\. Your answer/u);
+  });
+});
+
+describe("a catalogue correction in Repairs", () => {
+  const correction = (fields: Record<string, unknown>) =>
+    correctionSchema.parse({
+      id: "c1",
+      kind: "identifier",
+      subject_id: "security:isin:XS0000000009",
+      scheme: "isin",
+      value: "XS0000000017",
+      state: "proposed",
+      proposed_by: "agent",
+      note: "The filing gives this ISIN.",
+      created_at: "2026-09-30T10:00:00Z",
+      name: "Example plc",
+      ...fields,
+    });
+
+  it("is the agent's open proposal until the investor decides, then resolved or dismissed", () => {
+    const open = correctionRepair(correction({}));
+    expect([open.status, open.kind, open.title, open.agentAnswer]).toEqual([
+      "open",
+      "correction",
+      "Identifier correction",
+      "set ISIN",
+    ]);
+    expect(open.description).toBe(
+      "The agent proposes to set the ISIN of Example plc to XS0000000017. Nothing changes until you confirm it.",
+    );
+    const applied = correctionRepair(
+      correction({ state: "active", decided_at: "2026-09-30T11:00:00Z" }),
+    );
+    expect([applied.status, applied.agentAnswer, applied.resolved]).toEqual([
+      "resolved",
+      null,
+      "2026-09-30T11:00:00Z",
+    ]);
+    const undone = correctionRepair(
+      correction({ state: "undone", ended_at: "2026-09-30T12:00:00Z" }),
+    );
+    expect([undone.status, undone.resolved]).toEqual([
+      "dismissed",
+      "2026-09-30T12:00:00Z",
+    ]);
+  });
+
+  it("says what a removal and a pinned source do, with the source's label", () => {
+    expect(correctionRepair(correction({ value: null })).description).toContain(
+      "remove the ISIN of Example plc",
+    );
+    const pin = correctionRepair(
+      correction({
+        kind: "price_source",
+        scheme: null,
+        value: "yahoo",
+        label: "Yahoo Finance",
+      }),
+    );
+    expect([pin.title, pin.agentAnswer, pin.plugin]).toEqual([
+      "Price source",
+      "use Yahoo Finance",
+      "Yahoo Finance",
+    ]);
+    expect(pin.description).toContain(
+      "use Yahoo Finance as the price source of Example plc",
+    );
+  });
+
+  it("shows who made it, and its note", () => {
+    const value = (item: ReturnType<typeof correction>, label: string) =>
+      correctionContext(item).find((row) => row.label === label)?.value;
+    expect(value(correction({}), "Made by")).toBe("The agent, as a proposal");
+    expect(value(correction({}), "Note")).toBe("The filing gives this ISIN.");
+    expect(
+      value(
+        correction({ state: "active", proposed_by: null, note: null }),
+        "Made by",
+      ),
+    ).toBe("You");
   });
 });
