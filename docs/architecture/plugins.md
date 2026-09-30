@@ -63,6 +63,41 @@ directory is not automatically adopted. Preserve the native plugin identity when
 replacing an implementation intended to serve existing consumers, and preserve
 its contracts unless those consumers are changed together.
 
+### Paused is not disabled
+
+Two switches turn a data source off. They differ in who owns them and when they
+take effect.
+
+- **Disabled** is Hermes's (`hermes plugins disable <plugin>`). Hermes stops
+  loading the plugin and the change needs a restart. A plugin Hermes does not
+  run cannot be listed or switched in Desk: add it with `hermes plugins enable
+  <plugin>` and restart Hermes.
+- **Paused** is Pythia's. The switch beside each source in Settings → Data
+  sources keeps the plugin's key in `pythia_paused_plugins` in `settings.json`
+  (Pythia config folder). Desk's settings service writes it and core reads it on
+  every use, so a pause and an unpause apply on the next read: no restart and,
+  to undo it, no sync.
+
+For data, a paused plugin is a disabled one, through the same paths:
+`identity_ops.installed()` reports it with `enabled` false (and `paused` true),
+so it leaves source selection, price routing, search, ingest and sync, and what
+it states about a subject stops deciding anything on pages. `eligible_tools`,
+and so `may_run` and every plugin operation over HTTP, leave its tools out; its
+agent tool answers `paused` and names the switch. Its subjects and the saved
+references to them keep resolving, and the page says "From X, which is paused".
+Nothing is deleted, and Hermes still loads the plugin; core just stops calling
+it.
+
+Only a plugin that ships a `contract.json` and that Hermes has enabled can be
+paused: core and the feature backends never are, and a plugin Hermes disabled
+stays disabled whatever the list says. Every such plugin has a switch, a price
+or filings source as much as a catalogue. `identity-plugin-effect` states,
+before the switch is turned off, how many subjects only that source supplies and
+how many saved items name them, and which concepts it serves (prices, filings,
+news), which other sources take over where configured
+([ADR 0037](../decisions/0037-identity-backbone.md), amendment "pausing a
+plugin").
+
 ## Domain and platform responsibilities
 
 | Feature author | Shared platform |

@@ -38,7 +38,7 @@ def priced() -> dict:
         from hermes_cli.config import load_config_readonly
         from .identity_ops import installed
         from .platform import harness
-        from .platform.access import canonical_access_revision, native_plugin_enabled
+        from .platform.access import canonical_access_revision, plugin_active
         config, stamp = load_config_readonly(), [canonical_access_revision()]
         for key, plugin in sorted(harness.plugins().items()):
             contract = Path(plugin.manifest.path) / MANIFEST_FILE if plugin.manifest.path else None
@@ -46,7 +46,7 @@ def priced() -> dict:
                 changed = contract.stat().st_mtime_ns if contract else None
             except OSError:
                 changed = None
-            stamp.append((key, str(contract), changed, native_plugin_enabled(key, plugin, config)))
+            stamp.append((key, str(contract), changed, plugin_active(key, plugin, config)))
         cached = _priced_cache
         if cached is not None and stamp[0] is not None and cached[0] == stamp:
             return cached[1]

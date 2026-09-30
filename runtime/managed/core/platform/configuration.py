@@ -22,6 +22,7 @@ RESERVED_PREFIXES = ('hermes_', 'pythia_')
 FIELD_KEYS = frozenset({'key', 'kind', 'label', 'description', 'url', 'required'})
 MAX_BYTES = 65536
 MAX_SECRET = 512
+PAUSED = 'pythia_paused_plugins'  # settings.json: the plugins the investor paused in Settings → Data sources
 
 
 def _control(value):
@@ -107,16 +108,8 @@ def fields_at(directory):
         return []
 
 
-def read(kind, key):
-    """Return ``(status, value)`` for a custody field: configured, missing or invalid.
-
-    Internal and transitional: plugins call ``value``, which admits only declared
-    keys. The value is returned only when configured: a string without control
-    characters or surrounding whitespace; a secret also has no inner whitespace
-    and at most 512 characters, matching Desk's token check.
-    """
-    if kind not in STORES or not isinstance(key, str) or not KEY.fullmatch(key) or _reserved(key):
-        raise ValueError('invalid configuration key')
+def _load(kind):
+    """``(status, store)`` for a custody file: ``ok`` with its parsed object, else missing or invalid."""
     raw = os.environ.get('PYTHIA_CONFIG_ROOT')
     if not raw or not Path(raw).is_absolute():
         return 'missing', None
@@ -132,6 +125,22 @@ def read(kind, key):
     if info.st_mode & 0o077 or not isinstance(store, dict) or type(store.get('schema_version')) is not int \
             or store['schema_version'] != 1:
         return 'invalid', None
+    return 'ok', store
+
+
+def read(kind, key):
+    """Return ``(status, value)`` for a custody field: configured, missing or invalid.
+
+    Internal and transitional: plugins call ``value``, which admits only declared
+    keys. The value is returned only when configured: a string without control
+    characters or surrounding whitespace; a secret also has no inner whitespace
+    and at most 512 characters, matching Desk's token check.
+    """
+    if kind not in STORES or not isinstance(key, str) or not KEY.fullmatch(key) or _reserved(key):
+        raise ValueError('invalid configuration key')
+    status, store = _load(kind)
+    if status != 'ok':
+        return status, None
     value = store.get(key)
     if value is None or value == '':
         return 'missing', None
@@ -140,6 +149,34 @@ def read(kind, key):
                                       or any(character.isspace() for character in value)))):
         return 'invalid', None
     return 'configured', value
+
+
+_paused = (None, frozenset())  # settings.json's metadata, and the plugin keys read under it
+
+
+def paused_plugins():
+    """The plugins the investor paused in Settings → Data sources, as settings.json lists them now.
+
+    Core's own reserved field, written only by Desk's settings service; no plugin reads or declares it. The file is
+    read again only when its metadata changes, so a pause takes effect on the next call and each check is one
+    ``lstat``. A missing, unsafe or malformed file pauses nothing.
+    """
+    global _paused
+    raw = os.environ.get('PYTHIA_CONFIG_ROOT')
+    try:
+        info = (Path(raw) / STORES['identity']).lstat() if raw and Path(raw).is_absolute() else None
+    except OSError:
+        info = None
+    if info is None:
+        return frozenset()
+    stamp = (raw, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
+    if _paused[0] == stamp:
+        return _paused[1]
+    status, store = _load('identity')
+    keys = store.get(PAUSED) if status == 'ok' else None
+    found = frozenset(keys) if isinstance(keys, list) and all(isinstance(key, str) for key in keys) else frozenset()
+    _paused = (stamp, found)
+    return found
 
 
 def value(ctx, key):

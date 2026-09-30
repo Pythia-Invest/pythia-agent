@@ -137,7 +137,7 @@ def _usable(wanted: Any) -> tuple[Any, str | None]:
     if info is None:
         return None, "Unknown plugin."
     if not info.enabled or info.missing:
-        return None, f"{info.label} is {'disabled' if not info.enabled else 'not configured'}."
+        return None, f"{info.label} is {'paused' if info.paused else 'disabled' if not info.enabled else 'not configured'}."
     return info, None
 
 

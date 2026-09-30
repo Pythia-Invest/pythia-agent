@@ -1655,6 +1655,8 @@ a plugin would take away.
   catalogue, a "Sync now" control that runs `identity-sync` and shows what it
   joined, introduced, found in conflict and left unmatched. Enabling and
   disabling stay Hermes's own command: the section has no toggles.
+  Superseded in the pausing amendment: "the section has no toggles", and the
+  listing of plugins that declare a catalogue or a resolve only.
 - **The acceptance test** (`test_identity_peers.py`) runs two fixture plugins
   core never names through the ordinary contract, trust by digest and
   `identity-sync`: a confirm-level financial source that joins the package's
@@ -1867,3 +1869,79 @@ stands.
 - **The peers test** installs one payload under two names and two declared
   sign-offs, not under one grant, and expects identical IDs, rows, statuses,
   conflicts and effects.
+
+## Amendment (2026-09-30): pausing a plugin
+
+**Context.** The founder asked for an easy way to switch a plugin off again.
+Until now the only way was Hermes's own command, `hermes plugins disable`,
+which Settings → Data sources printed beside each source and which needs a
+Hermes restart to take hold. A source that returns wrong data, or that an
+investor simply stops trusting, should be one click away from off and from on.
+
+**Ruling.**
+
+- **A source can be paused, from Settings → Data sources.** A switch beside
+  each source keeps the plugin's key in `pythia_paused_plugins` in
+  `settings.json` in the Pythia config folder. Desk's settings service writes
+  it; core reads it on every use, and no plugin can declare or read the field.
+  A pause and an unpause apply on the next read: no Hermes restart, and no
+  sync to undo one.
+- **A paused plugin counts as a disabled one for data.** `installed()` reports
+  it with `enabled` false and `paused` true, so every existing disabled path
+  applies and none was added: it leaves source selection and price routing,
+  search, ingest and sync, and the evidence it states is shown with its source
+  and never proves or blocks, as a disabled plugin's is. The tool registry's
+  eligibility (`eligible_tools`, behind `may_run` and every plugin operation
+  over HTTP) leaves its tools out, and its agent tool answers `paused`, naming
+  the switch.
+- **Its subjects and saved references keep resolving.** The page says "From X,
+  which is paused" (`contributors[].status` is `paused`), its sections are
+  `disabled` with the reason "X is paused", and no row is touched, so
+  unpausing brings everything back with nothing read again.
+- **Only a plugin Hermes has enabled, with a contract, can be paused.** One
+  Hermes disabled stays disabled, and core and the feature backends, which ship
+  no contract, never pause.
+- **Every source has the switch, and the effect comes first.**
+  `identity-plugin-effect` without `plugin` lists every plugin that ships a
+  contract and that Hermes has enabled, not only those with a catalogue or a
+  resolve: a price, filings or news source (Yahoo, EODHD, Hyperliquid) is what
+  an investor pauses when a price looks wrong. Paused ones stay listed
+  (`paused`), so the switch can turn one back on, and each row names the
+  concepts it serves (`serves`). The Desk shows, beside the switch and before it
+  is turned off, "Turning this off hides N subjects; M saved items will show as
+  paused"; for a source that supplies no subjects, "Turning this off stops its
+  prices, filings or news; other sources take over where configured".
+- **A plugin Hermes does not run is still Hermes's.** The section lists only
+  what Hermes has enabled, and says that enabling another takes
+  `hermes plugins enable <plugin>` and a Hermes restart.
+
+**Rationale.** One predicate (`platform.access.plugin_active`: enabled in
+Hermes and not paused) decides whether Pythia serves a plugin, so the pause
+reuses the disabled rules that search, the effect read, pages and ingest
+already share, and what the effect line predicts is what happens. Keeping the
+pause in Pythia's settings, not Hermes's configuration, is what makes it
+immediate.
+
+**Consequences.**
+
+- Hermes still loads and registers a paused plugin. The pause withdraws core's
+  authority to call it; it does not unload the plugin or stop anything it runs
+  on its own.
+- The paused list is a plain field of `settings.json`: editing it by hand works
+  the same way, and a missing, unsafe or malformed file pauses nothing.
+- Desk's `identity-plugin-effect` row gains `paused` and `serves`; the
+  contributor status gains `paused`.
+
+**Rejected alternatives.**
+
+- **Writing Hermes's `plugins.disabled` from Desk:** it is Hermes's state, it
+  needs a restart, and Desk would hold a second writer of another tool's
+  configuration.
+- **Keeping the pause in the identity store:** that file holds identity
+  answers; a device setting beside `source_order` stays hand-editable and needs
+  no store migration.
+- **A separate Sources page or a pause registry:** one switch in the existing
+  section, read by the one predicate, is enough.
+- **Hiding a paused plugin's tools from the model:** a refusal that names the
+  switch tells the agent what to do, without the tool list changing in the
+  middle of a conversation.
