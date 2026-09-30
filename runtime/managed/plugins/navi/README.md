@@ -45,11 +45,14 @@ not a published quota.
 
 | NAVI record | Subject | ID |
 | --- | --- | --- |
-| NAVI Lending | `protocol` | `protocol:provisional:navi:protocol:navi-lending` |
-| A reserve: one coin in one market | `market` | `market:provisional:navi:reserve:<Pool object id>` |
+| NAVI Lending | `protocol` | `protocol:sui_package:0xd899cf7d…81ca` (the original package of `lending_core`); native `navi-lending` |
+| A reserve: one coin in one market | `market` | `market:sui_object:<Pool object id>` (also its native `reserve` reference) |
 | The Sui coin type a reserve holds | `listing` (a token deployment) | `listing:caip19:sui:mainnet/coin:<type>`, or `…/slip44:784` for SUI |
 
-- A reserve is keyed by the object id of its `Pool<T>`, `contract.pool`. The
+- A reserve is keyed by the object id of its `Pool<T>`, `contract.pool`, as the open
+  `sui_object` key (Sui experiment, branch `exp-sui`): any source stating the same
+  object joins it, and a subject NAVI introduced earlier under its native reference
+  moves up to the key. The protocol likewise states `sui_package`. The
   object's own type names its coin, so the pair verifies on chain without NAVI.
   Neither `uniqueId` (`main-10`) nor the coin type is a key: a coin has a
   reserve in up to nine markets.
@@ -76,8 +79,9 @@ not a published quota.
 
 ## Markets
 
-NAVI publishes no list of its markets. The plugin carries the 11 keys of the
-SDK's `MARKETS` constant, with its display names, and reads all of them. The
+The plugin carries the 11 keys of the SDK's `MARKETS` constant, with the display
+names `GET /api/navi/markets` answers with (2026-09-30: "lzWBTC/USDC Market"), and
+reads all of them. It does not read that list, which also carries a `paused` flag. The
 native plugin setting `navi_markets` names keys as a list or comma-separated
 text; unset or empty is all 11. Like `defillama_chains`, a list **replaces** the
 default rather than extending it: to read a market NAVI launches later, list

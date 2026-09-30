@@ -1,0 +1,8 @@
+name: pythia-suilend
+version: 0.1.0
+description: Suilend lending markets on Sui as subjects, linked to the Sui coin types they list; keyless, personal use
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_suilend_catalogue

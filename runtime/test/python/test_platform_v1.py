@@ -157,7 +157,8 @@ class PluginsRegisterThroughTheInterface(unittest.TestCase):
 
     def test_connectors(self):
         for directory in ('sec', 'gleif', 'openfigi', 'xbrl-filings', 'nsm',
-                          'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap', 'defillama', 'navi'):
+                          'eodhd', 'yahoo-discovery', 'coingecko', 'coinmarketcap', 'defillama', 'navi',
+                          'cetus', 'suilend', 'deepbook'):
             with self.subTest(plugin=directory):
                 # Hermes orders loading by `requires_plugins` but never enforces it: the manifest names core alone.
                 self.assertEqual(requires(directory), ['pythia'])
