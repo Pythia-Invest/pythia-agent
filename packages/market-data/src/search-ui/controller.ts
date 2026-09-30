@@ -122,3 +122,37 @@ export function transportSearch(transport: PluginTransport): SearchBackend {
     return searchResponseSchema.parse(envelope.data);
   };
 }
+
+const lookupSchema = z.object({
+  data: z.object({ subjects: z.array(z.string()) }).nullish(),
+  issues: z.array(z.object({ message: z.string() })).default([]),
+});
+
+/** The explicit lookup through core's `identity-lookup` (an invoke: it calls
+ * one plugin's provider once and stores what it answers). The answer is the
+ * directory's groups for the query that hold a subject it placed; "no match"
+ * is an empty answer, and a failure is an error, never "no match". */
+export function transportLookup(transport: PluginTransport): LookupRunner {
+  const search = transportSearch(transport);
+  return async ({ plugin, query }, signal) => {
+    const answer = lookupSchema.parse(
+      await transport.invoke(
+        {
+          plugin: SEARCH_PLUGIN,
+          operation: "identity-lookup",
+          arguments: { plugin, query },
+        },
+        signal,
+      ),
+    );
+    if (!answer.data)
+      throw Error(answer.issues[0]?.message ?? "The lookup failed.");
+    const placed = new Set(answer.data.subjects);
+    if (!placed.size) return [];
+    const { groups } = await search({ query, limit: SEARCH_LIMIT }, signal);
+    return groups.filter(
+      (group) =>
+        placed.has(group.id) || group.rows.some((row) => placed.has(row.id)),
+    );
+  };
+}

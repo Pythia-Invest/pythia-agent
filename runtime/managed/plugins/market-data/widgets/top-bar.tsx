@@ -1,5 +1,6 @@
 import {
   InvestmentSearch,
+  transportLookup,
   transportSearch,
 } from "@pythia/market-data/search-ui";
 import {
@@ -26,12 +27,13 @@ export default function InvestmentTopBar({ data }: TopBarProps) {
       <span className="min-w-0 flex-1 truncate font-semibold text-body text-foreground">
         {data.title}
       </span>
-      {/* No lookup runner yet: the explicit "Look up in …" action appears once
-          the core lookup operation exists. */}
+      {/* "Look up in …" appears where core's search offers it: an identifier
+          an enabled plugin's resolve takes, looked up only when pressed. */}
       <InvestmentSearch
         query={query}
         onQueryChange={setQuery}
         search={transportSearch(data.transport)}
+        lookup={transportLookup(data.transport)}
         // The page compositions are fast local reads: warm the instrument's
         // and the listing's for the row under the pointer or keyboard
         // highlight so the click opens on cached data.

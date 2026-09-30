@@ -382,7 +382,9 @@ one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
   query's identifier (ISIN, FIGI, LEI or CIK, as search classifies it) is sent
   once to the plugin's resolve under a scheme it accepts (a FIGI under the
   first FIGI scheme it takes), and every record it answers is ingested. It
-  answers the counts and the subjects placed.
+  answers the counts and the subjects placed; no match is an empty answer with
+  zero counts, a failure an issue with no data. The search bar's "Look up in
+  X" invokes it, then shows the directory's groups holding what it placed.
 - **`identity-resolve`** stores its answer through the same ingest before
   deciding its binding.
 - Only an enabled, configured plugin is called. Sync and lookup are Desk

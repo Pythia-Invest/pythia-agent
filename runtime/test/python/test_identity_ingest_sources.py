@@ -372,6 +372,9 @@ class OperationTest(OperationFixture):
         self.assertEqual((asked["reason"], asked["candidate_ids"]), ("identifier", [GSK_BEFORE, GSK]))
         refused = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "Glaxo"}))
         self.assertEqual(refused["issues"][0]["message"], "vendor cannot look up Glaxo.")
+        self.answers["vendor_resolve"] = lambda _arguments: {"data": None}  # no match is an answer, not a failure
+        none = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "GB00BN7SWP63"}))
+        self.assertEqual((none["outcome"], none["data"]["subjects"], none["issues"][0]["code"]), ("empty", [], "empty"))
 
 
 class OperationFailureTest(OperationFixture):
