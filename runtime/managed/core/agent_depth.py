@@ -146,12 +146,7 @@ def run(ctx: Any, plugin_key: str, name: str, tool: str, arguments: dict, contex
             args[target] = reference["native_id"]
             if parameters.get("properties", {}).get(target + "s", {}).get("type") == "array":
                 args.setdefault(target + "s", [reference["native_id"]])
-    result = run_tool(ctx, tool, args, context)
-    if info is not None and info.manifest.unaudited:  # ADR 0042: labelled wherever its data appears
-        result = {**result, "issues": [*result.get("issues", []), {
-            "code": "unaudited_source", "severity": "warning",
-            "message": f"{info.label} is not yet audited by Pythia; say so when you use its data."}]}
-    return encode(result)
+    return encode(run_tool(ctx, tool, args, context))
 
 
 def own_contract(ctx: Any) -> Any:

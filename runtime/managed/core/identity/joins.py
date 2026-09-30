@@ -1,9 +1,9 @@
 """Which subjects a plugin record's identifiers name: the reads core's ingest joins by (ADR 0037, amendment "ingest").
 
-An identifier names a subject the reference package asserts it for, one a confirm-level plugin (or the ingesting plugin
+An identifier names a subject the reference package asserts it for, one an enabled plugin (or the ingesting plugin
 itself) states it for on the device, or the subject it keys (`schemes.subject_id`) where the reference or the device
-holds that subject. Another display-level plugin's statement names nothing: it neither proves nor blocks. A device
-subject's parent is the one its records name at the highest trust level among them (`settled_parent`). Reads only.
+holds that subject. A disabled plugin's statement names nothing: it neither proves nor blocks. A device subject's
+parent is the one its counting records name and agree on (`settled_parent`). Reads only.
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from typing import Any, Iterable, Mapping
 from . import device
 from .claims import RecordAttributes, RecordClaim
 from .schemes import SCHEME_LEVEL, Level, Scheme, subject_id, subject_kind
-from .trust import CONFIRM, DISPLAY
 from .vocabulary import IdentifierRole
 
 # The schemes each level joins by, in order: a listing's ISIN only with its operating MIC and currency (`lines`).
@@ -24,13 +23,13 @@ ORDER = {Level.LISTING: (Scheme.ISIN, Scheme.FIGI, Scheme.CAIP19),
 
 
 class Joins:
-    def __init__(self, ref: sqlite3.Connection | None, store, granted: Mapping[str, str], plugin: str = "",
+    def __init__(self, ref: sqlite3.Connection | None, store, active: frozenset[str], plugin: str = "",
                  plugins: Iterable = ()):
-        self.ref, self.store, self.granted, self.plugin, self.plugins = ref, store, granted, plugin, list(plugins)
+        self.ref, self.store, self.active, self.plugin, self.plugins = ref, store, active, plugin, list(plugins)
 
     def counts(self, plugin: str) -> bool:
-        """Whether a plugin's device statements name subjects in this join: a confirm-level one's, or its own."""
-        return self.granted.get(plugin) == CONFIRM or plugin == self.plugin
+        """Whether a plugin's device statements name subjects in this join: an enabled one's, or its own."""
+        return plugin in self.active or plugin == self.plugin
 
     def candidates(self, level: Level, own: Mapping[Scheme, str], attributes: RecordAttributes) -> list[str]:
         """The subjects at `level` a record's own identifiers name, in join order."""
@@ -71,7 +70,7 @@ class Joins:
         """For a line record that states no currency (OpenFIGI's): the ISIN's security's one active line on the
         record's exchange, when that line has no FIGI or the record's, and no ticker or the record's. None when there
         are several, or the one there has another FIGI or ticker, or the ISIN names several securities: the record is
-        then no line core may add. Empty when the exchange has none. A device line counts only if a confirm-level
+        then no line core may add. Empty when the exchange has none. A device line counts only if an enabled
         plugin (or this one) introduced it."""
         securities = self.holders(Scheme.ISIN, isin, Level.SECURITY)
         if len(securities) != 1:
@@ -101,15 +100,15 @@ class Joins:
             (line,)) if self.counts(row[1])}
 
     def parent(self, up: Level, own: Mapping[Scheme, str], attributes: RecordAttributes) -> tuple[str | None, bool]:
-        """The one parent a record's identifiers at the parent's scope name, whose confirm-level evidence agrees with
-        them; and whether they name two, or one that disagrees (a contest)."""
+        """The one parent a record's identifiers at the parent's scope name, whose evidence agrees with them; and
+        whether they name two, or one that disagrees (a contest)."""
         found = self.candidates(up, own, attributes) if own else []
         if len(found) == 1 and not self.disagrees(found[0], own):
             return found[0], False
         return None, bool(found)
 
     def disagrees(self, subject: str, own: Mapping[Scheme, str]) -> bool:
-        """Whether confirm-level evidence about a subject states another value of one of these identifiers."""
+        """Whether evidence about a subject states another value of one of these identifiers."""
         evidence = (device.load_subject(self.ref, self.store, subject, self.plugins) or {"evidence": []})["evidence"]
         stated: dict[str, set[str]] = {}
         for item in evidence:
@@ -117,21 +116,19 @@ class Joins:
                 stated.setdefault(str(item.scheme), set()).add(item.value)
         return any(value not in stated[str(scheme)] for scheme, value in own.items() if str(scheme) in stated)
 
-    def settled_parent(self, subject: str, introducer: str) -> str | None:
-        """A device subject's parent from the records placed on it: the one those at the highest trust level among the
-        ones naming a parent agree on, never counting a level below its introducer's; none where they disagree, and
-        the parent it has where none names one (a record that leaves an identifier out moves nothing). A record kept
-        as a conflict whose own earlier statement named the current parent (a conflict keeps it) still names that
-        parent, so a source contradicting itself never re-parents the subject, sync after sync, until it states the
-        parent's value again."""
-        up, floor = device.PARENT[Level(subject_kind(subject))], self.granted.get(introducer, DISPLAY)
+    def settled_parent(self, subject: str) -> str | None:
+        """A device subject's parent from the records placed on it: the one the counting records that name a parent
+        agree on; none where they disagree, and the parent it has where none names one (a record that leaves an
+        identifier out moves nothing). A record kept as a conflict whose own earlier statement named the current
+        parent (a conflict keeps it) still names that parent, so a source contradicting itself never re-parents the
+        subject, sync after sync, until it states the parent's value again."""
+        up = device.PARENT[Level(subject_kind(subject))]
         current = (device.subject_row(self.store, subject) or {}).get("parent_id")
-        named: dict[str, set[str]] = {}
+        named: set[str] = set()
         for plugin, scope, text, state, native_scope, native_id in self.store.select(
                 "SELECT plugin, scope, claim, state, native_scope, native_id FROM claims WHERE subject_id = ? AND state"
                 " IN ('joined', 'introduced', 'conflict')", (subject,)):
-            level = self.granted.get(plugin, DISPLAY)
-            if floor == CONFIRM and level != CONFIRM:
+            if not self.counts(plugin):
                 continue
             claim = RecordClaim(**json.loads(text))
             echoes = self._echoes(plugin) if scope is None else ()
@@ -143,11 +140,10 @@ class Joins:
                     " native_id = ? LIMIT 1", (current, plugin, native_scope, native_id)):
                 parent, contested = current, False  # it contradicts its own earlier statement, kept on the parent
             if parent or contested:
-                named.setdefault(level, set()).add("" if contested else parent)  # "": a contest
-        top = named.get(CONFIRM) or named.get(DISPLAY)
-        if not top:
+                named.add("" if contested else parent)  # "": a contest
+        if not named:
             return current
-        return next(iter(top)) if len(top) == 1 and "" not in top else None
+        return next(iter(named)) if len(named) == 1 and "" not in named else None
 
     def _echoes(self, plugin: str) -> Any:
         """The schemes a plugin's resolve answers only echo (a stored record with no catalogue scope is an answer)."""

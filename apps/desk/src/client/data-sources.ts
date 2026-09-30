@@ -8,7 +8,7 @@ import { deskKeys } from "./query-cache";
 
 /*
  * Core's data sources: `identity-plugin-effect` lists each plugin Hermes has
- * enabled that ships a contract, with its trust level, what it serves, whether
+ * enabled that ships a contract, with what it serves, whether
  * the investor paused it, and what pausing it hides (ADR 0044 A3);
  * `identity-sync` reads one plugin's catalogue into the device's identity store
  * when the user asks. Pausing is Pythia's own switch, kept in its settings and
@@ -21,8 +21,6 @@ const sample = z.object({ id: text, name: z.string().nullish() });
 export const dataSourceSchema = z.object({
   plugin: text,
   label: text,
-  /** display: shown with its source; confirm: establishes identity facts. */
-  level: z.enum(["display", "confirm"]).catch("display"),
   catalogue: z.boolean(),
   resolve: z.boolean(),
   /** The data concepts it serves (`market_data`, `filings`, `news` ...). */

@@ -99,7 +99,6 @@ export function usingSource(
       plugin: alternative.plugin,
       label: alternative.label,
       status: alternative.status,
-      unaudited: alternative.unaudited,
       binding: alternative.binding ?? null,
       request: alternative.request ?? null,
       reason: null,
@@ -110,7 +109,6 @@ export function usingSource(
               plugin: alternative.plugin,
               // Connector marks are keyed by provider, plugin ids by package.
               provider: alternative.plugin.replace(/^pythia-/u, ""),
-              unaudited: alternative.unaudited,
               authorities: alternative.authorities,
             },
             ...section.sources.flatMap((item) => {
@@ -145,7 +143,6 @@ export function creditedSources(
       plugin: item.plugin,
       // Connector marks are keyed by provider, plugin ids by package.
       provider: item.provider ?? item.plugin.replace(/^pythia-/u, ""),
-      unaudited: item.unaudited,
       authorities: item.authorities,
     })),
     alternatives: section.alternatives.filter(

@@ -11,9 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
-from . import build_questions, device
+from . import build_questions, device, device_parents
 from .build_questions import BUILD
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -31,7 +31,6 @@ QUESTIONS = {
     "no_key": "{label}'s record {ref} has no identifier that proves which instrument it is.",
     "underlying_identifier": "{label}'s record {ref} quotes its underlying's ISIN; it may be a depositary receipt.",
     "ambiguous": "{label} answered with several records for one instrument.",
-    "unaudited": "{label} is not yet audited; its record {ref} matches the reference identifiers.",
     "identifier": "Two records claim one identifier, or one record claims two values.",
     "binding": "{label}'s record {ref} contradicts the reference identifiers.",
     "bound": "{label}'s record {ref} is already bound to another instrument.",
@@ -44,9 +43,10 @@ class Refused(ValueError):
     """The verdict cannot be taken: the item is not open, or the answer does not fit it."""
 
 
-def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
+def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict, labels: Mapping[str, str] = {}) -> dict:
     """An item as the agent and Desk list it: what the provider's record says and which subjects it may be,
-    so an answer never rests on the question text alone."""
+    so an answer never rests on the question text alone. `labels` name the installed plugins a question core asked
+    is about (the source it shows)."""
     record = _raw(store, item)
     plugin = item["plugins"][0]
     native = item["provider_ref"]
@@ -58,7 +58,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
                                   if level == subject_kind(candidate)), "unrelated")]
     built = build_questions.asked(item) if build_questions.is_build(item) else None
     if built:  # a reference build question: its own text, and one relation per candidate
-        label, question = build_questions.LABEL, built[0]
+        label, question = build_questions.label(item, labels), built[0]
         answers = [{"relation": str(built[1]), "chosen_id": candidate} for candidate in item["candidate_ids"]]
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
@@ -70,43 +70,52 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
         "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
         if item["state"] != "open" and item["settled"] else None,
-        "evidence": _evidence(ref, item["evidence_ids"]),
+        "evidence": _evidence(store, ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")
                               if relation != "none" or not (built and build_questions.itself(item))]}
 
 
 def listing(store: IdentityStore, ref: sqlite3.Connection, *, subject_id: str | None, kind: str | None,
-            plugins: set[str] | None, limit: int, notice: bool, settled: bool = False) -> dict:
+            plugins: set[str] | None, limit: int, notice: bool, settled: bool = False,
+            labels: Mapping[str, str] = {}) -> dict:
     """Open items, newest first; apart and uncounted, with `settled` the ones rules or the user settled. With
     `notice`, says so when this process started a fresh store and kept an incompatible one aside."""
-    filters = {"subject_ids": family(ref, subject_id) if subject_id else None, "kind": kind, "plugins": plugins}
+    filters = {"subject_ids": family(store, ref, subject_id) if subject_id else None, "kind": kind, "plugins": plugins}
     items, size = store.queue_items(**filters), max(1, min(50, limit))
-    data: dict[str, Any] = {"items": [summary(store, ref, item) for item in items[:size]], "total": len(items)}
+    data: dict[str, Any] = {"items": [summary(store, ref, item, labels) for item in items[:size]], "total": len(items)}
     if settled:
-        data["settled"] = [summary(store, ref, item) for item in store.queue_items(**filters, which="settled")[:size]]
+        data["settled"] = [summary(store, ref, item, labels)
+                           for item in store.queue_items(**filters, which="settled")[:size]]
     if notice and store.set_aside:
         data["notice"] = (f"The identity store was reset for a new format; the previous one is kept as "
                           f"{store.set_aside}. Confirmed matches and answers start over.")
     return data
 
 
-def family(ref: sqlite3.Connection, subject_id: str) -> list[str]:
-    """The subject and its listing, security, issuer and composite, as the page groups its questions."""
+def names(plugins: Iterable[PluginInfo]) -> dict[str, str]:
+    """Each installed plugin's name with the label its questions show (`summary`)."""
+    return {info.manifest.plugin: info.label for info in plugins}
+
+
+def family(store: IdentityStore, ref: sqlite3.Connection, subject_id: str) -> list[str]:
+    """The subject and its listing, security, issuer and composite, as the page groups its questions: the
+    reference's, else a device subject's."""
     try:
-        subject = load_subject(ref, subject_id)
+        current = device.current_id(ref, store, subject_id)  # a saved ID reads as the subject it became
+        subject = load_subject(ref, current) or device.load(ref, store, current)
     except ValueError:  # a malformed subject id
         return []
     return [subject_id, *(value for value in subject["ids"].values() if value)] if subject else [subject_id]
 
 
-def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict | None:
+def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str, labels: Mapping[str, str] = {}) -> dict | None:
     """One item in full: the provider record, the candidates, the cited evidence and every verdict so far.
 
     `digest` hashes exactly this view; an agent verdict records it as its input digest."""
     item = store.queue_item(item_id)
     if item is None:
         return None
-    view = {**summary(store, ref, item), "scheme": item["scheme"], "values": item["values"],
+    view = {**summary(store, ref, item, labels), "scheme": item["scheme"], "values": item["values"],
             "history": [{key: entry[key] for key in ("resolver", "authority", "relation", "chosen_id", "confidence",
                                                      "rationale", "outcome", "created_at", "item_state")}
                         for entry in store.history(item)]}
@@ -119,14 +128,14 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     """Decide and record one agent or user verdict.
 
     The user's confirmed answer binds the record to the chosen reference or device subject (whose device evidence
-    counts at its `plugins`' trust levels), a "not a match" dismisses the question. An answer to a reference
+    counts as the enabled `plugins`' does), a "not a match" dismisses the question. An answer to a reference
     build question binds nothing: its resolved question is the local override reads apply (`build_questions`), in
-    place of the user's earlier answer about the same fact. Only unanimous confirm-level identifier evidence refuses
-    the user (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
+    place of the user's earlier answer about the same fact. Only unanimous identifier evidence refuses the user
+    (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
     open, and nothing changes until the user confirms it."""
-    resolver = ResolverKind(resolver)
+    resolver, plugins = ResolverKind(resolver), list(plugins)
     user = resolver is ResolverKind.USER
-    view, row = inspect(store, ref, item_id), store.queue_item(item_id)
+    view, row = inspect(store, ref, item_id, names(plugins)), store.queue_item(item_id)
     if view is None or row["state"] != "open":
         raise Refused("This question is not open.")
     raw = _raw(store, row)
@@ -146,7 +155,8 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
         raise Refused(str(error)) from None
     record = _claim(raw) if raw else None
     subject = device.load_subject(ref, store, chosen_id, plugins) if chosen_id else None
-    if chosen_id and subject is None and not (built and build_questions.own_identifier(row)):
+    if chosen_id and subject is None and not (built and (build_questions.own_identifier(row)
+                                                         or device_parents.level(row))):
         raise Refused("The chosen subject is not known on this device.")  # a contested value need not name one
     # Against "none", every candidate's evidence counts, each candidate's on its own (`pools`).
     subjects = [subject] if subject else [] if chosen_id else [
@@ -200,8 +210,8 @@ def retire_build(store: IdentityStore, now: str) -> int:
     """A new release asks its own questions: the previous build's open ones are superseded, and answered ones are
     kept. The next touch of an instrument queues the new release's questions about it (`build_questions`)."""
     with store.transaction():
-        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE plugins = ?"
-                         " AND provider_ref IS NULL AND state = 'open'", (now, json.dumps([BUILD])))
+        store.db.execute("UPDATE queue SET state = 'superseded', updated_at = ? WHERE json_extract(plugins, '$[0]') = ?"
+                         " AND provider_ref IS NULL AND state = 'open'", (now, BUILD))
         return store.db.execute("SELECT changes()").fetchone()[0]
 
 
@@ -293,12 +303,15 @@ _BUILT = {  # answers to a reference build question
 }
 
 
-def _evidence(ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
-    """The reference assertions an item cites, each with its source and the kind of evidence it is."""
-    rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
-        if cited else []
+def _evidence(store: IdentityStore, ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
+    """The assertions an item cites, each with its source and the kind of evidence it is: the reference's, and what a
+    plugin stated on the device, whose source is that plugin."""
+    marks = ",".join("?" * len(cited))
+    found = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({marks})", cited).fetchall() if cited else []
+    stated = store.select(f"SELECT * FROM device_assertions WHERE evidence_id IN ({marks})", cited) if cited else []
     return [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "source", "retrieved_at", "authority")}
-            for row in rows]
+            for row in found] + [{**{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "retrieved_at")},
+                                  "source": row["plugin"], "authority": str(Authority.SOURCE_ASSERTED)} for row in stated]
 
 
 def _raw(store: IdentityStore, item: dict) -> dict | None:

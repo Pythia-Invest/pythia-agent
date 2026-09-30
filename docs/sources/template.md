@@ -4,8 +4,8 @@ Copy this file to `docs/sources/<source>.md` when onboarding starts, and keep it
 current. [Source onboarding](../architecture/source-onboarding.md) defines the
 stages. Mark each item done, open or not applicable, and give the evidence.
 
-- **Status:** not started / in onboarding (stage N) / trusted (signed off
-  YYYY-MM-DD, PR #N) / suspended (reason).
+- **Status:** not started / in onboarding (stage N) / signed off (YYYY-MM-DD,
+  PR #N) / suspended (reason).
 - **Owner:** the adapter module or plugin package.
 - **Scope:** the files, endpoints, categories and venues covered.
 - **Measured on:** the source files or builds, with their dates.

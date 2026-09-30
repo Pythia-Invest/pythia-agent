@@ -178,8 +178,8 @@ class Directory(Index):
         for score, line, key in self.lines(query, prefer, suffixes, venues):
             if not _allowed(line, allowed):
                 continue
-            group = groups.setdefault(line["grp"], [(score, line["trust"]), {}])  # trust breaks a tie, never origin
-            group[0] = max(group[0], (score, line["trust"]))
+            group = groups.setdefault(line["grp"], [score, {}])
+            group[0] = max(group[0], score)
             group[1].setdefault(line["security"], []).append((score, key, line))
         out = []
         for key, (_score, securities) in sorted(groups.items(), key=lambda item: item[1][0], reverse=True)[:limit]:

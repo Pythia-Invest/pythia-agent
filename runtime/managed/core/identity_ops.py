@@ -20,13 +20,13 @@ from typing import Any
 
 from .identity import (
     INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch,
-    RelationType, subject_kind, validate_manifest, vouched,
+    RelationType, subject_kind, validate_manifest,
 )
 from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, device, flags, search_device, stub, trust
+from .identity import declared, device, flags, search_device, stub
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -204,8 +204,8 @@ class Identity:
 
     def price_sources(self, subject_id: str) -> dict:
         """Where market data for a subject comes from: its asset class, the native references that serve
-        its quote and chart in core's order, the providers the investor named in `source_order` and those not
-        yet audited (ADR 0042), or the reason there are none. Local only."""
+        its quote and chart in core's order, the providers the investor named in `source_order`, or the reason there
+        are none. Local only."""
         try:
             plugins = installed()
             path, subject, lookups, _issue = self._load(subject_id, plugins)
@@ -218,9 +218,8 @@ class Identity:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
             return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
-        unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
-                "named": named, "unaudited": unaudited, "reason": None}
+                "named": named, "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
         (path, subject, lookups, issue), plugins = self._load(subject_id), installed()
@@ -253,7 +252,7 @@ class Identity:
             default = subject and not curated and self._default_listing(path, subject, plugins)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store, plugins)
-            subject = subject or device.load(ref, self.store, subject_id, plugins)
+            subject = subject or build_questions.load_device(ref, self.store, subject_id, plugins)
         finally:
             if ref is not None:
                 ref.close()
@@ -339,7 +338,7 @@ def _envelope(outcome: str, data: Any, *, issue: str | None = None) -> str:
 
 
 def installed() -> list[page.PluginInfo]:
-    """Every installed plugin with a valid contract.json: its enablement, pause, configuration and trust (by digest).
+    """Every installed plugin with a valid contract.json: its enablement, pause and configuration.
 
     A contract newer than this core is skipped with a distinct `needs_update` log line, never reported invalid."""
     from hermes_cli.config import load_config_readonly
@@ -350,8 +349,7 @@ def installed() -> list[page.PluginInfo]:
         if directory is None or not directory.is_absolute() or not (directory / MANIFEST_FILE).is_file():
             continue
         try:
-            manifest = vouched(validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8"))),
-                               trust.level(trust.digest(directory), key))  # trust follows the files, not the name
+            manifest = validate_manifest(json.loads((directory / MANIFEST_FILE).read_text(encoding="utf-8")))
         except ManifestNeedsUpdate as error:
             logger.warning("%s of %s needs a newer Pythia (needs_update): %s", MANIFEST_FILE, key, error)
             continue

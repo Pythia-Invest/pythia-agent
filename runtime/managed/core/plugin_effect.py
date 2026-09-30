@@ -7,9 +7,9 @@ inactive, and no reference package holds them. While the plugin is off they leav
 the markets overview (`markets_watchlist`, `markets_cards`) that name them, through their aliases, each as a count with
 a short sample, and the concepts it serves (`serves`: market data, filings, news ...). Without
 `plugin`, it answers every plugin enabled in Hermes that ships a contract, paused ones too (`paused`; the investor's
-switch in Settings → Data sources, `platform.access.plugin_paused`), with its trust level, as the Desk's Data sources
-settings list them: a price or filings source has a switch as much as a catalogue. A paused plugin's effect is what its
-pause hides now. It calls no provider and writes nothing. A Desk operation:
+switch in Settings → Data sources, `platform.access.plugin_paused`), as the Desk's Data sources settings list them: a
+price or filings source has a switch as much as a catalogue. A paused plugin's effect is what its pause hides now. It
+calls no provider and writes nothing. A Desk operation:
 the agent's tool list has no room for it (test_agent_surface.py's budget).
 """
 from __future__ import annotations
@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any
 
 from .identity import CatalogueMode, device, location
 from .identity.search_device import OFFERED
-from .identity.trust import CONFIRM, DISPLAY
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -88,7 +87,6 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     named = [{"id": item, "name": sole[current], "setting": setting} for setting, items in saved.items()
              for item in items if (current := device.current_id(ref, store, item)) in sole]
     return {"plugin": info.key, "label": info.label, "enabled": info.enabled, "paused": info.paused,
-            "level": DISPLAY if info.manifest.unaudited else CONFIRM,
             "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "resolve": info.manifest.resolve is not None,
             "serves": [str(concept) for concept in info.manifest.concepts],
             "sole": {"count": len(sole), "sample": [{"id": key, "name": sole[key]} for key in list(sole)[:SAMPLE]]},

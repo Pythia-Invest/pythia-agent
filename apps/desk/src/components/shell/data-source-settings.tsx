@@ -9,13 +9,6 @@ import {
   useSyncSource,
 } from "@/client/data-sources";
 
-/** Trust levels in the investor's words (ADR 0044 A4): display data is shown
- * with its source; a confirm-level plugin also establishes identity facts. */
-const LEVELS = {
-  confirm: "Confirms identity",
-  display: "Display only",
-} as const;
-
 function count(value: number, one: string, many: string) {
   return `${value} ${value === 1 ? one : many}`;
 }
@@ -99,7 +92,6 @@ function DataSourceRow({ source }: { source: DataSource }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 font-medium text-body text-foreground">
             {source.label}
-            <Badge>{LEVELS[source.level]}</Badge>
             {source.paused ? <Badge>Paused</Badge> : null}
           </div>
           <p className="m-0 text-body text-foreground-secondary leading-ui">
@@ -147,10 +139,10 @@ function DataSourceRow({ source }: { source: DataSource }) {
 }
 
 /** Every source Hermes has enabled (a plugin that ships a contract), price,
- * filings and news sources as much as catalogues: each with its trust level, a
- * switch that pauses it at once, what turning it off takes away and, for a
- * catalogue, a way to read it now. Only a plugin Hermes has not enabled needs
- * Hermes: its command, then a restart. */
+ * filings and news sources as much as catalogues: each with a switch that
+ * pauses it at once, what turning it off takes away and, for a catalogue, a
+ * way to read it now. Only a plugin Hermes has not enabled needs Hermes: its
+ * command, then a restart. */
 export function DataSourceSettings() {
   const query = useDataSources();
   return (

@@ -107,7 +107,7 @@ class StoreKindTest(Fixture):
         self.assertEqual((len(names), names[1]), (2, "identity.sqlite3"))
         self.assertRegex(names[0], rf"^identity\.before-v{store.SCHEMA_VERSION}-[0-9a-f]{{8}}\.sqlite3$")  # the v3 file, kept
 
-    def test_a_v4_store_migrates_keeping_its_rows_and_then_accepts_a_new_queue_reason(self):
+    def test_a_v4_store_migrates_keeping_its_rows_and_then_accepts_a_queue_item(self):
         directory = Path(self.tmp.name) / "v4"
         directory.mkdir()
         current = identity.schema_sql("identity")
@@ -125,11 +125,29 @@ class StoreKindTest(Fixture):
         self.assertEqual((migrated.metadata("schema_version"), migrated.set_aside), (store.SCHEMA_VERSION, None))
         self.assertEqual([row["subject_id"] for row in migrated.bindings([ASML])], [ASML])
         ref = identity.ProviderRef(provider="eodhd", native_id="ASML.AS", native_scope="catalogue")
-        migrated.put_queue_item(identity.QueueItem(  # ADR 0042's residual, which v4's CHECK refused
-            id="q1", kind="residual", reason="unaudited", subject_ids=("listing:provisional:eodhd:catalogue:ASML.AS",),
+        migrated.put_queue_item(identity.QueueItem(
+            id="q1", kind="residual", reason="ambiguous", subject_ids=("listing:provisional:eodhd:catalogue:ASML.AS",),
             candidate_ids=(ASML,), evidence_ids=("ev:1",), state="open", opened_at="2026-09-28T00:00:00Z",
             plugins=("eodhd",), provider_ref=ref))
-        self.assertEqual([row["reason"] for row in migrated.open_queue([ASML])], ["unaudited"])
+        self.assertEqual([row["reason"] for row in migrated.open_queue([ASML])], ["ambiguous"])
+
+    def test_an_unaudited_residual_an_earlier_pythia_queued_is_superseded_and_still_readable(self):
+        # ADR 0044, amendment of 2026-09-30: no source is "not yet audited" any more, so nothing asks about one.
+        directory = Path(self.tmp.name) / "v5"
+        directory.mkdir()
+        with sqlite3.connect(directory / "identity.sqlite3") as db:
+            db.executescript((FIXTURES / "identity-v5.sql").read_text())
+            db.execute("INSERT INTO metadata VALUES ('schema_version', '5')")
+            for item, state in (("q-open", "open"), ("q-done", "dismissed")):
+                db.execute("INSERT INTO queue (id, key, kind, reason, subject_ids, candidate_ids, plugins, state,"
+                           " opened_at, updated_at) VALUES (?, ?, 'residual', 'unaudited', ?, ?, '[\"eodhd\"]', ?, ?, ?)",
+                           (item, f"residual|unaudited|{item}", json.dumps([ASML]), json.dumps([ASML]), state,
+                            "2026-09-28T00:00:00Z", "2026-09-28T00:00:00Z"))
+        migrated = store.IdentityStore(directory)
+        self.assertEqual(migrated.open_queue([ASML]), [])
+        self.assertEqual({item["id"]: (item["state"], item["reason"]) for item in
+                          map(migrated.queue_item, ("q-open", "q-done"))},
+                         {"q-open": ("superseded", "no_key"), "q-done": ("dismissed", "no_key")})
 
     def test_a_failed_migration_leaves_no_staging_file_and_keeps_the_store_aside(self):
         directory = Path(self.tmp.name) / "broken"

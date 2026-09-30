@@ -62,7 +62,7 @@ class Fixture(unittest.TestCase):
             load_reference(db, load(name))
         db.commit()
         db.close()
-        self.ref = store.open_reference(self.path, "confirm")  # a build the user trusts to confirm
+        self.ref = store.open_reference(self.path)
         self.identity = store.IdentityStore(Path(self.tmp.name) / "core")
 
     def tearDown(self):
@@ -130,7 +130,7 @@ class PageTest(Fixture):
         self.assertIsNone(page.load_subject(self.ref, old))
         with sqlite3.connect(self.path) as db:  # the builder writes aliases; the reference opens read-only
             db.execute("INSERT INTO id_aliases VALUES (?, ?, 'test')", (old, current))
-        ref = store.open_reference(self.path, "confirm")
+        ref = store.open_reference(self.path)
         self.addCleanup(ref.close)
         subject = page.load_subject(ref, old)
         self.assertEqual((subject["id"], subject["listing"]["ticker"]), (current, "ASML"))
@@ -139,7 +139,7 @@ class PageTest(Fixture):
         gleif = plugin("gleif", operations={"profile": "pythia_gleif_profile"})
         with sqlite3.connect(self.path) as db:  # the builder leaves an undecided issuer empty (R2)
             db.execute("UPDATE securities SET issuer_id = NULL")
-        ref = store.open_reference(self.path, "confirm")
+        ref = store.open_reference(self.path)
         self.addCleanup(ref.close)
         subject = page.load_subject(ref, ASML)
         [profile] = [section for section in page.compose(subject, [gleif], **self.lookups(ASML))
@@ -201,53 +201,38 @@ class PageTest(Fixture):
 
 
 def unsigned(name, **overrides):
-    """A plugin whose source has not signed off (ADR 0042): the investor enabled it explicitly."""
+    """A plugin whose contract says Pythia has not audited it (ADR 0042): the investor enabled it explicitly."""
     contract = {**CONTRACTS[name], "signoff": {"status": "unsigned"}}
     return page.PluginInfo(key=f"pythia-{name}", manifest=identity.validate_manifest(contract), **overrides)
 
 
-class SignOffGateTest(Fixture):
+class SignOffNoEffectTest(Fixture):
+    """The contract's `signoff` records Pythia's audit and nothing reads it (ADR 0044, amendment of 2026-09-30)."""
+
     def sections(self, subject_id, plugins, order=()):
         subject = page.load_subject(self.ref, subject_id)
         return {section["section"]: section
                 for section in page.compose(subject, plugins, **self.lookups(subject_id), order=order)}
 
-    def test_an_unsigned_source_is_never_cores_choice_and_is_labelled(self):
+    def test_the_default_order_picks_an_unsigned_source_like_any_other_and_labels_nothing(self):
         quote = self.sections(BTC, [unsigned("coingecko"), plugin("coinmarketcap")])["quote"]
-        self.assertEqual(quote["plugin"], "pythia-coinmarketcap")  # though free sources come first by default
-        self.assertNotIn("unaudited", quote)
+        self.assertEqual(quote["plugin"], "pythia-coingecko")  # free sources come first by default, signed off or not
         [also] = quote["alternatives"]
-        self.assertEqual((also["plugin"], also["unaudited"]), ("pythia-coingecko", True))
+        self.assertEqual(also["plugin"], "pythia-coinmarketcap")
+        self.assertNotIn("unaudited", {**quote, **also, **quote["source"]})
 
-    def test_the_investor_may_still_use_an_unsigned_source_labelled_not_yet_audited(self):
-        for plugins, order in (([unsigned("coingecko"), plugin("coinmarketcap")], ("coingecko",)),
-                               ([unsigned("coingecko")], ())):
-            with self.subTest(order=order):
-                quote = self.sections(BTC, plugins, order)["quote"]
-                self.assertEqual((quote["plugin"], quote["unaudited"], quote["source"]["unaudited"]),
-                                 ("pythia-coingecko", True, True))
-
-    def test_an_unsigned_source_never_confirms_identity(self):
+    def test_an_unsigned_sources_answer_binds_like_any_others(self):
         subject, _ = self.compose(ASML, [])
-        eodhd = unsigned("eodhd")
         record = {"level": "listing", "provenance": PROVENANCE, "identifiers": [{"scheme": "isin", "value": "NL0010273215"}],
                   "native_ref": {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}}
         batch = identity.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
                                           "origin": "resolve", "claims": [record]})
-        # The same answer binds for an audited source (test_resolve_binds_unless_identifier_evidence_contradicts).
-        binding, item, _ = page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject,
-                                              page.resolve_input(eodhd, subject), now="2026-09-26T10:00:00Z",
-                                              as_of="2026-09-26")
-        self.assertIsNone(binding)
-        self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "unaudited", (ASML,)))
-        self.assertTrue(item.evidence_ids)  # the reviewer sees the identifiers that matched
-        # The page says the match waits for review, in words, never that the source has no match.
-        self.identity.put_queue_item(item)
-        [quote] = page.compose(page.load_subject(self.ref, ASML), [eodhd], queue=self.identity.open_queue([ASML]),
-                               stored=lambda *_: None)
-        self.assertEqual((quote["status"], quote["queued"]), ("unresolved", "unaudited"))
-        self.assertEqual(quote["reason"], "EODHD's answer is queued for review: the source is not yet audited, so its "
-                                          "match waits for sign-off")
+        for eodhd in (unsigned("eodhd"), plugin("eodhd")):
+            with self.subTest(signoff=eodhd.manifest.signoff):
+                binding, item, _ = page.apply_resolve(batch, eodhd, identity.Level.LISTING, subject,
+                                                      page.resolve_input(eodhd, subject), now="2026-09-26T10:00:00Z",
+                                                      as_of="2026-09-26")
+                self.assertEqual((binding.status, binding.subject_id, item), ("confirmed", ASML, None))
 
 
 class ReviewFixesTest(Fixture):
@@ -336,9 +321,9 @@ class MarketPages(Fixture):
                                 stored=lambda *_: None, queue=[])
         self.assertEqual([section["section"] for section in sections], ["live"])
         live = sections[0]
-        # Unsigned (opt-in, display-only): once the investor enables it, the live view serves at the address its own
-        # contract declares, labelled; a display plugin's declaration is an address, never confirmed.
-        self.assertEqual((live["status"], live["binding_status"], live["unaudited"]), ("ready", "derived", True))
+        # Unsigned and off in fresh profiles: once the investor enables it, the live view serves at the address its own
+        # contract declares.
+        self.assertEqual((live["status"], live["binding_status"]), ("ready", "confirmed"))
         self.assertEqual(live["request"], {"plugin": "pythia-hyperliquid", "operation": "live_market", "arguments": {
             "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"},
             "subject_id": self.PERP}})

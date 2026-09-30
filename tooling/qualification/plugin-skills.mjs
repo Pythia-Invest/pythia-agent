@@ -9,7 +9,6 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { refreshManagedPlugins } from "../../scripts/dev/managed-plugins.mjs";
-import { writeReleaseGrants } from "../../scripts/dev/release-grants.mjs";
 
 // An isolated native discovery check: no listener, provider or model execution.
 const source = process.argv[2];
@@ -23,7 +22,6 @@ try {
     managedRoot,
     managedCore: join(managedRoot, "core"),
   };
-  writeReleaseGrants(paths, { python: join(source, ".venv/bin/python") });
   refreshManagedPlugins(paths, "synthetic", { execute: () => {} });
   const bundled = join(root, "empty-bundled");
   mkdirSync(bundled);

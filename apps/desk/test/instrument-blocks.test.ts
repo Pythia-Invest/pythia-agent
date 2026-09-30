@@ -78,20 +78,16 @@ describe("using an alternative source once", () => {
       authorities: [],
       binding: eodhd,
       request: null,
-      unaudited: true,
     };
     const [block] = pageBlocks([
       section("quote", { alternatives: [also], notice: null }),
-      section("chart", { alternatives: [also], unaudited: false }),
+      section("chart", { alternatives: [also] }),
     ]);
     if (!block) throw Error("expected a price card");
     const used = usingSource(block, "pythia-eodhd");
-    // The source used once carries its own sign-off label, not the lead's.
-    expect(
-      used.sections.map((item) => [item.plugin, item.binding, item.unaudited]),
-    ).toEqual([
-      ["pythia-eodhd", eodhd, true],
-      ["pythia-eodhd", eodhd, true],
+    expect(used.sections.map((item) => [item.plugin, item.binding])).toEqual([
+      ["pythia-eodhd", eodhd],
+      ["pythia-eodhd", eodhd],
     ]);
     expect(used.key).not.toEqual(block.key);
     expect(usingSource(block, null)).toBe(block);
@@ -134,7 +130,6 @@ describe("using an alternative source once", () => {
           plugin: "pythia-nsm",
           label: "UK FCA NSM",
           status: "ready",
-          unaudited: true,
           authorities: ["fca"],
         },
       ],
@@ -146,14 +141,13 @@ describe("using an alternative source once", () => {
           source: "UK FCA NSM",
           provider: "nsm",
           plugin: "pythia-nsm",
-          unaudited: true,
           authorities: ["fca"],
         },
       ],
     });
-    expect(
-      credited.sources?.map((item) => [item.source, item.unaudited]),
-    ).toEqual([["UK FCA NSM", true]]);
+    expect(credited.sources?.map((item) => item.source)).toEqual([
+      "UK FCA NSM",
+    ]);
     expect(credited.alternatives).toEqual([]);
     // Until the read answers, or when nothing answered, composition stands.
     expect(creditedSources(composed, null)).toBe(composed);

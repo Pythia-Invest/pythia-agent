@@ -358,12 +358,10 @@ version 1):
 - `signoff` states where the source stands in [onboarding](source-onboarding.md):
   `{"status": "unsigned"}` for a new source, `grandfathered` for the sources
   ADR 0042 lists, and `signed_off` with the `record` that shows it
-  (`docs/sources/<source>.md` or an https link). An unsigned source is a
-  display source: off in fresh profiles, never core's choice ahead of an
-  audited one and never confirming identity, but once enabled it joins merged
-  lists and side-by-side values, labelled "not yet audited". The status is a
-  declaration: core honours any other status only where a trust grant on the
-  plugin's files confirms it (below).
+  (`docs/sources/<source>.md` or an https link). The field records Pythia's
+  own audit and changes nothing in code: an enabled plugin works the same
+  whatever it declares ([below](#installing-a-plugin-means-trusting-it)). An
+  unsigned source ships off in fresh profiles as a product default.
 - `coverage.operations` narrows coverage for one operation, for example a
   live stream that covers fewer markets than the provider's history.
 - A `live` operation returns core's `live_market` snapshot
@@ -375,9 +373,8 @@ version 1):
   keys: a maintained index, pair, perp or crypto asset
   (`"index:pythia:sp500": {"native_scope": "symbol", "native_id": "^GSPC"}`).
   Core's maintained tables (`markets.json`, `canonical_assets.json`) list the
-  subjects and name no provider. The address is confirmed only when the
-  plugin's files are granted confirm (below), and only then does the plugin's
-  provisional ID for that reference alias to the subject. A coin plugin also
+  subjects and name no provider. The address is confirmed, and the plugin's
+  provisional ID for that reference aliases to the subject. A coin plugin also
   maps its own chain ids to CAIP-2 chains in `addressing.chain_codes`.
 - `introduces` names the kinds of subject the plugin may add and the key
   schemes their IDs use: an open scheme registered for the kind, or `native`,
@@ -449,36 +446,30 @@ Core validates the file with `identity.validate_manifest`; a contract newer
 than the installed Pythia shows as `needs_update`. A bundled plugin lists
 `contract.json` among its copied files in `scripts/dev/managed-plugins.mjs`.
 
-### Trust follows the files, not the name
+### Installing a plugin means trusting it
 
-A plugin's trust level is looked up by a digest of its files
-([ADR 0042](../decisions/0042-source-onboarding-standard.md), amendment of
-2026-09-30), never by its name or by being bundled. The digest,
-`pythia-plugin-digest@1`, is the SHA-256 of the sorted lines
-`<relpath>\t<sha256>\n` for every regular file in the plugin directory,
-without `.git/`, `__pycache__/`, `*.pyc` and the copy receipt. A symlink in the
-directory means no digest, so display.
+There are no trust levels ([ADR 0044](../decisions/0044-product-direction.md),
+amendment of 2026-09-30). Every enabled plugin is equal, whether Pythia ships
+it, a community wrote it, or it is a byte-identical copy under another name.
+Core never asks who a plugin is or which files it holds.
 
-- Pythia's own grants are generated into core's payload
-  (`identity/trust.json`) when the payload is assembled: each shipped plugin
-  whose contract is `signed_off` or `grandfathered` is confirm at the digest of
-  its payload files. Editing a shipped plugin changes its digest; the next
-  `just dev-init` or `just dev` regenerates the grants, and until then core
-  logs that the plugin is display.
-- A user's own grants live in `trust.json` in the Pythia config folder and win
-  in both directions. From the checkout, with the stack's Hermes Python:
-
-  ```sh
-  python -P runtime/managed/core/identity/trust.py grant <plugin dir> confirm   # or display
-  python -P runtime/managed/core/identity/trust.py status [<plugin dir> ...]
-  ```
-
-  Both read the config folder from `PYTHIA_CONFIG_ROOT` or `--config-root`.
-  A grant covers exactly those files: after an update the plugin is display
-  until its new digest is granted. A malformed file is ignored with one
-  warning.
-- The levels are display and confirm. The user's confirm grant is their own
-  sign-off: it confirms the plugin whatever its contract declares.
+- **Any enabled plugin** can introduce subjects under the key schemes its
+  contract declares, contribute evidence about existing ones, bind its records
+  to a reference or device subject, and alias its provisional IDs. Its evidence
+  counts like the reference package's.
+- **Disagreement is a conflict.** When different plugins or sources state
+  different values of a single-valued identifier, both values are kept, neither
+  applies, and a question is asked when the subject is touched. The user's
+  answer is a local override. One source's several values are no conflict.
+- **Disabling a plugin** keeps what it stated on the device, shown with its
+  source: its subjects keep their labels and identifiers and open by ID, and
+  what it stated no longer proves, blocks or contests while it is off.
+- **`signoff` in `contract.json`** is Pythia's record of its audit, for readers.
+  No code reads it. A plugin that is off in fresh profiles (DeFiLlama,
+  Hyperliquid, NSM) is a product default, not a level.
+- **There is no protection from a buggy or malicious plugin** other than
+  disabling it or answering the conflicts it raises. The user trusts what they
+  install. Isolating plugin code stays required before an open marketplace.
 
 ## Skills and contracts
 

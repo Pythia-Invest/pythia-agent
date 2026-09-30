@@ -46,7 +46,6 @@ const defi = {
   label: "DeFiLlama",
   enabled: true,
   paused: false,
-  level: "display",
   catalogue: true,
   resolve: false,
   serves: [],
@@ -69,7 +68,6 @@ const lookup = {
   ...defi,
   plugin: "pythia-openfigi",
   label: "OpenFIGI",
-  level: "confirm",
   catalogue: false,
   resolve: true,
   sole: { count: 0, sample: [] },
@@ -92,14 +90,13 @@ beforeEach(() => {
   state.pause.mockReset();
 });
 
-it("shows each source's trust level and what turning it off hides, beside its switch", () => {
+it("shows what turning each source off hides, beside its switch, and no trust level", () => {
   const html = renderToStaticMarkup(<DataSourceSettings />);
   expect(html).toContain("DeFiLlama");
-  expect(html).toContain("Display only");
+  expect(html).not.toMatch(/Display only|Confirms identity/u);
   expect(html).toContain(
     "Turning this off hides 1204 subjects; 1 saved item will show as paused (Navi USDC).",
   );
-  expect(html).toContain("Confirms identity");
   expect(html).toContain(
     "No subject on this device comes only from it, so turning this off hides none.",
   );

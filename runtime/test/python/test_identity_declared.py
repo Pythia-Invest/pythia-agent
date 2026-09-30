@@ -12,9 +12,9 @@ from unittest import mock
 
 from test_identity_contracts import PROVENANCE, YAHOO, identity, load, load_reference
 from test_reference_package import make_package
-# The loaded core's modules, the same objects TrustCase patches.
-from test_identity_trust import PLUGINS, TrustCase, access, harness, identity_ops, page, reference_package, trust
-from test_identity_trust import identity as core
+# The loaded core's modules, the same objects the other tests patch.
+from test_identity_installed import PLUGINS, PluginCase, access, harness, identity_ops, page, reference_package
+from test_identity_installed import identity as core
 
 markets = identity_ops.markets
 
@@ -84,12 +84,12 @@ class ContractTest(unittest.TestCase):
         refused(self, {**POOLS, "contract_version": 1}, "introduces: needs contract_version 2")
         refused(self, {**INDEXES, "contract_version": 1}, "addressing.subjects: needs contract_version 2")
 
-    def test_only_an_unambiguous_confirm_level_declaration_aliases_its_provisional_id(self):
+    def test_only_an_unambiguous_declaration_aliases_its_provisional_id(self):
         shipped = identity.validate_manifest(INDEXES)
-        self.assertEqual(identity.declared.aliases([shipped]), {
-            identity.provisional_id("index", "yahoo", "symbol", "^GSPC"): "index:pythia:sp500"})
-        display = identity.validate_manifest({**INDEXES, "signoff": {"status": "unsigned"}})
-        self.assertEqual(identity.declared.aliases([display]), {})  # an address, never an alias
+        alias = {identity.provisional_id("index", "yahoo", "symbol", "^GSPC"): "index:pythia:sp500"}
+        self.assertEqual(identity.declared.aliases([shipped]), alias)
+        unsigned = identity.validate_manifest({**INDEXES, "signoff": {"status": "unsigned"}})
+        self.assertEqual(identity.declared.aliases([unsigned]), alias)  # the declared sign-off changes nothing
         other = copy.deepcopy(INDEXES)
         other["addressing"]["subjects"] = {"index:pythia:dow-jones": {"native_scope": "symbol", "native_id": "^GSPC"}}
         self.assertEqual(identity.declared.aliases([shipped, identity.validate_manifest(other)]), {})
@@ -145,7 +145,7 @@ def installed(**directories: Path) -> list[page.PluginInfo]:
         return identity_ops.installed()
 
 
-class DeclaredAddressTest(TrustCase):
+class DeclaredAddressTest(PluginCase):
     """A device whose reference package holds the curated crypto assets but no provider coin ids or aliases: the
     coin plugins' own contracts address them (package format 6)."""
 
@@ -156,7 +156,7 @@ class DeclaredAddressTest(TrustCase):
             db.executescript(identity.schema_sql("reference"))
             for name in ("asml.json", "crypto.json"):
                 load_reference(db, load(name))
-        reference_package.install(make_package(self.root / "package", source=path), self.root / "data", trust.CONFIRM)
+        reference_package.install(make_package(self.root / "package", source=path), self.root / "data")
         self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=self.root / "data")
         self.addCleanup(lambda: self.ops.store.db.close())
 
@@ -167,11 +167,8 @@ class DeclaredAddressTest(TrustCase):
     def quote(self, plugins: list[page.PluginInfo], subject_id: str = BTC) -> dict:
         return next(section for section in self.read(plugins, subject_id)["sections"] if section["section"] == "quote")
 
-    def test_a_renamed_byte_identical_copy_of_coingecko_serves_btc_identically_once_granted_confirm(self):
+    def test_a_renamed_byte_identical_copy_of_coingecko_serves_btc_identically(self):
         shipped, renamed = self.copy("pythia-coingecko", PLUGINS / "coingecko"), self.copy("coins", PLUGINS / "coingecko")
-        [before] = installed(coins=renamed)
-        self.assertTrue(before.manifest.unaudited)  # no grant yet: display
-        trust.grant(trust.digest(renamed), trust.CONFIRM)  # the user's grant is on the files, so the original has it too
         [pythia], [copied] = installed(pythia_coingecko=shipped), installed(coins=renamed)
         self.assertEqual(json.dumps(self.read([copied])).replace('"coins"', '"pythia-coingecko"'),
                          json.dumps(self.read([pythia])))
@@ -179,16 +176,8 @@ class DeclaredAddressTest(TrustCase):
         self.assertEqual((quote["status"], quote["binding"], quote["binding_status"]),
                          ("ready", {"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}, "confirmed"))
 
-    def test_a_display_level_declaration_serves_btc_derived_and_labelled_and_aliases_nothing(self):
-        [display] = installed(coins=self.copy("coins", PLUGINS / "coingecko"))  # no grant: display
-        quote = self.quote([display])
-        self.assertEqual((quote["plugin"], quote["status"], quote["binding"]["native_id"], quote["binding_status"],
-                          quote["unaudited"]), ("coins", "ready", "bitcoin", "derived", True))
-        self.assertIsNone(self.read([display], SAVED_BTC))  # its declaration gives an address, never an alias
-
-    def test_a_saved_provisional_coin_id_still_resolves_through_a_confirm_level_contract(self):
+    def test_a_saved_provisional_coin_id_still_resolves_through_a_contract(self):
         shipped = self.copy("pythia-coingecko", PLUGINS / "coingecko")
-        self.ship(pythia_coingecko=shipped)
         [coingecko] = installed(pythia_coingecko=shipped)
         with contextlib.closing(sqlite3.connect(reference_package.current(self.root / "data"))) as ref:
             self.assertEqual(ref.execute("SELECT count(*) FROM id_aliases").fetchone()[0], 0)  # the package names none
@@ -198,18 +187,16 @@ class DeclaredAddressTest(TrustCase):
             self.assertEqual(self.ops.price_sources(SAVED_BTC)["refs"],
                              [{"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}])
 
-    def test_a_row_saved_under_a_provisional_coin_id_follows_a_confirm_level_contract_on_the_releases_first_read(self):
-        """Lifecycle A re-points stored rows through a confirm-level contract's declared alias, as it did through the
-        package's alias before the package stopped naming providers; a display-level declaration moves nothing."""
+    def test_a_row_saved_under_a_provisional_coin_id_follows_a_contract_on_the_releases_first_read(self):
+        """Lifecycle A re-points stored rows through a contract's declared alias, as it did through the package's
+        alias before the package stopped naming providers; with no plugin installed it moves nothing."""
         self.ops.store.put_binding(core.Binding(
             provider_ref={"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}, subject_id=SAVED_BTC,
             status="confirmed", authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
-        [display] = installed(coins=self.copy("coins", PLUGINS / "coingecko"))  # no grant: display
-        with mock.patch.object(identity_ops, "installed", lambda: [display]):
+        with mock.patch.object(identity_ops, "installed", list):
             self.ops.reference_path()
         self.assertEqual(len(self.ops.store.bindings([SAVED_BTC])), 1)
         shipped = self.copy("pythia-coingecko", PLUGINS / "coingecko")
-        self.ship(pythia_coingecko=shipped)
         [coingecko] = installed(pythia_coingecko=shipped)
         with mock.patch.object(identity_ops, "installed", lambda: [coingecko]):
             self.ops.reference_path(again=True)  # rows written under an older ID, carried again
@@ -217,21 +204,18 @@ class DeclaredAddressTest(TrustCase):
                          ([], ["coingecko"]))
         self.assertEqual(identity_ops.lifecycle.vanished(self.ops.store), [])
 
-    def test_a_saved_provisional_market_id_resolves_through_a_confirm_level_contract(self):
+    def test_a_saved_provisional_market_id_resolves_through_a_contract(self):
         yahoo = self.copy("pythia-yahoo-discovery", PLUGINS / "yahoo-discovery")
         saved = identity.provisional_id("index", "yahoo", "symbol", "^GSPC")  # `^` is hashed into the ID
         self.assertTrue(saved.startswith("index:provisional:yahoo:symbol:sha256-"))
-        [display] = installed(pythia_yahoo_discovery=yahoo)
-        self.assertIsNone(self.read([display], saved))  # no grant yet: an address, never an alias
-        self.ship(pythia_yahoo_discovery=yahoo)
-        [confirmed] = installed(pythia_yahoo_discovery=yahoo)
-        self.assertEqual(self.read([confirmed], saved)["subject"]["id"], "index:pythia:sp500")
+        self.assertIsNone(self.read([], saved))  # with no plugin installed, nothing aliases it
+        [yahoo] = installed(pythia_yahoo_discovery=yahoo)
+        self.assertEqual(self.read([yahoo], saved)["subject"]["id"], "index:pythia:sp500")
 
     def test_the_default_price_source_for_btc_is_unchanged(self):
         """CoinGecko first, then CoinMarketCap once its key is set: from their contracts, not the package."""
         plugins = {name.replace("-", "_"): self.copy(f"pythia-{name}", PLUGINS / name)
                    for name in ("coingecko", "coinmarketcap", "yahoo-discovery", "eodhd")}
-        self.ship(**plugins)
         found = installed(**plugins)
         with mock.patch.object(identity_ops, "installed", lambda: found):
             refs = self.ops.price_sources(BTC)["refs"]
@@ -284,7 +268,7 @@ class MaintainedSubjectsTest(unittest.TestCase):
                                        section["binding_status"]) for subject_id, section in served.items()},
                          {"index:pythia:sp500": ("yahoo", "^GSPC", "confirmed"),
                           "fx:pythia:EURUSD": ("yahoo", "EURUSD=X", "confirmed"),
-                          "market:pythia:hyperliquid-btc-perp": ("hyperliquid", "BTC", "derived")})  # display level
+                          "market:pythia:hyperliquid-btc-perp": ("hyperliquid", "BTC", "confirmed")})
 
     def test_every_subject_a_shipped_contract_declares_is_a_maintained_subject(self):
         core = Path(page.__file__).parent

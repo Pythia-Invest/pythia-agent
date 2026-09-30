@@ -27,39 +27,6 @@ const section = (fields: Record<string, unknown>) =>
     ...fields,
   });
 
-describe("source sign-off (ADR 0042)", () => {
-  it("labels a source core marks unaudited, and only that one", () => {
-    const serving = renderToStaticMarkup(
-      <SourcesLine
-        section={section({
-          plugin: "pythia-coingecko",
-          label: "CoinGecko",
-          unaudited: true,
-        })}
-      />,
-    );
-    expect(serving).toContain("(not yet audited)");
-
-    const alternative = renderToStaticMarkup(
-      <SourcesLine
-        section={section({
-          alternatives: [
-            {
-              plugin: "pythia-coingecko",
-              label: "CoinGecko",
-              status: "ready",
-              unaudited: true,
-            },
-          ],
-        })}
-        onUse={() => undefined}
-      />,
-    );
-    expect(alternative).toContain("CoinGecko (not yet audited)");
-    expect(alternative.match(/not yet audited/gu)).toHaveLength(1);
-  });
-});
-
 describe("a suspended section", () => {
   it("says the binding is kept but not used, with core's reason", () => {
     const placeholder = renderToStaticMarkup(
@@ -84,10 +51,10 @@ describe("an unresolved section", () => {
   it("says a match held for review awaits review, not that there is no match", () => {
     const held = section({
       status: "unresolved",
-      queued: "unaudited",
+      queued: "ambiguous",
       label: "EODHD",
       reason:
-        "EODHD's answer is queued for review: the source is not yet audited, so its match waits for sign-off",
+        "EODHD's answer is queued for review: several of its records match",
     });
     const placeholder = renderToStaticMarkup(
       <SectionPlaceholder section={held} level="listing" />,

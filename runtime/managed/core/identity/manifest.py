@@ -13,14 +13,13 @@ Hermes adapter maps an operation to the tool that declares it.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
 from .declared import DeclaredRef, parse as declarations
 from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
-from .trust import CONFIRM
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -38,13 +37,12 @@ class CatalogueMode(StrEnum):
 
 
 class SignOff(StrEnum):
-    """A source's declared standing under the onboarding standard (ADR 0042). Core honours a grant on the plugin's
-    files instead (`trust.py`); Pythia's release grants confirm its own signed-off or grandfathered ones."""
+    """Pythia's own record of a source under the onboarding standard (ADR 0042). Documentation only: no code reads
+    it, and an enabled plugin works the same whatever it says (ADR 0044, amendment of 2026-09-30)."""
 
     SIGNED_OFF = "signed_off"        # passed the four stages; its record says so
     GRANDFATHERED = "grandfathered"  # in use before the standard: keeps its role until its turn
-    UNSIGNED = "unsigned"            # display: off in fresh profiles; once enabled it serves and merges, labelled,
-                                     # after every audited source where one serves; never confirms identity
+    UNSIGNED = "unsigned"            # Pythia has not audited it
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,10 +128,6 @@ class Manifest:
     subjects: Mapping[str, DeclaredRef] = field(default_factory=dict)  # v2: its own reference for a core-keyed subject
     introduces: Mapping[Kind, tuple[str, ...]] = field(default_factory=dict)  # v2: kind -> key schemes, or `native`
     chain_codes: Mapping[str, str] = field(default_factory=dict)  # v2: the provider's chain id -> CAIP-2 chain
-
-    @property
-    def unaudited(self) -> bool:
-        return self.signoff is SignOff.UNSIGNED
 
     def native_scope(self, native_scope: str) -> NativeScope | None:
         return next((item for item in self.native if item.native_scope == native_scope), None)
@@ -317,15 +311,6 @@ def _limits(value: Any) -> Limits:
         raise ManifestError(f"limits.unit: expected one of {', '.join(LIMIT_UNITS)}")
     return Limits(body["plan"], body["unit"], **{name: _count(body[name], f"limits.{name}") if name in body else None
                                                  for name in ("per_second", "per_minute", "per_day", "per_month")})
-
-
-def vouched(manifest: Manifest, level: str) -> Manifest:
-    """The contract as core trusts it at the trust level granted to its plugin's files (`trust.level`): unsigned below
-    confirm; at confirm the grant is the sign-off, so a contract that declares itself unsigned (a user's confirm grant,
-    ADR 0044 A2) is signed off too. A plugin cannot vouch for itself: its `signoff` alone never raises its trust."""
-    if level != CONFIRM:
-        return replace(manifest, signoff=SignOff.UNSIGNED)
-    return replace(manifest, signoff=SignOff.SIGNED_OFF) if manifest.unaudited else manifest
 
 
 def validate_manifest(document: Any) -> Manifest:

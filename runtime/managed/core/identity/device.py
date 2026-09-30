@@ -9,12 +9,11 @@ writer bumps the store's `generation` once it is done (`bump`), so a cached read
 Reads cover reference and device alike. `current_id` follows the reference's aliases, then the device's.
 `load_subject` reads the reference and falls back to the device store (`load`), in the reference's shape plus
 `contributors`, so a device subject's page composes with no reference package installed. A device assertion counts
-at its plugin's trust level while the plugin is enabled (`levels`); a disabled or removed plugin's assertions count
-at display, shown with their source and never proving or blocking, and its subjects keep resolving by ID.
+like the package's while the plugin is enabled (`enabled`); a disabled or removed plugin's assertions are shown with
+their source and never prove or block, and its subjects keep resolving by ID.
 
-Binding (ADR 0042, amendment of 2026-09-30): only a confirm-level plugin binds, onto reference or device subjects.
-A display-level plugin binds only a subject it introduced itself (`bind_introduced`, rule `introduced@1`); its answer
-that would bind any other stays an `unaudited` residual (`page.apply_resolve`). Core's ingest of plugin records
+Binding (ADR 0044, amendment of 2026-09-30): any enabled plugin binds, onto reference or device subjects. A plugin's
+own record binds the subject it introduced (`bind_introduced`, rule `introduced@1`). Core's ingest of plugin records
 writes through these functions; tests may too.
 """
 from __future__ import annotations
@@ -30,10 +29,9 @@ from .claims import RecordAttributes
 from .model import Binding, IdentifierAssertion, ProviderRef, evidence_id
 from .schemes import INSTRUMENT_KINDS, NAMESPACE, Kind, Level, normalize_identifier, registered_kind, subject_kind
 from .store import IdentityStore, now
-from .trust import CONFIRM, DISPLAY
 from .vocabulary import Authority, IdentifierRole, SubjectStatus
 
-INTRODUCED_RULE = "introduced@1"  # a plugin's own record binds the subject it introduced, at any trust level
+INTRODUCED_RULE = "introduced@1"  # a plugin's own record binds the subject it introduced
 GENERATION = "generation"         # identity.sqlite3 metadata: counts changes to device subjects
 CLAIM_STATES = frozenset({"joined", "introduced", "conflict", "unmatched", "not_seen"})  # claims.state
 PARENT = {Level.LISTING: Level.SECURITY, Level.COMPOSITE: Level.SECURITY, Level.SECURITY: Level.ISSUER}
@@ -143,9 +141,8 @@ def bump(store: IdentityStore) -> int:
 
 
 def bind_introduced(store: IdentityStore, plugin: str, ref: ProviderRef, subject_id: str) -> bool:
-    """Bind a plugin's own record to the device subject it introduced (rule `introduced@1`), whatever the plugin's
-    trust level. False, binding nothing, for a subject it did not introduce, a reference bound elsewhere or one whose
-    binding the user rejected."""
+    """Bind a plugin's own record to the device subject it introduced (rule `introduced@1`). False, binding nothing,
+    for a subject it did not introduce, a reference bound elsewhere or one whose binding the user rejected."""
     row, bound = subject_row(store, subject_id), store.binding_for(ref)
     if row is None or row["introduced_by"] != plugin or (bound is not None and bound["status"] == "rejected"):
         return False
@@ -157,16 +154,16 @@ def bind_introduced(store: IdentityStore, plugin: str, ref: ProviderRef, subject
 
 # ---- reads over reference and device -----------------------------------------------------------------------------
 
-def levels(plugins: Iterable) -> dict[str, str]:
-    """Each installed plugin's trust level for its device assertions: its own while enabled, else display."""
-    return {info.manifest.plugin: DISPLAY if info.manifest.unaudited or not info.enabled else CONFIRM
-            for info in plugins}
+def enabled(plugins: Iterable) -> frozenset[str]:
+    """The plugins whose device statements count, by plugin name: the enabled ones. A disabled or removed plugin's
+    stay on the device, shown with their source (`evidence.weigh_each`)."""
+    return frozenset(info.manifest.plugin for info in plugins if info.enabled)
 
 
 def current_id(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
                declared: Mapping[str, str] = {}) -> str:
     """The ID a subject has now: each step follows the reference's `id_aliases`, else `declared` (the provisional IDs
-    confirm-level contracts alias, `declared.aliases`; reads and the re-key pass them), else the device's aliases,
+    contracts alias, `declared.aliases`; reads and the re-key pass them), else the device's aliases,
     never for an ID the reference holds. A cycle is a defect: its IDs stay as they are."""
     seen = [subject_id]
     while (new := _alias(ref, store, seen[-1], declared)) is not None:
@@ -187,20 +184,19 @@ def load_subject(ref: sqlite3.Connection | None, store: IdentityStore, subject_i
 
 def merge(ref: sqlite3.Connection, store: IdentityStore, subject: dict[str, Any], plugins: Iterable = ()) -> dict:
     """A reference subject with what the device holds about it and its family (ADR 0037, amendment "ingest"): the
-    plugins' `self` identifiers weighed beside the package's, each at its plugin's level (`levels`), so a confirm-level
-    plugin's other value contests the fact and a display-level one is shown; their relations (`relations.related`);
+    plugins' `self` identifiers weighed beside the package's (`enabled`), so an enabled plugin's other value contests
+    the fact and a disabled one's is shown; their relations (`relations.related`);
     and the plugins behind them with what each states (`contributors`, only when there are any). Updates `subject`."""
     plugins = list(plugins)
-    family, granted = [value for value in subject["ids"].values() if value], levels(plugins)
+    family, active = [value for value in subject["ids"].values() if value], enabled(plugins)
     rows = [item for item in assertions(store, family) if item["role"] == IdentifierRole.SELF]
     if rows:
-        package = weighing.level(ref)
-        weighed = weighing.weigh_each([*((item, package) for item in [*subject["evidence"], *subject["shown"]]),
-                                       *((_assertion(item), granted.get(item["plugin"], DISPLAY)) for item in rows)])
+        weighed = weighing.weigh_each([*((item, True) for item in subject["evidence"]),
+                                       *((_assertion(item), item["plugin"] in active) for item in rows)])
         if subject["listing"] is not None and subject["listing"]["status"] == "inactive":
             weighed["values"].pop("ticker_mic", None)  # a delisted line's ticker may name another company
         subject.update(weighed, contributed=_contributed(rows))
-    subject["view"]["related"] = relations.related(ref, store, family, granted, lambda item: _name(ref, store, item))
+    subject["view"]["related"] = relations.related(ref, store, family, active, lambda item: _name(ref, store, item))
     contributors = _contributors(store, family, None, plugins)
     if contributors:
         subject["contributors"] = subject["view"]["contributors"] = contributors
@@ -208,25 +204,25 @@ def merge(ref: sqlite3.Connection, store: IdentityStore, subject: dict[str, Any]
     return subject
 
 
-def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
-         plugins: Iterable = ()) -> dict[str, Any] | None:
+def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, plugins: Iterable = (),
+         parents: Mapping[str, str] = {}) -> dict[str, Any] | None:
     """A device subject in `subject.load_subject`'s shape, or None when the device store has none.
 
     An instrument's parents are its own device rows, else the reference's (a listing a plugin introduced under a
-    security the build holds); a security is priced through its first device listing. Its identifiers are the
-    `self` assertions on it and its parents, the device's at each plugin's level (`levels`), the reference's at the
-    package's. `contributors` names the plugins that introduced it or state anything about it, each `enabled`,
-    `paused`, `disabled` or `removed`, and `introduced_by` the one that introduced it."""
+    security the build holds), or the ones the user chose (`parents`, `build_questions`); a security is priced through
+    its first device listing. Its identifiers are the `self` assertions on it and its parents, the device's weighed as
+    `merge` does, with the reference's. `contributors` names the plugins that introduced it or state anything about
+    it, each `enabled`, `paused`, `disabled` or `removed`, and `introduced_by` the one that introduced it."""
     subject_id = current_id(ref, store, subject_id)
     row = subject_row(store, subject_id)
     if row is None:
         return None
     plugins = list(plugins)
-    granted, kind, attributes = levels(plugins), registered_kind(subject_id), row["attributes"]
+    active, kind, attributes = enabled(plugins), registered_kind(subject_id), row["attributes"]
     ids: dict = {kind: subject_id}
     listing = None
     if kind in INSTRUMENT_KINDS:
-        ids = {level: None for level in Level} | _family(ref, store, subject_id)
+        ids = {level: None for level in Level} | _family(ref, store, subject_id, parents)
         child = store.select("SELECT id FROM subjects WHERE parent_id = ? AND kind = 'listing'"
                              " ORDER BY status <> 'active', id LIMIT 1", (subject_id,)) if kind is Kind.SECURITY else []
         ids[Level.LISTING] = ids[Level.LISTING] or (child[0][0] if child else None)
@@ -234,10 +230,10 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
         listing = _listing(found) if found else None
     family = [value for value in ids.values() if value]
     stated = [item for item in assertions(store, family) if item["role"] == IdentifierRole.SELF]
-    weighed = [(_assertion(item), granted.get(item["plugin"], DISPLAY)) for item in stated]
+    weighed = [(_assertion(item), item["plugin"] in active) for item in stated]
     held = [value for value in family if subject_row(store, value) is None]  # parents the reference holds
     if ref is not None and held:
-        weighed += [(reference._assertion(item), weighing.level(ref)) for item in ref.execute(
+        weighed += [(reference._assertion(item), True) for item in ref.execute(
             "SELECT * FROM assertions WHERE subject_id IN (SELECT value FROM json_each(?))", (json.dumps(held),))]
     contributors = _contributors(store, [subject_id], row["introduced_by"], plugins)
     issuer, security = ids.get(Level.ISSUER), ids.get(Level.SECURITY)
@@ -254,7 +250,7 @@ def load(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str,
             "security": {"id": security, "name": _name(ref, store, security) or security} if security else None,
             "listings": [{"id": listing["id"], "ticker": listing["ticker"], "mic": listing["operating_mic"],
                           "venue": None, "currency": listing["trading_currency"], "primary": False}] if listing else [],
-            "related": relations.related(ref, store, family, granted, lambda item: _name(ref, store, item)),
+            "related": relations.related(ref, store, family, active, lambda item: _name(ref, store, item)),
             "contributors": contributors,
         },
     }
@@ -342,7 +338,7 @@ def _evidence(row: Mapping[str, Any]) -> str:
                         "record": f"{row['native_scope']}:{row['native_id']}"})
 
 
-def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str) -> dict[Level, str]:
+def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str, parents: Mapping) -> dict[Level, str]:
     """An instrument and its parents up to its issuer: each from its device row, else from the reference."""
     ids: dict[Level, str] = {}
     current = subject_id
@@ -350,8 +346,8 @@ def _family(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: st
         level = Level(subject_kind(current))
         ids[level] = current
         row = subject_row(store, current)
-        found = (row["parent_id"],) if row else ref.execute(_REFERENCE_PARENT[level], (current,)).fetchone() \
-            if ref is not None and level in _REFERENCE_PARENT else None
+        found = (parents.get(current, row["parent_id"]),) if row else ref.execute(
+            _REFERENCE_PARENT[level], (current,)).fetchone() if ref is not None and level in _REFERENCE_PARENT else None
         current = found[0] if found else None
     return ids
 

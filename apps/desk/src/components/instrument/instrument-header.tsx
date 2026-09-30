@@ -139,7 +139,7 @@ export function SourceLine({ page }: { page: SubjectPage }) {
   );
 }
 
-/** An identifier whose confirm-level sources disagree: core applies neither
+/** An identifier whose sources disagree: core applies neither
  * value, so each is shown with the sources stating it, never a blank. */
 function ContestedValues({
   values,

@@ -276,7 +276,7 @@ class ProviderToolTest(AgentToolFixture):
         read = self.call("hyperliquid_live_market", subject_id=market)
         self.assertEqual(read["data"], {
             "subject_id": market, "native_ref": {"provider": "hyperliquid", "native_id": "BTC", "native_scope": "perp"}})
-        self.assertEqual(read["issues"][-1]["code"], "unaudited_source")  # its contract is not yet signed off
+        self.assertNotIn("unaudited_source", [issue["code"] for issue in read.get("issues", [])])  # its sign-off says nothing
 
     def test_b_a_record_under_review_is_refused_as_on_the_page(self):
         original = identity_ops.Identity._load
