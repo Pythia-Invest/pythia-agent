@@ -7,7 +7,7 @@ its candidate (R2: unknown plus a question, never a stored guess). Identifiers
 that disagree where no rule decides leave the link unresolved and ask each CIK's
 issuer (ADR 0044, A2), never a merge or a winner by CIK order. Among candidates
 the identifiers already name, an exact full name (`_named`) may choose one; it
-never links on its own, and no tie-break picks a LAPSED LEI.
+never links on its own, and never picks a retired LEI; the exchange-over-OTC ranking refuses a lapsed one.
 """
 
 from __future__ import annotations
@@ -130,7 +130,7 @@ def _link_evidence(snap, entities, tickers, rows, figi_map, digests: dict[str, s
     A CIK's exchange tickers (Nasdaq, NYSE, Cboe) outrank its OTC rows: OTC Markets lists foreign lines and unrelated
     companies' tickers under a registrant's CIK (CIBC's CNDIF is Canadian Copper), so OTC evidence counts only for a
     CIK with none from an exchange ticker (`link_otc_outranked` counts the ones that disagreed), unless an exchange
-    LEI is lapsed: a tie-break never picks a lapsed LEI, so the OTC claim stays beside it."""
+    LEI is lapsed (a redomiciled company's old LEI, Critical Metals): the OTC claim then stays beside it."""
     by_ticker = {t.ticker: t for t in tickers}
     listed: dict[str, list[tuple[str | None, str, str | None]]] = defaultdict(list)
     otc: dict[str, list[tuple[str | None, str, str | None]]] = defaultdict(list)
@@ -159,7 +159,7 @@ def _link_evidence(snap, entities, tickers, rows, figi_map, digests: dict[str, s
         if cik not in evidence:
             evidence[cik] = found
         elif {lei for lei, _r, _c in found} - {lei for lei, _r, _c in evidence[cik]}:
-            if any(_lapsed(snap, lei) for lei, _r, _c in evidence[cik]):  # a tie-break never picks a lapsed LEI
+            if any(_lapsed(snap, lei) for lei, _r, _c in evidence[cik]):  # the old LEI of a redomicile: the OTC claim stays
                 evidence[cik] = [*evidence[cik], *found]
             else:
                 snap.audit.setdefault("sec", Counter())["link_otc_outranked"] += 1
@@ -240,7 +240,7 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
             continue
         if len(strong) > 1:
             named = {lei for lei in strong if _named(titles[cik], snap.issuers.get(f"lei:{lei}"))}
-            if len(named) != 1 or _lapsed(snap, next(iter(named))):  # none, several or a lapsed LEI: no rule decides
+            if len(named) != 1 or _retired(snap, next(iter(named))):  # none, several or a retired LEI: no rule decides
                 snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
                 _ask_link(snap, cik, sorted(strong), _cites(evidence, [cik], strong))
                 audit["link_conflicts"] += 1
@@ -262,7 +262,7 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
     links: dict[str, tuple[str, str]] = {}
     for lei, found in claimants.items():
         named = [(cik, rule) for cik, rule in found if _named(titles[cik], snap.issuers.get(f"lei:{lei}"))]
-        if len(found) > 1 and (len(named) != 1 or _lapsed(snap, lei)):
+        if len(found) > 1 and (len(named) != 1 or _retired(snap, lei)):
             for cik, _rule in found:
                 if named:  # several CIKs the LEI's names match: no rule decides, so each is asked, citing every claim
                     _ask_link(snap, cik, [lei], _cites(evidence, [c for c, _r in found], {lei}))
@@ -304,9 +304,17 @@ def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None)
 
 
 def _lapsed(snap: Snapshot, lei: str | None) -> bool:
-    """GLEIF's registration of the LEI has lapsed (renewal not paid): no name or ticker tie-break may pick it."""
+    """GLEIF's registration of the LEI has lapsed (renewal not paid). Only the exchange-over-OTC ranking refuses it: a
+    redomiciled company's old LEI beside its new one (Critical Metals Ltd and PLC)."""
     issuer = snap.issuers.get(f"lei:{lei}")
     return bool(issuer and issuer.registration_status == "LAPSED")
+
+
+def _retired(snap: Snapshot, lei: str | None) -> bool:
+    """GLEIF no longer registers the entity as it was (inactive, retired, merged, annulled): no name tie-break may pick
+    it. A lapsed LEI is not retired (a fifth of LEIs are lapsed): the sole exact name may pick it (Vishay)."""
+    issuer = snap.issuers.get(f"lei:{lei}")
+    return bool(issuer and rules.retired(issuer.entity_status, issuer.registration_status))
 
 
 def _named(title: str, issuer: Issuer | None) -> bool:

@@ -249,11 +249,13 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
     companies' tickers under a registrant's CIK (CIBC's `CNDIF` is Canadian
     Copper's share class). An OTC row that disagreed is counted
     (`link_otc_outranked`).
-  - **A tie-break never picks a LAPSED LEI** (GLEIF registration not renewed):
-    neither the exchange-over-OTC ranking nor the name test may. A CIK whose
-    exchange evidence names a lapsed LEI keeps its OTC evidence beside it, and so
-    stays asked (Critical Metals Corp.: Nasdaq names the lapsed Ltd, an OTC row
-    the PLC).
+  - **Lapsed and retired LEIs.** A lapsed LEI (registration not renewed) is
+    common (a fifth of them) and still names its entity, so the sole exact name
+    may pick it (Vishay Intertechnology's); a retired, merged, annulled or
+    inactive one is never picked by a name. The exchange-over-OTC ranking refuses
+    a lapsed exchange LEI, the mark of a redomicile: the OTC evidence stays beside
+    it and the CIK stays asked (Critical Metals Corp.: Nasdaq names the lapsed
+    Ltd, an OTC row the PLC).
   - A CIK that identifiers link to several LEIs links to the one whose GLEIF
     name the SEC title is, exactly (`_named`); the other claims are flagged
     `cik_lei_claim_rejected`. With none, or several, it links to none and is
@@ -263,8 +265,7 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
     no link and no question (`fund_trust`).
   - When several CIKs link one LEI by identifier, the one whose SEC title is
     exactly the LEI's name links (FIRDS gives Lee Enterprises' ISIN Berkshire
-    Hathaway's LEI); when several are, or the LEI is lapsed (Vishay
-    Intertechnology's), none links and each CIK is asked with the LEI as candidate;
+    Hathaway's LEI); when several are, or the LEI is retired, none links and each CIK is asked with the LEI as candidate;
     when none is, none links (`lei_contested_unnamed`: FIRDS puts venue and
     data-vendor LEIs such as TP ICAP's or Bloomberg's on US ISINs).
   - **Exact name, not a shared word.** The name test is equality of the
@@ -340,7 +341,7 @@ assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
 - **5** (2026-09-30, roadmap stage 0): fewer avoidable questions, each rule
-  measured on the 2026-09-28 build (1,698 questions before, 1,037 after):
+  measured on the 2026-09-28 build (1,698 questions before, 1,035 after):
   a security whose only issuer claim is a venue operator's LEI and that has
   nothing to choose between is counted, not asked (`issuer_unknown_venue_lei`,
   469); the SEC registrant joined to such a security is its issuer
@@ -351,8 +352,8 @@ rule change bumps it with a line here:
   now includes FIRDS field 5 on a receipt); a CIK's exchange tickers outrank its
   OTC rows, the name tie-break between a CIK's several LEIs and between several
   CIKs' one LEI is exact full-name equality instead of a shared word, no
-  tie-break picks a LAPSED LEI (Critical Metals and Vishay Intertechnology stay
-  asked), and a multi-series fund trust has no CIK-to-LEI link (4 CIKs link a
+  name picks a retired LEI and the exchange ranking refuses a lapsed one
+  (Critical Metals stays asked), and a multi-series fund trust has no CIK-to-LEI link (5 CIKs link a
   LEI, 1 trust skipped).
 - **4** (2026-09-30, roadmap stage 0; package format 6): rows state the kind of
   evidence they are, never where they came from: an identifier a source

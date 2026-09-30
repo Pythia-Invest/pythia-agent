@@ -173,9 +173,9 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
   The SEC stage adds 166 name-only issuer questions (#73) and, where a CIK's
   identifier links conflict and no rule decides, `issuer_identity` questions
-  (8 before, 3 now: four CIKs are decided by the exchange-ticker and exact-name
-  rules, ProShares Trust II is a fund trust, no issuer, and no tie-break picks a
-  lapsed LEI, so Critical Metals and Vishay Intertechnology stay asked). All 1,037
+  (8 before, 1 now: five CIKs are decided by the exchange-ticker and exact-name
+  rules, ProShares Trust II is a fund trust, no issuer, and Critical Metals stays
+  asked because its exchange LEI is lapsed). All 1,035
   (1,698 before rules version 5) are in the package's `claims` file; core queues one only when its
   instrument is opened, watched or used by the agent. A security
   without a primary the package can write is priced on its line at the most
@@ -226,7 +226,7 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |
 | --- | --- | --- | --- | --- |
-| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 22 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
+| The issuer role of a field 5 LEI (issuer, subsidiary or vehicle, parent, unrelated) when it is a venue operator's or a group entity's (`issuer_identity`: 20 open) | Whether an entity is "the company" needs judgement once GLEIF relationships leave a residual | Not written | Not done | Suggest-only. The existing Jev gold set has no issuer rows |
 | The underlying of a receipt field 26 does not resolve (`receipt_underlying`, `receipt_conflict`: 849 open) | FIRDS names a superseded or unheld ISIN, or none | Not written | Not done | Suggest-only; the issuer's shares are the candidates |
 
 The questions ship in the package's `claims` file. Core queues one when its

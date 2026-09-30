@@ -267,7 +267,7 @@ holds when new data arrives. Examples:
   A name may still break a tie only among candidates the identifiers already
   name, and may veto a rule, but it never creates a link: an exact full-name
   equality (never a shared word) may choose one of several identifier-linked
-  LEIs, and never a lapsed one; a receipt whose name disagrees with its
+  LEIs, and never a retired one; a receipt whose name disagrees with its
   issuer's stays a question. A shared word only raises a review flag.
 
 A rule written for a named case has no stopping point. It fixes its own examples

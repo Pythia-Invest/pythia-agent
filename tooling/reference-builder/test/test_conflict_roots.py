@@ -158,15 +158,17 @@ class ReceiptRootsTest(unittest.TestCase):
 
 
 class LapsedLeiTest(unittest.TestCase):
-    def test_no_tie_break_picks_a_lapsed_lei(self):
-        # Critical Metals Corp.: Nasdaq evidence names the Ltd, whose LEI registration has lapsed, and an OTC row names
-        # the PLC. Exchange tickers outrank OTC rows, and an exact name picks between LEIs, but neither may pick a lapsed
-        # one: the CIK stays asked. The same holds for a lapsed LEI several CIKs claim.
+    def issuer(self, lei: str, name: str, status: str = "ISSUED", entity: str = "ACTIVE") -> Issuer:
+        return Issuer(f"lei:{lei}", name, "gleif", lei=lei, registration_status=status, entity_status=entity,
+                      names=[(name, "LEGAL_NAME", "en", "gleif")])
+
+    def test_an_otc_row_keeps_its_say_beside_a_lapsed_exchange_lei(self):
+        # Critical Metals Corp.: Nasdaq names the Ltd, whose registration has lapsed (a redomicile), and an OTC row names
+        # the PLC. The exchange ranking does not drop the PLC against a lapsed LEI, and both names equal the title: asked.
         snap = Snapshot(as_of="2026-09-25")
         snap.audit["sec"] = Counter()
         for lei, name, status in (("LTD", "CRITICAL METALS LTD", "LAPSED"), ("PLC", "CRITICAL METALS PLC", "ISSUED")):
-            snap.issuers[f"lei:{lei}"] = Issuer(f"lei:{lei}", name, "gleif", lei=lei, registration_status=status,
-                                                names=[(name, "LEGAL_NAME", "en", "gleif")])
+            snap.issuers[f"lei:{lei}"] = self.issuer(lei, name, status)
             snap.securities[f"isin:{lei}"] = Security(f"isin:{lei}", "share", "esma_firds", Evidence.ADMISSION_REGISTER,
                                                       issuer_id=f"lei:{lei}", isin=lei, share_class_figi=f"BBG{lei}")
         tickers = [SecTicker("1", "Critical Metals Corp.", "CRML", "Nasdaq", 0), SecTicker("1", "Critical Metals Corp.", "CRTMF", "OTC", 1)]
@@ -176,18 +178,26 @@ class LapsedLeiTest(unittest.TestCase):
         self.assertEqual(snap.audit["sec"]["link_otc_outranked"], 0)
         self.assertEqual(linking._decide(snap, tickers, evidence, Counter()), {})
         self.assertEqual([q.subject_id for q in snap.questions], ["cik:1"])
-        # One name and a lapsed LEI: an exact name does not pick it.
-        other = Snapshot(as_of="2026-09-25")
-        other.issuers = {"lei:LTD": snap.issuers["lei:LTD"], "lei:OTH": Issuer("lei:OTH", "Other Mining", "gleif", lei="OTH")}
-        self.assertEqual(linking._decide(other, tickers[:1], {"1": [("LTD", "isin_exch_us", "r:1"), ("OTH", "share_class_figi", "r:2")]},
-                                         Counter()), {})
-        self.assertEqual([f.flag for f in other.flags], ["cik_lei_conflict"])
-        # A lapsed LEI two CIKs claim, one named: the name does not pick it either.
-        both = [SecTicker("1", "Critical Metals Ltd", "CRML", "Nasdaq", 0), SecTicker("2", "Critical Metals Acquisition", "CRMA", "NYSE", 1)]
-        third = Snapshot(as_of="2026-09-25")
-        third.issuers["lei:LTD"] = snap.issuers["lei:LTD"]
-        self.assertEqual(linking._decide(third, both, {"1": [("LTD", "isin_exch_us", "r:1")], "2": [("LTD", "share_class_figi", "r:2")]},
-                                         Counter()), {})
+
+    def test_the_sole_exact_name_may_pick_a_lapsed_lei_but_not_a_retired_one(self):
+        # A fifth of LEIs are lapsed (renewal unpaid): Vishay Intertechnology's is. Its exact name still breaks the tie
+        # between two CIKs claiming it, and between two LEIs one CIK claims; a retired or inactive entity never wins.
+        for status, entity, linked in (("LAPSED", "ACTIVE", True), ("ISSUED", "ACTIVE", True), ("RETIRED", "ACTIVE", False),
+                                       ("LAPSED", "INACTIVE", False)):
+            with self.subTest(status=status, entity=entity):
+                snap = Snapshot(as_of="2026-09-25")
+                snap.issuers = {"lei:VSH": self.issuer("VSH", "Vishay Intertechnology, Inc.", status, entity),
+                                "lei:OTH": self.issuer("OTH", "Other Mining Corp")}
+                two = [SecTicker("103730", "VISHAY INTERTECHNOLOGY INC", "VSH", "NYSE", 0),
+                       SecTicker("1487952", "Vishay Precision Group, Inc.", "VPG", "NYSE", 1)]
+                found = linking._decide(snap, two, {"103730": [("VSH", "share_class_figi", "r:1")],
+                                                    "1487952": [("VSH", "isin_exch_us", "r:2")]}, Counter())
+                self.assertEqual(found, {"103730": ("VSH", "share_class_figi")} if linked else {})
+                one = Snapshot(as_of="2026-09-25")
+                one.issuers = dict(snap.issuers)
+                found = linking._decide(one, two[:1], {"103730": [("VSH", "isin_exch_us", "r:1"), ("OTH", "share_class_figi", "r:2")]},
+                                        Counter())
+                self.assertEqual(found, {"103730": ("VSH", "isin_exch_us")} if linked else {})
 
 
 if __name__ == "__main__":

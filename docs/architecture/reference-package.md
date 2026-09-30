@@ -171,8 +171,8 @@ exceeds them by more than 2%):
   decided no primary. The primary is a choice, not an identity fact (ADR
   0044, A5), so they are counted and not asked; the rest are SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 1,037 since rules version 5 (1,698 since rules
-  version 2): questions the build left open in the package's `claims` file (22
+- `questions_open` is at 1,035 since rules version 5 (1,698 since rules
+  version 2): questions the build left open in the package's `claims` file (20
   `issuer_identity`, 849 receipt questions and 166 SEC name-only issuer
   questions). It asks no `home_market` question (10,271 before), and none that
   offers nothing to choose: 469 securities whose only issuer claim is a venue
