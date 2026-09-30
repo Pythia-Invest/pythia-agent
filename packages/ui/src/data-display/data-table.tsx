@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "../actions/button";
 import { cn } from "../class-name";
 import { Input } from "../forms/field";
@@ -71,6 +71,8 @@ export interface DataTableProps<Row> {
   refreshing?: boolean;
   /** Shown in place of rows when there are none (after filtering). */
   empty?: ReactNode;
+  /** The key of a row to open on arrival, such as one a link points at: it starts expanded and scrolls into view once it is listed. */
+  reveal?: string;
   className?: string;
 }
 
@@ -98,9 +100,25 @@ export function DataTable<Row>({
   onRefresh,
   refreshing = false,
   empty = "Nothing to show.",
+  reveal,
   className,
 }: DataTableProps<Row>) {
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(reveal ? [reveal] : []),
+  );
+  const root = useRef<HTMLDivElement>(null);
+  const revealed = useRef(false);
+  // The revealed row may be listed after the first render (its data loads), so
+  // this looks again after each render until it has found it.
+  useEffect(() => {
+    if (!reveal || revealed.current) return;
+    const row = [
+      ...(root.current?.querySelectorAll("[data-row-key]") ?? []),
+    ].find((element) => element.getAttribute("data-row-key") === reveal);
+    if (!row) return;
+    revealed.current = true;
+    row.scrollIntoView?.({ block: "center" });
+  });
   const toggle = (key: string) =>
     setExpanded((current) => {
       const next = new Set(current);
@@ -110,6 +128,7 @@ export function DataTable<Row>({
   const span = columns.length + (context ? 1 : 0) + (actions ? 1 : 0);
   return (
     <div
+      ref={root}
       className={cn("flex flex-col gap-3", className)}
       data-slot="data-table"
     >
@@ -205,6 +224,7 @@ export function DataTable<Row>({
                 <TableRow
                   data-slot="data-table-row"
                   data-expanded={open || undefined}
+                  data-row-key={key}
                 >
                   {context ? (
                     <TableCell className="w-8">

@@ -393,7 +393,10 @@ central curator exists.
   contradicting itself), are asked when an instrument is opened, watched or
   used by the agent, and the user's answer is a local override
   ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
-  "questions and overrides for plugin-introduced subjects").
+  "questions and overrides for plugin-introduced subjects"). While a question
+  is open, the page shows an open data conflict linked to its repair where the
+  fact it holds back would be, never a blank (amendment "open data conflicts on
+  the page").
 - **The investor can correct the catalogue.** From an instrument's page they
   set or remove an identifier and pin the source that prices a line or
   security; the agent can only propose the same, and the investor confirms it
@@ -506,6 +509,52 @@ mode waits for A8.
 **Rejected alternatives.** A bulk catalogue over the reference's ISINs (a
 direct form of a reference source, open under A8), and EODHD as the overlapping
 source (paid, and its ISINs are `unqualified`, so nothing joins by ISIN).
+
+### Note (2026-09-30): OpenFIGI's exchange codes are a vocabulary
+
+**Context.** The note above let an exchange code become an operating MIC only
+through the contract's `venue_codes`, and the plugin left out the composite
+lines and mapped about fifty codes. One-time research with OpenFIGI's own
+`micCode` filter (297 requests) showed most of the 285 codes seen: order books,
+second books on an operating MIC, trade reports, dark venues, composites, and 41
+it could not resolve. Toyota's 143 lines are mostly not order books.
+
+**Ruling.** The founder ruled: "Dropping data is almost never what you want."
+Keep every record, learn the vocabulary, and filter visibility later,
+downstream. Lines are for real public order books only. The plugin holds the
+vocabulary (`vocabulary.json`, [source record](../sources/openfigi.md)) and gives
+each code a kind: `exchange`, `second_book`, `us_unlisted_trading`,
+`rfq`, `trade_report`, `dark`, `composite` or `unknown`. Only `exchange` codes are in `venue_codes` and so become lines.
+Every other line is still emitted as a claim carrying `provider_venue`, parked
+(`unmatched`) without an operating MIC, and a new claim attribute, `venue_note`,
+says why in words (a trade report, a second book, not in the vocabulary). AU is
+Australia's composite and the ASX line is AT. The US exchange codes (UN, UW, UF
+and the rest) are not mapped: OpenFIGI gives a US security a line on every US
+venue under unlisted trading privileges, so mapping them would show a Nasdaq
+stock as listed on NYSE and Cboe. Their kind, `us_unlisted_trading`, keeps the
+MIC in the vocabulary; US listings come from SEC (manager ruling). PQ stays
+mapped to OTCM. Request-for-quote MTFs (B2, B4, T2, WT) are not order books
+either: kind `rfq`, parked.
+
+**Rationale.** A line without an operating MIC is harmless and the reason is
+evidence; a dropped line is gone. The classification is the plugin's knowledge of
+Bloomberg's codes, so it lives in the plugin, and core changed only by one
+optional attribute that every plugin may use. The reason sits in the claim as
+stored, readable by SQL, rather than in a new column every plugin would share.
+
+**Consequences.** The contract's `venue_codes` grows from 47 to 106 codes, all
+order books, and OpenFIGI adds venue lines it used to park, except the US
+exchange codes, which stay parked. A code the vocabulary lacks is kept and says
+so. `venue_note` is a new key of every wire record, so the first sync after the
+upgrade finds every plugin's stored claims different from the re-emitted ones and
+places each once more, then stores it again. That re-place is harmless (same
+placements, subjects and identifiers, no new question; tested).
+
+**Rejected alternatives.** Dropping trade-report and composite lines from the
+answer (loses data); mapping every resolved code to its operating MIC (several
+lines of one security on one MIC, and trade reports shown as order books); a new
+nullable column on `claims` for the reason (a core schema addition beside a claim
+attribute that already travels with the record).
 
 ## Amendment (2026-09-30): installing a plugin means trusting it
 

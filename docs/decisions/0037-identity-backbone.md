@@ -201,7 +201,8 @@ reference build changed. It runs inside write operations only, with no
 scheduler, and nothing triggers the agent: it works the queue when asked. While
 a plugin has an open conflict for a subject, its section shows the conflict and
 a ready plugin serves the section instead. The instrument page shows no queue
-note; the Desk lists issues on one generic page, Settings → Data → Repairs (modelled on
+note, only an inline open data conflict where a question holds a fact back
+(amendment "open data conflicts on the page"); the Desk lists issues on one generic page, Settings → Data → Repairs (modelled on
 Home Assistant's Repairs), outside the main navigation and counted in Settings
 only while issues are open. It uses the back-office table (docs/design.md): each
 question is a row (kind, instrument, provider, status, created, resolved) whose
@@ -1945,3 +1946,59 @@ immediate.
 - **Hiding a paused plugin's tools from the model:** a refusal that names the
   switch tells the agent what to do, without the tool list changing in the
   middle of a conversation.
+
+## Amendment (2026-09-30): open data conflicts on the page
+
+**Context.** The page leaves a fact out while a question about it is open: the
+company of a share whose issuer the data does not settle (and so its profile
+and filings), a contested identifier, the parent security of a device line, the
+share a receipt represents. A page that only omits them looks like a bug. The
+founder, on the walkthrough of an instrument whose issuer was undecided: the
+page still works, but it shows no company line and no profile; "simply hiding
+this is not a good idea because then it looks like there is a bug. Instead, you
+want to indicate that there is an open data conflict with a link to the repair."
+
+**Ruling.** Never silently hide a fact that an open question is holding back.
+
+- Core names it. `identity-subject` carries `withheld`: for each fact of the
+  page an open question of core's holds back, the `fact` (an identifier scheme,
+  or `issuer`, `security`, `underlying` or `kind`), the `question` (its queue
+  item ID) and how many `options` it offers (`identity/withheld.py`). It is
+  derived from the queue the read already loads and names only a fact the page
+  lacks, so an answered question, whose override applies at once, is no longer
+  named. A section an open question holds back carries `question` too: a match
+  queued for review or a record under review, and the company sections (profile,
+  filings) that wait for the issuer. The agent's read omits `withheld`; its
+  `identity_question_open` flag already counts the questions.
+- The Desk shows an inline line where the fact would be, in neutral text and
+  without a warning icon: "Company: open data conflict (2 options) · Review".
+  The same wording stands in a contested identifier's row, beside a section's
+  placeholder and for the parent security, the share a receipt represents and
+  the share-or-receipt question. "Review" links to Settings → Repairs with
+  `?question=<id>`, which expands that row and scrolls it into view. Where no
+  question is open (the user dismissed it, or the release offered no
+  candidate), the page keeps saying the fact is unknown ("Issuer unknown").
+
+**Rationale.** The question id and the fact it holds back are known where the
+page is composed; the Desk cannot guess which of several open questions a line
+is about. One inline line in the existing header and placeholders, and the
+existing Repairs table, say what is wrong and where to settle it without a new
+panel.
+
+**Consequences.**
+
+- The page shows nothing for a question that holds no fact back: a question
+  about another subject that merely offers this page's company as a candidate,
+  a name match between registrants, or the release contradicting an answer the
+  user gave (the answer stays applied).
+- A contested relation (a plugin contradicts a package relation) stays marked
+  `contested` on the related link; it has no question to link to.
+- `DataTable` takes `reveal`, the key of a row to open on arrival.
+
+**Rejected alternatives.**
+
+- **Hiding the line until the question is answered:** looks like a bug.
+- **Showing the count of open questions on the page:** says nothing about which
+  fact is affected.
+- **The Desk matching questions to facts itself:** it would repeat core's rules
+  for which question holds which fact.

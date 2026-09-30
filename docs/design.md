@@ -465,6 +465,13 @@ cards; and actions that open a small dialog with one-line consequences, an
 optional note recorded with the action, and Cancel/Back beside a primary or,
 for a withdrawal, destructive confirm. Settled records stay reachable through
 the Status filter rather than a separate history.
+A link can open one row (`/settings/repairs?question=<id>`): it starts expanded
+and scrolls into view.
+
+Where an open question holds a fact back from an instrument page, the page says
+so in place of the fact, in one neutral line and with no warning symbol:
+"Company: open data conflict (2 options) · Review", linking to that row. A blank
+reads as a bug.
 
 When charts are used, they should have neutral scaffolding, restrained
 semantic series colors, and direct labels. Avoid 3D, decorative gradients,
