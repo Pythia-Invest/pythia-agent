@@ -199,17 +199,20 @@ test("a screener answer reaches the movers adapter without the SDK's schema chec
   });
 });
 test("Yahoo batched quotes retain missing members and reject alien identities", async () => {
-  const quote = vi.fn(async () => [
-    {
-      symbol: "ONE",
-      regularMarketPrice: 10,
-      regularMarketTime: new Date("2026-01-02T12:00:00Z"),
-      marketState: "REGULAR",
-      exchangeDataDelayedBy: 15,
-      preMarketPrice: 11,
-      preMarketTime: new Date("2026-01-03T08:00:00Z"),
-    },
-  ]);
+  // Quotes differ in which optional fields they carry.
+  const quote = vi.fn(
+    async (): Promise<Record<string, unknown>[]> => [
+      {
+        symbol: "ONE",
+        regularMarketPrice: 10,
+        regularMarketTime: new Date("2026-01-02T12:00:00Z"),
+        marketState: "REGULAR",
+        exchangeDataDelayedBy: 15,
+        preMarketPrice: 11,
+        preMarketTime: new Date("2026-01-03T08:00:00Z"),
+      },
+    ],
+  );
   const request = {
     operation: "quote_bundle",
     arguments: { symbols: ["ONE", "TWO"] },
