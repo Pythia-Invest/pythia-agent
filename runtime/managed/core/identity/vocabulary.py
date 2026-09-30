@@ -92,6 +92,19 @@ class RelationType(StrEnum):
     MARKET_ASSET = "market_asset"                    # a market -> an asset it holds or trades (a token deployment)
 
 
+class MarketAssetRole(StrEnum):
+    """What an asset is to the market that holds it (`market_asset` edges only; a plugin states none it does not know).
+    A pool has a `base` and a `quote`; a lending reserve's asset is what it takes as `supply`, lets be `borrow`ed, or
+    takes as `collateral`; `debt` is the asset a position owes."""
+
+    BASE = "base"
+    QUOTE = "quote"
+    COLLATERAL = "collateral"
+    DEBT = "debt"
+    SUPPLY = "supply"
+    BORROW = "borrow"
+
+
 class Grouping(StrEnum):
     """How a relation presents its two subjects. Neither ever merges them."""
 

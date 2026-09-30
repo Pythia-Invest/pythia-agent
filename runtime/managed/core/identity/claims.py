@@ -18,8 +18,8 @@ from typing import Any, Mapping
 from .manifest import Manifest
 from .model import Provenance, ProviderRef, Validity, _coerce, _require, check_relation
 from .schemes import (
-    CAIP2, COUNTRY, CURRENCY, INSTRUMENT_KINDS, MIC, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Kind, Level, Scheme,
-    normalize_identifier,
+    CAIP2, COUNTRY, CURRENCY, INSTRUMENT_KINDS, MIC, OPEN_KIND, SCHEME_LEVEL, SINGLE_VALUED, TICKER, Kind, Level,
+    Scheme, normalize_identifier,
 )
 from .vocabulary import (
     AssetClass, IdentifierRole, InstrumentKind, RelationType, SubjectStatus,
@@ -47,8 +47,9 @@ class IdentifierValue:
         object.__setattr__(self, "value", normalize_identifier(self.scheme, self.value))
 
     @property
-    def level(self) -> Level:
-        return SCHEME_LEVEL[self.scheme]
+    def level(self) -> Level | Kind:
+        """The instrument level the scheme identifies, or the kind outside the hierarchy it keys (`OPEN_KIND`)."""
+        return SCHEME_LEVEL[self.scheme] if self.scheme in SCHEME_LEVEL else OPEN_KIND[self.scheme]
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,8 +111,9 @@ class RecordClaim:
     it is the native asset of) only where the provider states that as identity; a
     chain's fee or gas coin is not identity.
 
-    A record of a kind outside the instrument hierarchy (a market, a protocol) is keyed
-    by its native reference alone and carries no identifiers.
+    A record of a kind outside the instrument hierarchy (a market, a protocol) is keyed by its native reference and
+    carries no identifiers, but the one open identifier of its kind (`OPEN_KIND`: a market's `sui_object`, a protocol's
+    `sui_package`), which keys the subject and which every source stating it joins.
     """
 
     level: Level | Kind
@@ -131,8 +133,9 @@ class RecordClaim:
         object.__setattr__(self, "deployments", tuple(
             item if isinstance(item, Deployment) else Deployment(**item) for item in self.deployments))
         _require(bool(self.identifiers) or self.native_ref is not None, "record: identifiers or a native ref required")
-        _require(self.level in INSTRUMENT_KINDS or (self.native_ref is not None and not self.identifiers),
-                 f"record: a {self.level} record is keyed by its native ref alone")
+        _require(self.level in INSTRUMENT_KINDS or (self.native_ref is not None and all(
+                 item.scheme in OPEN_KIND and item.role is IdentifierRole.SELF for item in self.identifiers)),
+                 f"record: a {self.level} record is keyed by its native ref and states only its own open identifier")
         _require(self.level is Level.SECURITY or not (self.deployments or self.native_of),
                  "record: only a crypto asset record carries deployments or native_of")
         _require(self.native_of is None or (isinstance(self.native_of, str) and 0 < len(self.native_of) <= 128),
@@ -141,8 +144,9 @@ class RecordClaim:
             # A record speaks for itself and its parents, never for narrower subjects,
             # except that a crypto asset record may list its CAIP-19 deployments.
             deployment = item.scheme is Scheme.CAIP19 and self.level is Level.SECURITY
-            _require(_DEPTH[item.level] <= _DEPTH[self.level] or deployment,
-                     f"record: a {self.level} record cannot assert {item.scheme}")
+            fits = item.level is self.level if item.scheme in OPEN_KIND else (
+                self.level in _DEPTH and _DEPTH[item.level] <= _DEPTH[self.level])
+            _require(fits or deployment, f"record: a {self.level} record cannot assert {item.scheme}")
         own = [item.scheme for item in self.identifiers
                if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED]
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
@@ -169,6 +173,7 @@ class RelationClaim:
     provenance: Provenance
     validity: Validity = field(default_factory=Validity)
     ratio: str | None = None
+    role: str | None = None  # market_asset only: what the asset is to the market (vocabulary.MarketAssetRole)
 
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, provenance=Provenance, validity=Validity)
@@ -176,7 +181,7 @@ class RelationClaim:
         object.__setattr__(self, "to_key", _endpoint(self.to_key))
         _require(self.from_key != self.to_key, "relation claim: endpoints must differ")
         if isinstance(self.from_key, IdentifierValue) and isinstance(self.to_key, IdentifierValue):
-            check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio)
+            check_relation(self.type, self.from_key.level, self.to_key.level, self.ratio, self.role)
 
 
 Claim = RecordClaim | RelationClaim
@@ -257,7 +262,7 @@ def _kinds(end: IdentifierValue | ProviderRef, manifest: Manifest, index: int) -
 
 def _links(claim: RelationClaim, start: str, end: str) -> bool:
     try:
-        check_relation(claim.type, start, end, claim.ratio)
+        check_relation(claim.type, start, end, claim.ratio, claim.role)
     except ValueError:
         return False
     return True
