@@ -19,7 +19,7 @@ from typing import Any, Mapping
 
 from .concepts import REGISTRY, Combine, Concept, FilingAuthority, Licence
 from .declared import DeclaredRef, parse as declarations
-from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, SCHEME_LEVEL, Kind, Level, Scheme
+from .schemes import INSTRUMENT_KINDS, MIC, NAMESPACE, OPEN_KIND, SCHEME_LEVEL, Kind, Level, Scheme
 from .vocabulary import AssetClass
 
 MANIFEST_FILE = "contract.json"
@@ -341,8 +341,8 @@ def validate_manifest(document: Any) -> Manifest:
     for key, listed in _object(addressing.get("schemes", {}), "addressing.schemes", set(), set(Level)).items():
         schemes[Level(key)] = _enums(Scheme, listed, f"addressing.schemes.{key}")
         for scheme in schemes[Level(key)]:
-            if SCHEME_LEVEL[scheme] is not Level(key):
-                raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL[scheme]}")
+            if SCHEME_LEVEL.get(scheme) is not Level(key):
+                raise ManifestError(f"addressing.schemes.{key}: {scheme} identifies a {SCHEME_LEVEL.get(scheme) or OPEN_KIND[scheme]}")
     table = addressing.get("mic_table", {})
     table = _object(table, "addressing.mic_table", set(), set(table) if isinstance(table, Mapping) else set())
     mic_table = {_match(MIC, mic, "addressing.mic_table"): code for mic, code in table.items()}

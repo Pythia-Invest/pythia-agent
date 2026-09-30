@@ -14,7 +14,7 @@ from typing import Any, Iterable, Mapping
 
 from .vocabulary import (
     AUTHORITY_TIER, CONFIRMING, FOLD, KIND_OF_RECORD, RELATIONS, AssetClass, Authority, BindingStatus,
-    EvidenceTier, InstrumentKind, RelationType, SubjectStatus,
+    EvidenceTier, InstrumentKind, MarketAssetRole, RelationType, SubjectStatus,
 )
 from .schemes import (
     CAIP2, COUNTRY, CURRENCY, DATE, DECIMAL, INSTANT, MIC, NAMESPACE, SCHEME_LEVEL, TICKER, Level, Scheme,
@@ -284,27 +284,30 @@ class Relation:
     provenance: Provenance
     validity: Validity = field(default_factory=Validity)
     ratio: str | None = None  # depositary_receipt_of: underlying shares per receipt
+    role: str | None = None   # market_asset: what the asset is to the market (vocabulary.MarketAssetRole)
 
     def __post_init__(self) -> None:
         _coerce(self, type=RelationType, authority=Authority, provenance=Provenance, validity=Validity)
         _require(self.from_id != self.to_id, "relation: endpoints must be distinct subjects")
-        check_relation(self.type, subject_kind(self.from_id), subject_kind(self.to_id), self.ratio)
+        check_relation(self.type, subject_kind(self.from_id), subject_kind(self.to_id), self.ratio, self.role)
 
     @property
     def evidence_id(self) -> str:
         return evidence_id({"kind": "relation", "type": self.type, "from_id": self.from_id, "to_id": self.to_id,
                             "from": self.validity.valid_from, "source": self.provenance.source,
-                            "record": self.provenance.source_record})
+                            "record": self.provenance.source_record, **({"role": self.role} if self.role else {})})
 
 
-def check_relation(type: RelationType, from_kind: str, to_kind: str, ratio: str | None) -> None:
-    """Kind and ratio rules shared by stored relations and relation claims (vocabulary.RELATIONS)."""
+def check_relation(type: RelationType, from_kind: str, to_kind: str, ratio: str | None, role: str | None = None) -> None:
+    """Kind, ratio and role rules shared by stored relations and relation claims (vocabulary.RELATIONS)."""
     type = RelationType(type)
     ends = RELATIONS[type].ends
     _require(from_kind in ends[0] and to_kind in ends[1] if ends else from_kind == to_kind,
              f"relation: {type} cannot link a {from_kind} to a {to_kind}")
     _require(ratio is None or (type is RelationType.DEPOSITARY_RECEIPT_OF and bool(DECIMAL.match(ratio))),
              "relation.ratio: decimal, receipts only")
+    _require(role is None or (type is RelationType.MARKET_ASSET and role in set(MarketAssetRole)),
+             f"relation.role: one of {', '.join(MarketAssetRole)}, on market_asset only")
 
 
 def fold_roots(edges: Iterable[tuple[str, str, str]]) -> tuple[dict[str, str], list[tuple[str, str]]]:

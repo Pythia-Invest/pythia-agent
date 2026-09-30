@@ -7,7 +7,7 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
   question; `joins`): a listing by ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment, and a
   line that states no currency, failing those, by its security's one line on its exchange (never where there are
   several, one with another FIGI or ticker, or several such lines in the answer: it stays `unmatched`); a security by ISIN, then share-class FIGI, then canonical CAIP-19; an issuer by
-  LEI, then CIK; a market or protocol by the plugin's own native reference. Never by issuer, ticker, symbol or name;
+  LEI, then CIK; a market or protocol by its open identifier (`sui_object`, `sui_package`), else the plugin's own native reference. Never by issuer, ticker, symbol or name;
   an `underlying` or `unqualified` value never joins.
 - **Conflicts.** A second subject found, or a single-valued value evidence about the subject or its parent states
   otherwise (or that names another subject), makes the claim a `conflict`: the record stays with the first subject,
@@ -128,7 +128,7 @@ class _Ingest:
         """The record's state and subject, writing what it introduces and states; `kept`: it stays a conflict."""
         level, own = claim.level, self._own(claim)
         if level not in INSTRUMENT_KINDS:
-            return self._native(claim)
+            return self._native(claim, previous)
         found = self.joins.candidates(level, own, claim.attributes)
         prior = previous and device.current_id(self.ref, self.store, previous)
         prior = prior if prior and self.joins.held(prior) else None
@@ -209,19 +209,31 @@ class _Ingest:
         self._label(key, claim, grandparent, kind=up)
         return key, contested
 
-    def _native(self, claim: RecordClaim) -> tuple[str, str | None]:
-        """A market's or protocol's record: the subject the contract addresses by its reference, else the one its
-        reference keys, introduced where `native` is declared for the kind."""
+    def _native(self, claim: RecordClaim, previous: str | None) -> tuple[str, str | None]:
+        """A market's or protocol's record: the subject the contract addresses by its reference; else the one its open
+        identifier keys (`<kind>:<scheme>:<value>`, joined by every source stating it), introduced where `introduces`
+        declares the scheme; else the one its reference keys, introduced where `native` is declared. A subject keyed by
+        the reference moves up to the open key; one under an open key never moves (`previous`: where it was placed)."""
         declared = self._declared(claim.native_ref)
         if declared:
             return "joined", declared
-        native = claim.native_ref
-        key = device.current_id(self.ref, self.store, provisional_id(claim.level, native.provider, native.native_scope,
-                                                                      native.native_id))
+        native, tags = claim.native_ref, self.manifest.introduces.get(claim.level, ())
+        key = device.current_id(self.ref, self.store, previous or provisional_id(
+            claim.level, native.provider, native.native_scope, native.native_id))
         row = device.subject_row(self.store, key)
-        if row is None and NATIVE not in self.manifest.introduces.get(claim.level, ()):
+        opened = next((f"{claim.level}:{scheme}:{value}" for scheme, value in self._own(claim).items()), None)
+        if opened is not None:
+            named = device.subject_row(self.store, opened)
+            if named is None and _tag(opened) not in tags:
+                return "unmatched", None
+            if key != opened and _tag(key) != "provisional":  # already keyed by another open key: never merged
+                return "conflict", key
+            if key != opened and row is not None and row["introduced_by"] == self.plugin:
+                self._alias(key, opened)  # keys move up
+            key, row = opened, named or row
+        elif row is None and NATIVE not in tags:
             return "unmatched", None
-        if row is not None and row["introduced_by"] != self.plugin:  # a clone of its provider introduced it
+        if row is not None and row["introduced_by"] != self.plugin:  # another plugin's, or a clone of its provider's
             return "joined", key
         self._label(key, claim, None)
         device.bind_introduced(self.store, self.plugin, native, key)
