@@ -5,7 +5,9 @@ FIGI, GLEIF's EDGAR registration). A unique name match is no link: the CIK stays
 a CIK-only issuer, and the match is kept as an open question carrying the LEI as
 its candidate (R2: unknown plus a question, never a stored guess). Identifiers
 that disagree where no rule decides leave the link unresolved and ask each CIK's
-issuer (ADR 0044, A2), never a merge or a winner by CIK order.
+issuer (ADR 0044, A2), never a merge or a winner by CIK order. Among candidates
+the identifiers already name, an exact full name (`_named`) may choose one; it
+never links on its own.
 """
 
 from __future__ import annotations
@@ -13,14 +15,12 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from . import gleif, rules
+from .link_review import flag_split_issuers, flag_suspect_links, titles_by_cik
 from .assemble import FigiMap, Inputs, operating
 from .model import JOINED_LINKS, STATED_LINKS, Evidence, GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
-# Name words too common to show two names belong to one company.
-GENERIC_WORDS = frozenset("THE AND OF GROUP HOLDING HOLDINGS INTERNATIONAL INDUSTRIES BANK FINANCIAL CAPITAL TRUST FUND "
-                          "PARTNERS TECHNOLOGIES TECHNOLOGY SYSTEMS RESOURCES ENERGY AMERICA AMERICAN GLOBAL NEW".split())
 IDENTIFIER_RULES = (*JOINED_LINKS, *STATED_LINKS)
 
 
@@ -45,14 +45,14 @@ def build_sec(snap: Snapshot, inputs: Inputs, entities: dict[str, GleifEntity], 
     evidence, isins = _link_evidence(snap, entities, tickers, rows, figi_map, inputs.claims().digests, inputs.gleif)
     links = _decide(snap, tickers, evidence, audit)
     _ask_name_candidates(snap, tickers, links, audit)
-    _flag_suspect_links(snap, tickers, links)
+    flag_suspect_links(snap, tickers, links)
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
         listing = _listing(snap, inputs, ticker, rows.get(ticker.ticker), links.get(ticker.cik), audit)
         if not listing.security_id:
             listing.security_id = _security_for(snap, listing, ticker.cik, isins.get(ticker.ticker), share_classes)
     build_us_etfs(snap, inputs, figi_map)
-    _flag_split_issuers(snap)
+    flag_split_issuers(snap)
     _mark_us_primaries(snap)
 
 
@@ -125,10 +125,19 @@ def _exchange_lines(figi_map: FigiMap, wanted: list[tuple[str, tuple[str, ...]]]
 def _link_evidence(snap, entities, tickers, rows, figi_map, digests: dict[str, str], gleif_read: bool = True
                    ) -> tuple[dict[str, list[tuple[str | None, str, str | None]]], dict[str, str]]:
     """Candidate LEIs per CIK with the rule that produced each and the record it rests on (`record:<digest>`: the
-    FIRDS record of the ISIN or share class, or GLEIF's record), and FIRDS ISINs per SEC ticker."""
+    FIRDS record of the ISIN or share class, or GLEIF's record), and FIRDS ISINs per SEC ticker.
+
+    A CIK's exchange tickers (Nasdaq, NYSE, Cboe) outrank its OTC rows: OTC Markets lists foreign lines and unrelated
+    companies' tickers under a registrant's CIK (CIBC's CNDIF is Canadian Copper), so OTC evidence counts only for a
+    CIK with none from an exchange ticker (`link_otc_outranked` counts the ones that disagreed)."""
     by_ticker = {t.ticker: t for t in tickers}
-    evidence: dict[str, list[tuple[str, str, str | None]]] = defaultdict(list)
+    listed: dict[str, list[tuple[str | None, str, str | None]]] = defaultdict(list)
+    otc: dict[str, list[tuple[str | None, str, str | None]]] = defaultdict(list)
     isins: dict[str, str] = {}
+
+    def add(ticker: SecTicker, item: tuple[str | None, str, str | None]) -> None:
+        (otc if ticker.exchange == "OTC" else listed)[ticker.cik].append(item)
+
     us_isins = sorted(s.isin for s in snap.securities.values() if s.isin and s.isin.startswith("US") and s.kind == "share")
     for isin, answer in zip(us_isins, figi_map([{"idType": "ID_ISIN", "idValue": i, "exchCode": "US"} for i in us_isins])):
         row = _pick(answer.get("data") or [])
@@ -136,14 +145,20 @@ def _link_evidence(snap, entities, tickers, rows, figi_map, digests: dict[str, s
         if match:
             security = snap.securities[f"isin:{isin}"]
             if security.issuer_id or _unconfirmed(security, gleif_read):
-                evidence[match.cik].append((_lei(security), "isin_exch_us", _record(digests.get(isin))))
+                add(match, (_lei(security), "isin_exch_us", _record(digests.get(isin))))
             snap.audit["sec"]["isin_from_firds"] += 1
             isins[match.ticker] = isin
     share_classes = {s.share_class_figi: s for s in snap.securities.values() if s.share_class_figi and s.isin}
     for ticker in tickers:
         security = share_classes.get((rows.get(ticker.ticker) or {}).get("shareClassFIGI"))
         if security and (security.issuer_id or _unconfirmed(security, gleif_read)):
-            evidence[ticker.cik].append((_lei(security), "share_class_figi", _record(digests.get(security.isin))))
+            add(ticker, (_lei(security), "share_class_figi", _record(digests.get(security.isin))))
+    evidence = listed
+    for cik, found in otc.items():
+        if cik not in evidence:
+            evidence[cik] = found
+        elif {lei for lei, _r, _c in found} - {lei for lei, _r, _c in evidence[cik]}:
+            snap.audit.setdefault("sec", Counter())["link_otc_outranked"] += 1
     for entity in entities.values():
         if entity.registered_at == SEC_EDGAR_RA and (entity.registered_as or "").isdigit():
             evidence[str(int(entity.registered_as))].append((entity.lei, "gleif_edgar_registration",
@@ -200,18 +215,36 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
     """One LEI per CIK, from identifier evidence only. A CIK no identifier links stays a CIK-only issuer. Where the
     identifiers disagree and no rule decides, nothing links and each CIK's issuer is asked (`issuer_identity`, the
     LEIs as candidates): a CIK several LEIs claim, or a LEI several CIKs claim whose names more than one of them
-    matches (Vishay Intertechnology and Vishay Precision Group). In a build without GLEIF, a CIK one of whose
-    securities has an issuer GLEIF could have confirmed links to none either (`_unconfirmed`)."""
+    matches (Vishay Intertechnology and Vishay Precision Group). In both directions the tie is broken by exact name
+    (`_named`): the one LEI whose GLEIF name is the CIK's SEC title, or the one CIK whose SEC title is the LEI's
+    name. In a build without GLEIF, a CIK one of whose securities has an issuer GLEIF could have confirmed links to
+    none either (`_unconfirmed`). A CIK whose LEIs each issue only funds is a multi-series fund trust (ProShares Trust
+    II: a CIK covers every series it runs, and each series has its own LEI), no issuer of any: no link, no question
+    (as `build_us_etfs` already says)."""
+    titles = titles_by_cik(tickers)
+    kinds: dict[str, set[str]] = defaultdict(set)
+    for security in snap.securities.values():
+        kinds[security.issuer_id or ""].add(security.kind)
     candidates = []
     for cik in sorted({t.cik for t in tickers}, key=int):
         found = evidence.get(cik, [])
         claimed = {lei for lei, rule, _cite in found if rule in IDENTIFIER_RULES}
         strong = claimed - {None}
-        if len(strong) > 1:
-            snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
-            _ask_link(snap, cik, sorted(strong), _cites(evidence, [cik], strong))
-            audit["link_conflicts"] += 1
+        if len(strong) > 1 and all(kinds.get(f"lei:{lei}") == {"etf"} for lei in strong):
+            snap.flag(f"cik:{cik}", "fund_trust", ",".join(sorted(strong)))
+            audit["fund_trust_ciks"] += 1
             continue
+        if len(strong) > 1:
+            named = {lei for lei in strong if _named(titles[cik], snap.issuers.get(f"lei:{lei}"))}
+            if len(named) != 1:  # no LEI, or several, carries the CIK's name: no rule decides
+                snap.flag(f"cik:{cik}", "cik_lei_conflict", ",".join(sorted(strong)))
+                _ask_link(snap, cik, sorted(strong), _cites(evidence, [cik], strong))
+                audit["link_conflicts"] += 1
+                continue
+            # CIBC's CIK, whose OTC line is Canadian Copper's: the claims of the LEIs it is not named for are dropped.
+            snap.flag(f"cik:{cik}", "cik_lei_claim_rejected", ",".join(sorted(strong - named)))
+            audit["link_name_tiebreak"] += 1
+            strong = named
         if None in claimed and strong:  # a claim GLEIF could have confirmed is unknown: it might contradict
             audit["link_issuer_unknown"] += 1
             continue
@@ -219,13 +252,12 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
             continue
         lei = next(iter(strong))
         candidates.append((cik, lei, next(r for l, r, _cite in found if l == lei and r in IDENTIFIER_RULES)))
-    titles = _titles(tickers)
     claimants: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for cik, lei, rule in candidates:
         claimants[lei].append((cik, rule))
     links: dict[str, tuple[str, str]] = {}
     for lei, found in claimants.items():
-        named = [(cik, rule) for cik, rule in found if _name_alike(titles[cik], snap.issuers.get(f"lei:{lei}"))]
+        named = [(cik, rule) for cik, rule in found if _named(titles[cik], snap.issuers.get(f"lei:{lei}"))]
         if len(found) > 1 and len(named) != 1:
             for cik, _rule in found:
                 if named:  # several CIKs the LEI's names match: no rule decides, so each is asked, citing every claim
@@ -234,8 +266,8 @@ def _decide(snap, tickers, evidence, audit) -> dict[str, tuple[str, str]]:
                     snap.flag(f"cik:{cik}", "lei_contested_unnamed", lei)
                 audit["link_conflicts"] += 1
             continue
-        # One claimant, or the one whose SEC title matches the LEI's names (FIRDS gives Lee Enterprises' ISIN
-        # Berkshire Hathaway's LEI).
+        # One claimant, or the one whose SEC title is the LEI's name (FIRDS gives Lee Enterprises' ISIN Berkshire
+        # Hathaway's LEI).
         cik, rule = found[0] if len(found) == 1 else named[0]
         for other, _rule in found:
             if other != cik:
@@ -267,42 +299,17 @@ def _issuer_for(snap: Snapshot, ticker: SecTicker, link: tuple[str, str] | None)
     return issuer
 
 
-def _titles(tickers: list[SecTicker]) -> dict[str, str]:
-    return {t.cik: t.name for t in reversed(tickers)}  # a CIK's first SEC title
-
-
-def _name_alike(title: str, issuer: Issuer | None) -> bool:
-    """Whether a SEC title shares a name word with any GLEIF name of the issuer, or its letters apart from
-    spacing ("MOODY S", "F N B"). An issuer GLEIF did not describe (not read, or no record) has only a FIRDS
+def _named(title: str, issuer: Issuer | None) -> bool:
+    """Whether a SEC title is one of the issuer's current GLEIF names, apart from legal forms, punctuation and the
+    SEC's state and ADR markers (`rules.normalized_name`): the whole name, never a shared word. Word matches
+    (`link_review.name_alike`) picked the wrong entity for CANADIAN (Canadian Copper), ARCELORMITTAL (South Africa),
+    METALS (Purecore Metals) and VISHAY. An issuer GLEIF did not describe (not read, or no record) has only a FIRDS
     instrument name, which names a security, not the entity, so it matches no title."""
     if issuer is None or issuer.name_rule == "firds_full_name":
         return False
-    x = rules.normalized_name(title)
-    for name in (issuer.name, *(name for name, *_ in issuer.names)):
-        y = rules.normalized_name(name)
-        joined = sorted((x.replace(" ", ""), y.replace(" ", "")), key=len)
-        if (set(x.split()) & set(y.split())) - GENERIC_WORDS or (joined[0] and joined[1].startswith(joined[0])):
-            return True
-    return False
-
-
-def _flag_suspect_links(snap: Snapshot, tickers: list[SecTicker], links: dict[str, tuple[str, str]]) -> None:
-    """An identifier link whose SEC title matches no GLEIF name of the LEI: a rename, or a wrong LEI in the
-    source. Flagged, kept."""
-    titles = _titles(tickers)
-    for cik, (lei, rule) in links.items():
-        issuer = snap.issuers[f"lei:{lei}"]
-        if issuer.name_rule != "firds_full_name" and not _name_alike(titles[cik], issuer):
-            snap.flag(issuer.issuer_id, "cik_link_suspect", f"cik:{cik}")
-
-
-def _flag_split_issuers(snap: Snapshot) -> None:
-    """A CIK-only issuer named like a LEI issuer: probably one company split in two (a CIK linked elsewhere)."""
-    by_name = {rules.normalized_name(issuer.name): issuer.issuer_id for issuer in snap.issuers.values() if issuer.lei}
-    for issuer in snap.issuers.values():
-        key = rules.normalized_name(issuer.name) if not issuer.lei else ""
-        if len(key) >= rules.MIN_NAME_KEY and key in by_name:
-            snap.flag(issuer.issuer_id, "issuer_split_lei_cik", by_name[key])
+    key = rules.normalized_name(rules.sec_name(title))
+    names = (issuer.name, *(name for name, kind, _lang, _src in issuer.names if kind != "PREVIOUS_LEGAL_NAME"))
+    return bool(key) and any(rules.normalized_name(name) == key for name in names)
 
 
 def _listing(snap: Snapshot, inputs: Inputs, ticker: SecTicker, row: dict | None, link, audit: Counter) -> Listing:

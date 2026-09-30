@@ -171,16 +171,22 @@ exceeds them by more than 2%):
   decided no primary. The primary is a choice, not an identity fact (ADR
   0044, A5), so they are counted and not asked; the rest are SEC or OpenFIGI
   gaps until those sources are onboarded.
-- `questions_open` is at 1,698 since rules version 2: questions the build
-  left open in the package's `claims` file (637 `issuer_identity`, 895
-  receipt questions and 166 SEC name-only issuer questions). It asks no
-  `home_market` question (10,271 before).
+- `questions_open` is at 1,028 since rules version 5 (1,698 since rules
+  version 2): questions the build left open in the package's `claims` file (19
+  `issuer_identity`, 843 receipt questions and 166 SEC name-only issuer
+  questions). It asks no `home_market` question (10,271 before), and none that
+  offers nothing to choose: 469 securities whose only issuer claim is a venue
+  operator's LEI are counted (`issuer_unknown_venue_lei`). The SEC registrant
+  joined to 141 more is their issuer (`registrant_join@1`).
 - Shares without a primary: `share_primary_silent` is at 1,072: 1,052 SEC
   OTC-only shares, which no rule places, and 20 shares whose most liquid
   venue has no line. A security without a written primary is priced on its
   most liquid EU line (9,770 lines), labelled so and never primary. See the
   [FIRDS record](../sources/firds.md).
-- Issuers: 12 shares whose receipts name another live issuer in FIRDS field 5
+- Issuers: a share whose only field 5 claim is a venue operator's LEI has no
+  issuer unless a SEC line joined to it by ISIN or share-class FIGI names its
+  registrant (`registrant_join@1`); a LEI the registrant's CIK links to later is
+  the issuer instead. 12 shares whose receipts name another live issuer in FIRDS field 5
   (Nestlé's Toronto CDRs name Nestlé S.A., its share names Nestlé Capital
   Markets), and 3 receipts of them filed under the same field 5 (Nestlé's
   ADR), have an unknown issuer and an `issuer_identity` question with both
