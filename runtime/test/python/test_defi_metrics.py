@@ -28,7 +28,7 @@ core_ingest = importlib.import_module("pythia_core_fixture.identity.ingest")
 PROTOCOL = "protocol:provisional:defillama:protocol:3323"
 POOL_UUID = "00000001-0000-4000-8000-000000000000"  # invented: DeFiLlama's own pool of the same protocol
 POOL = f"market:provisional:defillama:pool:{POOL_UUID}"
-RESERVE = f"market:provisional:navi:reserve:{USDC_RESERVE}"
+RESERVE = f"market:sui_object:{USDC_RESERVE}"  # NAVI states the reserve's Pool object id as its key
 
 
 def row(base=TVL, **changes):
