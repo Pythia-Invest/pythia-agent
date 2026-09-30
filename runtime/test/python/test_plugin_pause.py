@@ -38,7 +38,7 @@ class PauseTest(PeersFixture):
         self.assertEqual((self.ops.price_sources(SAP_BY_FIGI)["refs"], self.sections(SAP_BY_FIGI)),
                          ([], {"quote": "disabled"}))
         self.assertNotIn(SAP_BY_FIGI, self.found("SAP SE"))
-        refused = json.loads(self.ingest_ops.sync(self.ops, {"plugin": key}))
+        refused = self.desk_sync(key)
         self.assertEqual(refused["issues"][0]["message"], "meridian is paused.")
         self.assertEqual(len(self.calls), calls)  # no provider was asked
 

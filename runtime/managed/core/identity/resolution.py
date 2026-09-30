@@ -2,9 +2,10 @@
 
 The join puts every record it cannot place (a residual) and every contradiction
 (a conflict) in one core-owned queue. Resolvers are interchangeable and chosen by
-the user: built-in rules, the Hermes agent, a matcher plugin such as Jev, or the
-user resolving by hand. Each reads an item and submits a Verdict with an
-authority; `decide` applies the one authority rule the same way for all of them.
+the user: built-in rules, the Hermes device agent (which resolves what rules cannot,
+one question type at a time, ADR 0044 J2), or the user resolving by hand. Each reads
+an item and submits a Verdict with an authority; `decide` applies the one authority
+rule the same way for all of them.
 No resolver is required, and none runs on the search or page path.
 """
 from __future__ import annotations
@@ -51,7 +52,7 @@ class QueueState(StrEnum):
 class ResolverKind(StrEnum):
     RULES = "rules"    # built-in deterministic rules shipped with core or plugin updates
     AGENT = "agent"    # the Hermes agent, the only hard prerequisite; its answers are suggestions the user confirms
-    PLUGIN = "plugin"  # a resolver plugin declared in its manifest, e.g. Jev (optional, off by default)
+    PLUGIN = "plugin"  # a model verdict from outside the device agent (calibrated; no plugin ships one today)
     USER = "user"      # the user resolving by hand, if they choose to
 
 
@@ -136,7 +137,7 @@ class Verdict:
     def __post_init__(self) -> None:
         _coerce(self, resolver=ResolverKind, authority=Authority, relation=VerdictRelation, provenance=Provenance)
         # Only the user attests and only rules rule-confirm; the agent has its own authority (no self-stated
-        # confidence) and only suggests (queue.submit); resolver plugins give calibrated model verdicts.
+        # confidence) and only suggests (queue.submit); a model verdict from outside the agent carries a calibrated confidence.
         own = {ResolverKind.RULES: Authority.RULE_CONFIRMED, ResolverKind.USER: Authority.USER_ATTESTED,
                ResolverKind.AGENT: Authority.AGENT_CONFIRMED}
         _require(self.authority is own[self.resolver] if self.resolver in own else self.authority in MODEL_AUTHORITIES,
@@ -164,7 +165,8 @@ class Verdict:
 
 def _current(claimed: Iterable[IdentifierValue], evidence: Iterable[IdentifierAssertion],
              as_of: str) -> tuple[dict[str, str], dict[str, list[IdentifierAssertion]]]:
-    """The record's own values by scheme, and the T0 evidence for those single-valued schemes valid at `as_of`."""
+    """The record's own values by scheme, and the T0 evidence for those single-valued schemes valid at `as_of`.
+    T0 is a source's own asserted identifier: the authority a provider's statement holds, which no derived value gains."""
     claims = {item.scheme: item.value for item in claimed if item.role is IdentifierRole.SELF}
     found: dict[str, list[IdentifierAssertion]] = {}
     for item in evidence:

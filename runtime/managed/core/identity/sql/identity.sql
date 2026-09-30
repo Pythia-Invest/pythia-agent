@@ -93,7 +93,7 @@ CREATE INDEX bindings_subject ON bindings (subject_id, status);
 
 -- The resolution queue: one core-owned list of residuals (records the join could
 -- not place) and conflicts (contradicting evidence). Any resolver the user chose
--- drains it: built-in rules, the Hermes agent, a resolver plugin, or the user.
+-- drains it: built-in rules, the Hermes device agent (ADR 0044 J2), or the user.
 CREATE TABLE queue (  -- identity questions: what the data leaves undecided or contested; a user's resolved answer is the local override
   id TEXT PRIMARY KEY,             -- a random row id
   key TEXT NOT NULL,               -- QueueItem.key: kind|reason|subjects|scheme|provider ref

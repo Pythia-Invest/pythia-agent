@@ -42,7 +42,8 @@ def _facts(item: dict, view: dict) -> Iterator[str]:
         yield "kind"
     elif item["reason"] == "identifier":
         level = SCHEME_LEVEL.get(scheme)
-        if scheme and (level == kind or scheme in view.get("contested", ())):
+        corrected = "correction" in view.get("provenance", {}).get(scheme, {})  # the investor's last word is shown
+        if scheme and not corrected and (level == kind or scheme in view.get("contested", ())):
             yield scheme  # the page shows the contested values, or none, where the identifier would be
         above = None if level == kind else level or (Level.ISSUER if kind != Level.ISSUER else None)
         if above is Level.ISSUER and not view["issuer"]:

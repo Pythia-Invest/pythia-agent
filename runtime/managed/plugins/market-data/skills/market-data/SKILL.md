@@ -22,7 +22,9 @@ subject id; for a company (issuer) `pythia_prices` reads the primary listing. A
 symbol or name alone never identifies a subject. `pythia_instrument` shows which
 source serves the subject's quote and chart, or why none does (disabled, needs
 configuration, unresolved). Associations belong to Pythia's core; the agent
-cannot save, override or repair them.
+cannot save or override them. When one looks wrong, propose a correction with
+`pythia_propose_identity_correction` or answer an identity question with
+`pythia_answer_identity_question`; the investor confirms in Repairs.
 
 A read uses the first source in the investor's order that serves the subject.
 It never falls back on its own: a failure returns its error, the eligible

@@ -37,19 +37,9 @@ export interface Repair<Data = unknown> {
 export type IdentityRepair = Repair<IdentityQuestion>;
 export type CorrectionRepair = Repair<Correction>;
 
-const IDENTITY_TITLES: Record<string, string> = {
-  residual: "Record not matched",
-  conflict: "Record conflicts with reference",
-};
 /** Core's tag for a question Pythia's reference build left open. It carries
- * no provider record and asks about its own subject; titled by its reason. */
+ * no provider record and asks about its own subject. */
 export const REFERENCE_BUILD = "reference";
-const BUILD_TITLES: Record<string, string> = {
-  identifier: "Issuer unclear",
-  ambiguous: "Same company?",
-  no_key: "Receipt's share unknown",
-  relation: "Share or receipt?",
-};
 
 export function isBuildQuestion(item: IdentityQuestion) {
   return item.plugins[0] === REFERENCE_BUILD && !item.record;
@@ -83,9 +73,7 @@ export function identityRepair(item: IdentityQuestion): IdentityRepair {
   return {
     id: identityRepairId(item.id),
     kind: "identity",
-    title:
-      (built ? BUILD_TITLES[item.reason] : IDENTITY_TITLES[item.kind]) ??
-      "Identity question",
+    title: item.title,
     description: item.question,
     subject: candidate ? { id: candidate.id, name: candidate.name } : null,
     plugin: item.label,

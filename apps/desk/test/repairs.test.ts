@@ -18,6 +18,7 @@ const built = identityQuestionSchema.parse({
   id: "ref-1",
   kind: "conflict",
   reason: "identifier",
+  title: "Issuer unclear",
   label: "Pythia reference",
   question:
     "Who issued this security? Its sources name LEI 529900VENUE0PERATR69, which does not decide it.",
@@ -53,6 +54,15 @@ describe("a reference build question in Repairs", () => {
     expect(repair.subject?.id).toBe(RECEIPT);
     expect(repair.plugin).toBe("Pythia reference");
     expect(repair.title).toBe("Issuer unclear");
+  });
+
+  it("shows core's title, so a contested identifier is not 'Issuer unclear'", () => {
+    const contested = identityQuestionSchema.parse({
+      ...built,
+      title: "Which COMPOSITE FIGI?",
+      question: "Which COMPOSITE FIGI is this?",
+    });
+    expect(identityRepair(contested).title).toBe("Which COMPOSITE FIGI?");
   });
 
   it("shows its subject and candidates and no provider-record rows", () => {

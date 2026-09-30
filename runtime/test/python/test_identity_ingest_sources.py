@@ -372,6 +372,8 @@ class OperationFixture(unittest.TestCase):
         from pythia_core_queue_fixture import identity_ops, ingest_ops, queue_ops
         from pythia_core_queue_fixture.identity import page as core_page, validate_manifest
         self.ingest_ops, self.queue_ops, self.core_page, self.validate = ingest_ops, queue_ops, core_page, validate_manifest
+        from pythia_core_queue_fixture.platform import request_context
+        self.addCleanup(request_context.usage.reset, request_context.usage.set("dashboard"))  # the Desk's call
         reference_package.install(make_package(root / "package", source=world.path), root / "core")
         self.plugins, self.calls, self.answers = [], [], {}
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
@@ -400,6 +402,18 @@ class OperationFixture(unittest.TestCase):
 class OperationTest(OperationFixture):
     """identity-sync and identity-lookup as the Desk invokes them: core dispatches the plugin's own operation and ingests
     what it answers; a conflict it finds is asked about once the subject is read."""
+
+    def test_a_model_call_is_refused_and_asks_no_provider(self):
+        import contextvars
+        from pythia_core_queue_fixture.platform import request_context
+        model = contextvars.copy_context()
+        model.run(request_context.usage.set, "research")  # any scope but the Desk's own
+        for function, arguments in ((self.ingest_ops.sync, {"plugin": "llama"}),
+                                    (self.ingest_ops.lookup, {"plugin": "llama", "query": "GB00BN7SWP63"})):
+            body = json.loads(model.run(function, self.ops, arguments))
+            self.assertEqual((body["outcome"], body["issues"][0]["message"]),
+                             ("empty", "Only the investor reads a source into the device, in Desk."))
+        self.assertEqual(self.calls, [])
 
     def test_sync_reads_every_scope_in_the_contracts_order_page_by_page(self):
         llama = source("llama", level="market", scopes=("protocols", "pools"),

@@ -96,6 +96,16 @@ class SecAndMicTest(unittest.TestCase):
         rows = sec.parse(sec_json([(320193, "Apple Inc.", "AAPL", "Nasdaq"), (320193, "Apple Inc.", "AAPL", "Nasdaq"), (937966, "ASML HOLDING NV", "ASML", "Nasdaq")]))
         self.assertEqual([(r.cik, r.ticker) for r in rows], [("320193", "AAPL"), ("937966", "ASML")])
 
+    def test_a_download_takes_only_https_and_a_plain_cache_file_name_from_the_index(self):
+        doc = {"file_name": "FULINS_E_20260101_01of01.zip", "download_link": "https://example.invalid/a.zip", "checksum": None}
+        with tempfile.TemporaryDirectory() as tmp:
+            downloader = Downloader(Path(tmp), "test")
+            for bad in ({"download_link": "file:///etc/passwd"}, {"download_link": "http://example.invalid/a.zip"},
+                        {"file_name": "../escape.zip"}, {"file_name": "/tmp/escape.zip"}, {"file_name": "sub/escape.zip"}):
+                with self.subTest(bad=bad), self.assertRaises(SystemExit):
+                    firds.download(downloader, "firds", doc | bad)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
     def test_sec_download_requires_a_contact_mailbox(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
             sec.fetch(Downloader(Path(tmp), "test"), contact="no mailbox", local=None, max_age=timedelta(days=1))

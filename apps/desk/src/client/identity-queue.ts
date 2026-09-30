@@ -36,6 +36,8 @@ export const identityQuestionSchema = z.object({
   id: text,
   kind: text,
   reason: text,
+  /** Core's short title for the question: Desk shows it as it is. */
+  title: text,
   label: text,
   question: text,
   state: text,
