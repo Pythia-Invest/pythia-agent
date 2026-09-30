@@ -8,7 +8,7 @@ import json
 from . import catalogue
 from .definition import TOOLS, schemas
 
-CHAINS = 'defillama_chains'  # native plugin setting: DefiLlama chain names; empty means every chain
+CHAINS = 'defillama_chains'  # native plugin setting: DefiLlama chain names; unset or empty is Sui, `all` every chain
 POLICY = 'defillama-catalogue-1'  # the projection cached reads carry; bump it when the projection changes
 
 
@@ -32,7 +32,7 @@ class Reader:
                                             max_bytes=24_000_000, socket_timeout=5)
         self.reads = connector.WorkerReads(transport)
 
-    def invoke(self, operation, arguments, *, chains=catalogue.DEFAULT_CHAINS, cancelled=None, cache_scope=None):
+    def invoke(self, operation, arguments, *, chains=None, cancelled=None, cache_scope=None):
         try:
             clean = self.wire.validate_parameters(self.definitions[operation]['parameters'], arguments)
             wanted = catalogue.chains(chains)
@@ -45,27 +45,33 @@ class Reader:
                         return {**raw, 'data': project(raw['data'])}
                     except (ValueError, TypeError, KeyError, AttributeError):
                         raise self.connector.SourceFailure({'error': 'invalid_response'}) from None
-                # Every page of a sync reads the same hour-old snapshots, so its offsets stay consistent.
+                # A sync's pages share these hour-old snapshots; a refresh between pages is safe (`page`).
                 return self.reads.read([__file__], {'operation': scope, 'url': catalogue.URLS[scope]}, {},
                     age=3600, cache_scope={'access': cache_scope, 'policy': POLICY}, prepare_result=prepare,
                     cancelled=cancelled, budget=budget, timeout=30)
 
             read = {'protocols': fetch('protocols', catalogue.protocol_rows), 'pools': fetch('pools', catalogue.pool_rows)}
             scope = clean['scope']
+            unknown = catalogue.unknown_chains(read['protocols']['data'], read['pools']['data'], wanted)
+            if unknown and not wanted - set(unknown):
+                # Nothing matched: an empty complete page would tell core every subject is gone.
+                return envelope(None, [issue('unknown_chain', f'DefiLlama has no pool or protocol on '
+                                             f'{", ".join(unknown)}; check the {CHAINS} setting.')])
             batch, following = catalogue.page(scope, read['protocols']['data'], read['pools']['data'], wanted,
                                               clean.get('cursor'), read[scope]['observed_at'])
             skipped = read[scope]['data']['rejected']
             issues = [issue('invalid_reference', f'{skipped} malformed DefiLlama records were left out.',
                             'warning')] if skipped else []
+            if unknown:
+                issues.append(issue('unknown_chain', f'DefiLlama has no pool or protocol on {", ".join(unknown)}.',
+                                    'warning'))
             return envelope(batch, issues, next_cursor=following)
         except self.wire.WireError:
             return envelope(None, [issue('invalid_request', 'The DefiLlama request is invalid.')])
         except ValueError as error:
             if str(error) == 'invalid_configuration':
                 return envelope(None, [issue('invalid_configuration', f'The {CHAINS} setting must list DefiLlama '
-                                             'chain names, as a list or comma-separated text.')])
-            if str(error) == 'invalid_request':
-                return envelope(None, [issue('invalid_request', 'The catalogue cursor is past the last page.')])
+                                             'chain names, or `all`, as a list or comma-separated text.')])
             return envelope(None, [issue('invalid_response', 'DefiLlama returned data that could not be read.')])
         except (RuntimeError, OSError) as error:
             detail = self.connector.detail(error)
@@ -80,7 +86,7 @@ def register(ctx):
 
     def handler(arguments, **context):
         access = platform.access.native_access_scope()
-        result = reader.invoke('catalogue', arguments, chains=ctx.get_config(CHAINS, list(catalogue.DEFAULT_CHAINS)),
+        result = reader.invoke('catalogue', arguments, chains=ctx.get_config(CHAINS),
                                cancelled=context.get('cancelled'), cache_scope=access)
         if platform.access.native_access_scope() != access:
             return json.dumps(envelope(None, [issue('unavailable', 'Native access changed during the DefiLlama read.')]))

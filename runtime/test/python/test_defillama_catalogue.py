@@ -75,7 +75,7 @@ def reader(protocols=PROTOCOLS, pools=POOLS):
     return plugin.Reader(wire, connector, transport=transport), transport
 
 
-def pages(scope, chains=catalogue.DEFAULT_CHAINS, **fixtures):
+def pages(scope, chains=None, **fixtures):
     """Every page of a scope, each checked by core against the plugin's contract."""
     read, _transport = reader(**fixtures)
     found, cursor = [], None
@@ -183,12 +183,26 @@ class Catalogue(unittest.TestCase):
         status = {claim.native_ref.native_id: claim.attributes.status for claim in records(claims('protocols'))}
         self.assertEqual(status, {'9001': 'active', '9002': 'active', '9004': 'inactive'})
 
-    def test_the_chains_setting_narrows_both_scopes_and_empty_means_every_chain(self):
-        everything = claims('pools', chains=[])
-        self.assertIn(uuid(5), {claim.native_ref.native_id for claim in records(everything) if claim.native_ref})
+    def test_the_chains_setting_defaults_to_sui_and_all_means_every_chain(self):
+        pools = lambda found: {claim.native_ref.native_id for claim in records(found) if claim.level == 'market'}
+        sui = pools(claims('pools'))
+        self.assertNotIn(uuid(5), sui)
+        for cleared in ([], '', ' , ', None):  # clearing the setting restores the default
+            self.assertEqual(pools(claims('pools', chains=cleared)), sui)
+        everything = claims('pools', chains='ALL')
+        self.assertEqual(pools(everything), sui | {uuid(5)})
         self.assertEqual(assets(everything, 5), [])  # only Sui coin types are keyed yet
         self.assertEqual(len(records(claims('protocols', chains='sui, ethereum'))), 4)
-        self.assertEqual(claims('pools', chains=['Aptos']), [])
+        self.assertEqual(claims('pools', chains=['Aptos']), [])  # a chain with protocols and no pools
+
+    def test_an_unknown_chain_is_reported_and_never_ends_a_scope_empty(self):
+        read, _transport = reader()
+        alone = read.invoke('catalogue', {'scope': 'pools'}, chains='sui-mainnet')
+        self.assertEqual((alone['data'], alone['issues'][0]['code']), (None, 'unknown_chain'))
+        self.assertIn('sui-mainnet', alone['issues'][0]['message'])
+        mixed = read.invoke('catalogue', {'scope': 'protocols'}, chains=['Sui', 'Suii'])
+        self.assertTrue(mixed['data']['complete'])
+        self.assertIn(('unknown_chain', 'warning'), [(item['code'], item['severity']) for item in mixed['issues']])
 
     def test_malformed_input_is_counted_or_refused_never_coerced(self):
         read, _transport = reader()
@@ -199,9 +213,33 @@ class Catalogue(unittest.TestCase):
         self.assertEqual(broken.invoke('catalogue', {'scope': 'pools'})['issues'][0]['code'], 'invalid_response')
         self.assertEqual(read.invoke('catalogue', {'scope': 'pools'}, chains=7)['issues'][0]['code'],
                          'invalid_configuration')
-        self.assertEqual(read.invoke('catalogue', {'scope': 'pools', 'cursor': '99'})['issues'][0]['code'],
-                         'invalid_request')
         self.assertEqual(read.invoke('catalogue', {'scope': 'tokens'})['issues'][0]['code'], 'invalid_request')
+
+    def test_a_refresh_between_pages_skips_no_pool_both_snapshots_hold(self):
+        with patch.object(catalogue, 'PAGE_CLAIMS', 4):
+            before, _transport = reader()
+            first = before.invoke('catalogue', {'scope': 'pools'})
+            self.assertEqual({claim['native_ref']['native_id'] for claim in first['data']['claims']
+                              if claim.get('level') == 'market'}, {uuid(1)})
+            # The hourly snapshot is refreshed mid-sync, and pool 1, already emitted, is gone from it.
+            refreshed = {**POOLS, 'data': POOLS['data'][1:]}
+            after, _transport = reader(pools=refreshed)
+            seen, cursor = set(), first['next_cursor']
+            while cursor:
+                result = after.invoke('catalogue', {'scope': 'pools', 'cursor': cursor})
+                seen |= {claim.native_ref.native_id for claim in records(checked_batch('defillama', result).claims)
+                         if claim.level == 'market'}
+                cursor = result['next_cursor']
+        self.assertEqual(seen, {uuid(2), uuid(3), uuid(4), uuid(6)})
+
+    def test_a_token_label_prefers_the_coins_own_symbol_then_the_most_common(self):
+        tether, wrapped = '0x' + '56' * 32 + '::usdt::USDT', '0x' + '78' * 32 + '::coin::COIN'
+        rows = [pool(10, 'example-lend', 'SBUSDT', [tether]), pool(11, 'example-lend', 'SUIUSDT', [tether]),
+                pool(12, 'example-lend', 'USDT', [tether]), pool(13, 'example-lend', 'XUSDC', [wrapped]),
+                pool(14, 'example-lend', 'WUSDC', [wrapped]), pool(15, 'example-swap', 'WUSDC', [wrapped])]
+        found = claims('pools', pools={'status': 'success', 'data': rows})
+        labels = {claim.identifiers[0].value: claim.attributes.name for claim in records(found) if claim.level == 'listing'}
+        self.assertEqual(labels, {catalogue.sui_caip19(tether): 'USDT', catalogue.sui_caip19(wrapped): 'WUSDC'})
 
     def test_one_sync_reads_each_directory_once(self):
         read, transport = reader()
