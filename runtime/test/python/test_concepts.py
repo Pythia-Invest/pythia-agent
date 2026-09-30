@@ -197,7 +197,6 @@ class PageCompositionTest(unittest.TestCase):
         for fixture in (load("asml.json"), load("crypto.json"), APPLE):
             load_reference(self.ref, fixture)
         self.ref.row_factory = sqlite3.Row
-        self.coins = {(r[0], r[1]): r[2] for r in self.ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")}
 
     def tearDown(self):
         self.ref.close()
@@ -214,8 +213,7 @@ class PageCompositionTest(unittest.TestCase):
         return out
 
     def test_sections_and_price_sources_follow_the_default_order(self):
-        lookups = {"stored": lambda *_: None, "coins": lambda provider, caip19: self.coins.get((provider, caip19)),
-                   "queue": []}
+        lookups = {"stored": lambda *_: None, "queue": []}
         for config, expected in EXPECTED.items():
             plugins = self.plugins(CONFIGS[config])
             for name, (sections, refs) in expected.items():

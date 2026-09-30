@@ -1,5 +1,5 @@
 {
-  "contract_version": 1,
+  "contract_version": 2,
   "plugin": "pythia-hyperliquid",
   "provider": "hyperliquid",
   "addressing": {
@@ -8,7 +8,13 @@
         "native_scope": "perp",
         "level": "market"
       }
-    ]
+    ],
+    "subjects": {
+      "market:pythia:hyperliquid-btc-perp": {
+        "native_scope": "perp",
+        "native_id": "BTC"
+      }
+    }
   },
   "concepts": {
     "market_data": {

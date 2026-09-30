@@ -289,8 +289,9 @@ keep provider secrets in the Hermes environment instead of Pythia custody.
 Core owns the data concepts (`market_data`, `profile`, `filings`, `news`,
 and later `fundamentals` and `estimates`), their operations and the qualities a
 plugin may claim ([ADR 0040](../decisions/0040-data-concepts-and-agent-tools.md)).
-A plugin that serves one declares it in `contract.json` version 1, beside its
-addressing (the full shape is in the ADR 0038 amendment):
+A plugin that serves one declares it in `contract.json` version 2, beside its
+addressing (the full shape is in the ADR 0038 amendments; core still reads
+version 1):
 
 ```json
 "concepts": {
@@ -334,8 +335,25 @@ addressing (the full shape is in the ADR 0038 amendment):
   (`identity.validate_live_market`).
 - A subject kind outside the instrument hierarchy, such as a `market` (a perp),
   is addressed as itself: `level` and `via` are both `market`, with a native
-  scope at level `market`. Core's curated table (`identity/markets.json`)
-  supplies each plugin's reference ([ADR 0043](../decisions/0043-live-market-view.md)).
+  scope at level `market` ([ADR 0043](../decisions/0043-live-market-view.md)).
+- `addressing.subjects` gives the plugin's own reference for a subject core
+  keys: a maintained index, pair, perp or crypto asset
+  (`"index:pythia:sp500": {"native_scope": "symbol", "native_id": "^GSPC"}`).
+  Core's maintained tables (`markets.json`, `canonical_assets.json`) list the
+  subjects and name no provider. The address is confirmed only when the
+  plugin's files are granted confirm (below), and only then does the plugin's
+  provisional ID for that reference alias to the subject. A coin plugin also
+  maps its own chain ids to CAIP-2 chains in `addressing.chain_codes`.
+- `introduces` names the kinds of subject the plugin may add and the key
+  schemes their IDs use: an open scheme registered for the kind, or `native`,
+  its own reference in a native scope at that kind
+  (`"introduces": {"market": ["native"], "listing": ["caip19"]}`). A `native`
+  scope must name a permanent reference the provider never reuses, because
+  the reference becomes the subject's ID. A record of a
+  kind outside the hierarchy is keyed by its native reference alone, and a
+  relation claim may name the plugin's own declared references
+  ([ADR 0038](../decisions/0038-plugin-addressing-contract.md), amendment
+  "contract version 2").
 - A `resolve` answer's records mark each identifier's `role`: `self` names the
   record itself, `underlying` its underlying and `unqualified` a value the
   source cannot place. On a crypto asset record, `self` on a CAIP-19 claims
