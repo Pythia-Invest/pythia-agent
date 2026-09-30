@@ -1,12 +1,49 @@
 # OpenFIGI reference connector
 
-`pythia-openfigi` is a Hermes-native plugin with one operation, `resolve`
-(`pythia_openfigi_resolve`). It maps identifiers through OpenFIGI's
-`/v3/mapping` endpoint and returns the evidence to its caller; Pythia's core
-decides identity. It supplies no prices, catalogue or search, and it is not
-called while a user types: resolution is explicit, for example when the agent
-needs a FIGI. It fills no page section, so it ships no `contract.json`; the
-offline reference build has its own OpenFIGI client.
+`pythia-openfigi` is a Hermes-native plugin with two operations over OpenFIGI's
+`/v3/mapping` endpoint. Both return evidence; Pythia's core decides identity. It
+supplies no prices, catalogue or search, and it is never called while a user
+types. The offline reference build has its own OpenFIGI client. The
+[source record](../../../../docs/sources/openfigi.md) holds the field meanings
+and the evidence behind the exchange-code table.
+
+- **`resolve`** (`pythia_openfigi_resolve`) is the lookup core dispatches, as
+  its `contract.json` declares: `{"identifiers": {"isin": ...}}` in, an
+  identity claim batch out ([ADR 0038](../../../../docs/decisions/0038-plugin-addressing-contract.md)).
+- **`mapping`** (`pythia_openfigi_mapping`) serves the agent's
+  `openfigi_identifiers` tool: several jobs, every candidate, nothing decided.
+
+## Core's lookup
+
+OpenFIGI introduces subjects on demand only: one ISIN per lookup, when the
+investor or the agent asks for it. There is no catalogue, bulk mapping or
+scheduled sync ([ADR 0044](../../../../docs/decisions/0044-product-direction.md),
+note "OpenFIGI introduces subjects on demand only"). The contract declares
+`introduces: {"listing": ["figi"]}`: a line the reference lacks becomes
+`listing:figi:<FIGI>`.
+
+The answer is one listing claim per FIGI line, never a pick:
+
+- its FIGI, which is also its native reference (scope `figi`), its composite
+  FIGI and its share-class FIGI, as OpenFIGI states them;
+- the ISIN at security scope, role `self`: OpenFIGI maps that ISIN to the line.
+  A line OpenFIGI files under another share class keeps its own share-class
+  FIGI, so core's join sees the disagreement instead of a silent merge;
+- the exchange code (`provider_venue`) and, only through the contract's
+  `venue_codes`, the operating MIC. An unmapped code leaves the line keyed by
+  its FIGI with no MIC, so no price source can address it;
+- the name, `asset_class: equity` where the market sector is Equity, and the
+  ticker as evidence. A ticker never keys a line, and one outside core's ticker
+  grammar (`BRK/B`) is left out.
+
+A composite line is not a venue line and is left out: a FIGI other lines name
+as their composite FIGI, on a code that maps to no venue, such as the JP, GR and
+US country composites or EO, the OTC composite. Its FIGI reaches core as each
+venue line's composite FIGI. AU is Australia's composite code, but the contract
+maps it to the ASX (XASX), as the reference builder's home-exchange table does,
+so an AU line stays as the ASX line.
+
+## The agent's jobs
 
 Supported jobs (`idType` + `idValue`, optional filters):
 

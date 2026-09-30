@@ -1,0 +1,97 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-openfigi",
+  "provider": "openfigi",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "figi",
+        "level": "listing"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "figi"
+      ],
+      "security": [
+        "isin",
+        "share_class_figi"
+      ]
+    },
+    "venue_codes": {
+      "PQ": "OTCM",
+      "CT": "XTSE",
+      "JT": "XJPX",
+      "HK": "XHKG",
+      "AU": "XASX",
+      "SP": "XSES",
+      "IT": "XTAE",
+      "SJ": "XJSE",
+      "LN": "XLON",
+      "SE": "XSWX",
+      "ID": "XDUB",
+      "NA": "XAMS",
+      "FP": "XPAR",
+      "BB": "XBRU",
+      "PL": "XLIS",
+      "IM": "XMIL",
+      "SQ": "BMEX",
+      "GY": "XETR",
+      "GF": "XFRA",
+      "GS": "XSTU",
+      "GM": "XMUN",
+      "GD": "XDUS",
+      "GH": "XHAM",
+      "GI": "XHAN",
+      "TH": "TGAT",
+      "AV": "XWBO",
+      "SS": "XSTO",
+      "FH": "XHEL",
+      "DC": "XCSE",
+      "NO": "XOSL",
+      "IR": "XICE",
+      "NG": "XNGM",
+      "KA": "XSAT",
+      "ET": "XTAL",
+      "LH": "XLIT",
+      "PW": "XWAR",
+      "CK": "XPRA",
+      "HB": "XBUD",
+      "SK": "XBRA",
+      "SV": "XLJU",
+      "ZA": "XZAG",
+      "RE": "XBSE",
+      "BU": "XBUL",
+      "GA": "ASEX",
+      "CY": "XCYS",
+      "MV": "XMAL",
+      "LX": "XLUX"
+    }
+  },
+  "introduces": {
+    "listing": [
+      "figi"
+    ]
+  },
+  "resolve": {
+    "operation": "resolve",
+    "input_schemes": [
+      "isin"
+    ],
+    "echoes": []
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/openfigi.md"
+  },
+  "limits": {
+    "plan": "keyless",
+    "unit": "request",
+    "per_minute": 25
+  }
+}

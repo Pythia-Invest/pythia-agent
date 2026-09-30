@@ -437,3 +437,34 @@ first ruling 9 is superseded by the stage 0 work below.
   its use.
 - **Raising every world-level question on every installation.** It would make
   every user a data curator.
+
+### Note (2026-09-30): OpenFIGI introduces subjects on demand only
+
+**Context.** Stage 0 shows an overlapping financial source introducing subjects.
+OpenFIGI is that source: it is keyless and free, its plugin is grandfathered
+(ADR 0042), and its FIGIs identify each level exactly (listing, composite, share
+class). OpenFIGI can map any ISIN, so its plugin could also page through ISINs
+in bulk and act as a reference source by another route, which A8 leaves open
+("direct and prebuilt forms per reference source").
+
+**Ruling.** OpenFIGI introduces subjects on demand only: a single-identifier
+lookup, one ISIN, when the investor or the agent asks for it. Its contract
+declares `resolve` with input `isin` and `introduces: {"listing": ["figi"]}`, and
+no catalogue. There is no bulk mapping and no scheduled sync. The answer is one
+listing claim per FIGI line; tickers are evidence only, and an exchange code
+becomes an operating MIC only through the contract's `venue_codes`
+([source record](../sources/openfigi.md)).
+
+**Rationale.** A lookup covers what stage 0 needs to prove, a line the
+reference lacks (Toyota's London line in the build of 2026-09-28), without
+deciding the open question of how a reference source ships. It keeps to
+OpenFIGI's keyless limits and to ADR 0038's rule that "Look up in X" calls
+exactly one plugin's `resolve`.
+
+**Consequences.** OpenFIGI adds evidence to existing listings by FIGI and adds
+lines one ISIN at a time; it never widens coverage by itself. A catalogue or bulk
+mode waits for A8.
+
+**Rejected alternatives.** A bulk catalogue over the reference's ISINs (a
+direct form of a reference source, open under A8), and EODHD as the overlapping
+source (paid, and its ISINs are `unqualified`, so nothing joins by ISIN).
