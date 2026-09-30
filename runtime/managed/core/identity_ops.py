@@ -21,13 +21,13 @@ from typing import Any
 
 from .identity import (
     MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
-    validate_manifest, vouched,
+    RelationType, validate_manifest, vouched,
 )
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, subject as subjects, trust
+from .identity import declared, flags, subject as subjects, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -232,12 +232,12 @@ class Identity:
         if subject["asset_class"] == "equity" and security:  # the instrument's lines, receipts folded in
             directory = search.directory(path, store.open_reference)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
-            # The company's other instruments; a share class listed there is not repeated under `related`.
+            # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
-            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item]
+            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
         sections = page.compose(subject, installed(), **lookups)
-        return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
+        return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject from it, with the store lookups page composition reads."""

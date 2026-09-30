@@ -452,7 +452,11 @@ build. The approach that follows:
   (such as limited coverage, tradability or a corporate action) and the
   provenance, with the full evidence on request. The agent states which
   interpretation it used, and retrieves evidence or abstains rather than
-  relying on what it remembers.
+  relying on what it remembers. Built for instrument reads: `pythia_instrument`
+  gives the listing in use as the default, typed flags from a closed list and
+  each identifier's source and trust level, and the full evidence of a question
+  comes through `pythia_identity_questions`
+  ([the agent's tools](architecture/agent-tools.md)).
 - **Saved interpretations are suggestions.** An agent's answer to an identity
   question is a suggestion the user confirms. A saved interpretation keeps its
   evidence, scope and dependencies, and becomes stale when they change. Saving

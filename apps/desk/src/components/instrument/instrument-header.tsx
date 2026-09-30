@@ -45,7 +45,8 @@ export function InstrumentHeader({
       ids[key] ??
       (key === "isin" ? page.security?.isin : undefined) ??
       (key === "lei" || key === "cik" ? page.issuer?.[key] : undefined);
-    return value ? [{ key, label, value }] : [];
+    const contested = page.contested[key] ?? [];
+    return value || contested.length ? [{ key, label, value, contested }] : [];
   });
   const issuer =
     page.issuer && page.issuer.name !== page.subject.name
@@ -84,20 +85,54 @@ export function InstrumentHeader({
           data-slot="instrument-identifiers"
           className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
         >
-          {identifiers.map(({ key, label, value }) => (
+          {identifiers.map(({ key, label, value, contested }) => (
             <div key={key} className="flex min-w-0 max-w-full gap-1.5">
               <dt className="text-foreground-secondary">{label}</dt>
-              <dd
-                title={value}
-                className="truncate font-mono text-foreground tabular-nums"
-              >
-                {value}
-              </dd>
+              {contested.length ? (
+                <ContestedValues values={contested} />
+              ) : (
+                <dd
+                  title={value ?? undefined}
+                  className="truncate font-mono text-foreground tabular-nums"
+                >
+                  {value}
+                </dd>
+              )}
             </div>
           ))}
         </dl>
       ) : null}
     </header>
+  );
+}
+
+/** An identifier whose confirm-level sources disagree: core applies neither
+ * value, so each is shown with the sources stating it, never a blank. */
+function ContestedValues({
+  values,
+}: {
+  values: SubjectPage["contested"][string];
+}) {
+  return (
+    <dd
+      data-slot="instrument-identifier-contested"
+      className="flex min-w-0 flex-wrap gap-x-1.5"
+    >
+      {values.map(({ value, sources }) => (
+        <span key={value} className="flex min-w-0 gap-1">
+          <span
+            title={value}
+            className="truncate font-mono text-foreground tabular-nums"
+          >
+            {value}
+          </span>
+          <span className="text-foreground-secondary">
+            ({sources.join(", ")})
+          </span>
+        </span>
+      ))}
+      <span className="text-foreground-secondary">sources disagree</span>
+    </dd>
   );
 }
 
