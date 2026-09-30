@@ -7,8 +7,9 @@ decides which, never an argument. `settle` lets the rules resolver re-ask the
 join inside write operations, never on search or page reads. `surface` queues
 the reference build's questions about an instrument the investor or the agent
 touches, and the conflicts its evidence raises (a contested fact, a plugin's
-included, and an answer the release contradicts): a bounded, idempotent write
-on those reads (ADR 0044 A2). Ingest itself queues nothing.
+included, one plugin contradicting itself, and an answer the release
+contradicts), about a subject only the device holds too: a bounded, idempotent
+write on those reads (ADR 0044 A2). Ingest itself queues nothing.
 """
 from __future__ import annotations
 
@@ -73,8 +74,8 @@ VERDICT_SCHEMA = {
 def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> int:
     """Queue the installed build's questions about these subjects, each once: the investor opened or watches them,
     or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. Their
-    conflicts are queued too (`conflicts`). The build's other questions stay in its package. Search, market movers,
-    price routing and settling never call this. Returns how many were added."""
+    conflicts are queued too (`conflicts`), a subject only the device holds included. The build's other questions stay
+    in its package. Search, market movers, price routing and settling never call this. Returns how many were added."""
     from .identity_ops import installed
     if not subject_ids:
         return 0
@@ -83,8 +84,8 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
         if ref is None:
             return 0
         try:
-            wanted = [value for subject in subject_ids for value in questions.family(ref, subject)] if family \
-                else list(subject_ids)
+            wanted = [value for subject in subject_ids for value in questions.family(identity.store, ref, subject)] \
+                if family else list(subject_ids)
             raised = conflicts.raised(ref, identity.store, subject_ids, installed())  # plugins' conflicts too
         finally:
             ref.close()
@@ -121,13 +122,13 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
             return _envelope("empty", {"notice": earlier} if earlier else None, issue=no_reference(identity.data_dir))
         try:
             if arguments.get("item_id"):
-                view = questions.inspect(identity.store, ref, str(arguments["item_id"]))
+                view = questions.inspect(identity.store, ref, str(arguments["item_id"]), questions.names(installed()))
                 return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
             plugin = arguments.get("plugin")
             data = questions.listing(identity.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
                                  plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
                                  if plugin else None, limit=limit, notice=not identity.reset_told,
-                                 settled=arguments.get("settled") is True)
+                                 settled=arguments.get("settled") is True, labels=questions.names(installed()))
             identity.reset_told = identity.reset_told or "notice" in data
             if "notice" not in data and (earlier := location.both_present(identity.data_dir)):
                 data["notice"] = earlier  # until the earlier copy is deleted by hand

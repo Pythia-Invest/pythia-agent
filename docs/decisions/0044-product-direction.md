@@ -382,10 +382,12 @@ central curator exists.
   2026-09-30). Only a confirm-level plugin binds, onto reference or device
   subjects; a display plugin binds only a subject it introduced (ADR 0042,
   amendment "binding by trust level").
-- **Questions on touch.** The build's open questions and a confirm-level
-  plugin's conflicts are asked when an instrument is opened, watched or used
-  by the agent, and the user's answer is a local override
-  ([ADR 0037](0037-identity-backbone.md), amendment "questions on touch").
+- **Questions on touch.** The build's open questions, and the conflicts of
+  confirm-level plugins (a plugin-introduced subject's included, and one
+  plugin contradicting itself), are asked when an instrument is opened,
+  watched or used by the agent, and the user's answer is a local override
+  ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
+  "questions and overrides for plugin-introduced subjects").
 - **Reference sources are builder adapters.** A build can leave out any of
   them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
@@ -409,8 +411,7 @@ Still open:
 - Two trust levels exist, display and confirm. Suggest identity arrives with
   the first plugin that needs it, and trust follows a digest, not yet a signed
   release.
-- A contested fact about a subject only the device holds is shown and
-  flagged, not asked. A user cannot yet alias a provisional coin.
+- A user cannot yet alias a provisional coin.
 - The effect of disabling a plugin counts coverage (the subjects only it
   supplies), not the identifiers a subject other sources also supply would
   lose.

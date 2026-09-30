@@ -253,7 +253,7 @@ class Identity:
             default = subject and not curated and self._default_listing(path, subject, plugins)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store, plugins)
-            subject = subject or device.load(ref, self.store, subject_id, plugins)
+            subject = subject or build_questions.load_device(ref, self.store, subject_id, plugins)
         finally:
             if ref is not None:
                 ref.close()
