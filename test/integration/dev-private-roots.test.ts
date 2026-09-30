@@ -25,7 +25,7 @@ import {
 } from "../../scripts/dev/runtime.mjs";
 import { developmentServices } from "../../scripts/dev/supervisor.mjs";
 import { verifyBasicMemoryNativeProject } from "../../scripts/install/basic-memory-readiness.mjs";
-import { developmentPaths, temporaryRoot } from "../support/dev-stack";
+import { developmentPaths, temporaryRoot } from "../support/dev-stack.js";
 
 describe("private roots, environment, seeds, and copied assets", () => {
   it("rejects a stale native Basic Memory mapping despite a matching Pythia receipt", () => {
@@ -80,20 +80,24 @@ describe("private roots, environment, seeds, and copied assets", () => {
 
   it("removes ambient credentials and gives each service only its own bearer", () => {
     const paths = developmentPaths();
-    const clean = runtimeEnvironment(paths, "safe-local-key-value", {
-      PATH: process.env.PATH,
-      OPENAI_API_KEY: "must-not-survive",
-      AWS_SECRET_ACCESS_KEY: "must-not-survive",
-      AWS_ACCESS_KEY_ID: "must-not-survive",
-      EODHD_API_TOKEN: "must-not-survive",
-      EDGAR_IDENTITY: "must-not-survive",
-      EDGAR_API_TOKEN: "must-not-survive",
-      // The shipped 562dfc9 plugin still reads this retired interpreter.
-      PYTHIA_PYTHON: "/retired/python",
-      NEXT_TELEMETRY_DISABLED: "0",
-      HERMES_DISABLE_LAZY_INSTALLS: "0",
-      ORDINARY_SETTING: "visible",
-    });
+    const clean: Record<string, string | undefined> = runtimeEnvironment(
+      paths,
+      "safe-local-key-value",
+      {
+        PATH: process.env.PATH,
+        OPENAI_API_KEY: "must-not-survive",
+        AWS_SECRET_ACCESS_KEY: "must-not-survive",
+        AWS_ACCESS_KEY_ID: "must-not-survive",
+        EODHD_API_TOKEN: "must-not-survive",
+        EDGAR_IDENTITY: "must-not-survive",
+        EDGAR_API_TOKEN: "must-not-survive",
+        // The shipped 562dfc9 plugin still reads this retired interpreter.
+        PYTHIA_PYTHON: "/retired/python",
+        NEXT_TELEMETRY_DISABLED: "0",
+        HERMES_DISABLE_LAZY_INSTALLS: "0",
+        ORDINARY_SETTING: "visible",
+      },
+    );
     expect(clean.OPENAI_API_KEY).toBeUndefined();
     expect(clean.AWS_SECRET_ACCESS_KEY).toBeUndefined();
     expect(clean.AWS_ACCESS_KEY_ID).toBeUndefined();

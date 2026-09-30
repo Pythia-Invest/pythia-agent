@@ -24,7 +24,7 @@ import {
   ownServer,
   temporaryRoot,
   waitUntil,
-} from "../support/dev-stack";
+} from "../support/dev-stack.js";
 
 describe("port and receipt ownership", () => {
   it("uses native no-reuse-address semantics for Hermes port release", async () => {

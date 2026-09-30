@@ -7,6 +7,12 @@ import { previewWorkspaceTransition } from "../../scripts/update/workspace-trans
 
 // MCP fixture is configureFreshProfile's exact pre-workspace native setter
 // payload at 562dfc9. Native dotted setter/readback is independently qualified.
+// previewWorkspaceTransition returns only `{ status: "fresh", changes }` when
+// the profile does not exist yet; every fixture creates one.
+export type ProfilePreview = Extract<
+  ReturnType<typeof previewWorkspaceTransition>,
+  { seeds: unknown }
+>;
 export const roots: string[] = [];
 export function fixture() {
   const root = mkdtempSync(join(tmpdir(), "pythia-workspace-transition-"));
@@ -74,11 +80,12 @@ export function fixture() {
   );
   for (const name of MANAGED_CORE_FILES)
     write(join(paths.managedCore, name), `synthetic managed ${name}`);
-  for (const [source, target] of [
+  const seedTargets: [string, string][] = [
     ["workspace/AGENTS.md", join(paths.workspace, "AGENTS.md")],
     ["workspace/README.md", join(paths.workspace, "README.md")],
     ["profile/SOUL.md", join(paths.profileRoot, "SOUL.md")],
-  ]) {
+  ];
+  for (const [source, target] of seedTargets) {
     write(
       join(paths.repositoryRoot, "runtime/seeds", source),
       `New guidance: ${source}\n`,
