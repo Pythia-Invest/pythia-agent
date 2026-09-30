@@ -51,7 +51,8 @@ uses only the standard library.
 
 ```sh
 just reference-install <package>   # a package directory or its package.json, relative to the checkout
-just reference-status              # what is installed, and the last refusal, as JSON
+just reference-status              # what is installed, the last refusal and a removed package, as JSON
+just reference-remove              # set the installed package aside (below)
 ```
 
 These recipes run core's installer with the stack's Hermes Python and install
@@ -104,6 +105,33 @@ Startup never fails over reference data: a missing or refused package is
 reported in one line that names the package still in use, and a refusal also
 shows in Settings.
 
+## Removing
+
+`reference_package.py remove` (`just reference-remove` in development) sets the
+install record aside: `installed.json` becomes `removed.json` in one atomic
+rename, so no package is active. Removing when none is installed changes
+nothing. Nothing in `identity.sqlite3` changes:
+
+- Search and pages read the device's subjects alone: the subjects plugins
+  introduced stay findable, and their pages open.
+- A saved reference to a reference subject (a watchlist entry, a card, a link
+  in a chat) opens as a labelled stub: its own ID, named by the latest record a
+  plugin placed on it, the identifiers the device's plugins state about it, and
+  a line saying the package was removed. It is never another subject and never
+  unknown. Settings and `reference-status` say so too.
+- Device evidence stays: plugins' claims and statements, bindings, answers and
+  open questions are kept.
+
+The package's files stay in `packages/` until the next install replaces them,
+and `reference-status` reports the set-aside record as `removed` until a
+package installs. Installing the same package again (from its own directory,
+never from inside `packages/`) restores everything: its name, and so its
+release key, is unchanged, so nothing is re-keyed and no question is retired
+([ADR 0037](../decisions/0037-identity-backbone.md), amendment "search over
+reference and device"). Development startup installs this checkout's builder
+output again; to keep a stack without a package, set
+`PYTHIA_DEV_REFERENCE_PACKAGE` to a directory without one.
+
 ## Reading
 
 Core resolves the reference database through `installed.json` alone. It never
@@ -120,8 +148,9 @@ installed build, format, dates, the sources the build included
 (`included_sources`), each source file with its as-of date and licence, the
 deduplicated notices, its trust level (`trust`, looked up by its digest like
 any contributor's), whether this core reads it (`compatible`, and `problem`:
-why not and what to do), and the last refused package with its reason. Desk
-shows it under **Settings → Reference data**.
+why not and what to do), the last refused package with its reason, and the
+package `remove` set aside (`removed`). Desk shows it under **Settings →
+Reference data**.
 
 ## Later: automated packages
 

@@ -368,17 +368,20 @@ exists:
   Holdings, forecasts and operations join as triggers in stage 1.
 - Any plugin can introduce subjects and contribute evidence through core's
   ingest, joined by identifier at each record's own scope and introduced only
-  under the key schemes its contract declares; pages show them, and a plugin's
-  evidence, with no reference package ([ADR 0037](0037-identity-backbone.md),
-  amendments "device subjects" and "ingest"). Reading a plugin's catalogue
-  (`identity-sync`) and looking one identifier up (`identity-lookup`) are Desk
-  operations with no scheduler; the Desk controls that start them land with
-  W3-lifecycle and W3-search. Search does not cover device subjects yet.
+  under the key schemes its contract declares; pages and search show them, and
+  a plugin's evidence, with no reference package ([ADR 0037](0037-identity-backbone.md),
+  amendments "device subjects", "ingest" and "search over reference and
+  device"). Reading a plugin's catalogue (`identity-sync`) and looking one
+  identifier up (`identity-lookup`) are Desk operations with no scheduler;
+  search offers the lookup, and the Desk controls that start them land with
+  W3-lifecycle.
 - Reference sources are builder adapters. A build can leave out any of them
   (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
   sources it includes; only the ISO 10383 venue codes and core's curated
-  crypto table are always in. A device cannot yet remove an installed
-  package.
+  crypto table are always in. A device can remove its installed package:
+  search and pages then read the device's subjects alone, and saved
+  references open as labelled stubs ([ADR 0037](0037-identity-backbone.md),
+  amendment "search over reference and device").
 - Trust follows a digest of each plugin's files, never its name: Pythia's
   release grants confirm its signed-off and grandfathered plugins, and the
   user's own grants may confirm another or demote one (ADR 0042, amendment of

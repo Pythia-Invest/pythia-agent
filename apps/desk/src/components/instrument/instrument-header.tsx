@@ -71,6 +71,13 @@ export function InstrumentHeader({
       <h1 className="font-semibold text-2xl text-foreground leading-tight tracking-tight">
         {page.subject.name}
       </h1>
+      {/* Core's line of context: a market's, or why a saved instrument opens
+          as a stub (no reference data installed). */}
+      {page.subject.description ? (
+        <p className="text-foreground-secondary text-xs">
+          {page.subject.description}
+        </p>
+      ) : null}
       {issuer ? (
         <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
       ) : issuerUnknown ? (

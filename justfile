@@ -77,6 +77,10 @@ reference-install package:
 reference-status:
     node scripts/dev/cli.mjs reference-status
 
+# Set this worktree's installed reference package aside: search and pages read the device's subjects alone.
+reference-remove:
+    node scripts/dev/cli.mjs reference-remove
+
 # Score a reference snapshot against the identity truth set; fails on regressions against the committed baseline.
 reference-audit *args:
     python3 tooling/reference-builder/audit.py {{args}}

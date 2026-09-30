@@ -179,6 +179,23 @@ describe("a share whose issuer the reference leaves undecided", () => {
     expect(coin).not.toContain("Issuer unknown");
   });
 
+  it("says why a saved instrument opens as a stub", () => {
+    const stub = renderToStaticMarkup(
+      <InstrumentHeader
+        page={subjectPageSchema.parse({
+          subject: {
+            id: "security:isin:CH0038863350",
+            level: "security",
+            name: "security:isin:CH0038863350",
+            description: "No reference data on this device yet.",
+          },
+        })}
+        subjectId="security:isin:CH0038863350"
+      />,
+    );
+    expect(stub).toContain("No reference data on this device yet.");
+  });
+
   it("has company cards that say they need the issuer", () => {
     const markup = renderToStaticMarkup(
       <SectionPlaceholder

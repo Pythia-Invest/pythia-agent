@@ -17,8 +17,8 @@ import time
 from functools import partial
 from typing import TYPE_CHECKING, Any, Iterable
 
-from .identity import CatalogueMode, ClaimError, IdentifierError, RecordClaim, batch_from_json, normalize_identifier
-from .identity import device, ingest, relations, search
+from .identity import CatalogueMode, ClaimError, RecordClaim, batch_from_json
+from .identity import ingest, search_device
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -42,7 +42,6 @@ LOOKUP_SCHEMA = {
                                                                                    "maxLength": 128}},
                    "required": ["plugin", "query"], "additionalProperties": False},
 }
-FIGIS = ("figi", "share_class_figi", "composite_figi")  # a FIGI's text does not say its level
 
 
 def register(ctx: Any, identity: Identity) -> None:
@@ -64,12 +63,6 @@ def keep(identity: Identity, info, batch, seen: Iterable[tuple[str, str]] = ()) 
     finally:
         if ref is not None:
             ref.close()
-
-
-def contested(store) -> frozenset:
-    """The plugin relations that contest a package relation now (`relations.contested`)."""
-    from .identity_ops import installed
-    return relations.contested(store, device.levels(installed()))
 
 
 def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
@@ -112,22 +105,16 @@ def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
 
 
 def lookup(identity: Identity, arguments: dict, **_context: Any) -> str:
-    """identity-lookup: the query's identifier (`search.classify`) in a scheme the plugin's resolve accepts, sent to it
-    once; every record it answers is stored, joined or introduced like a catalogue's."""
+    """identity-lookup: the query's identifier in a scheme the plugin's resolve accepts (`search_device.identifier`),
+    sent to it once; every record it answers is stored, joined or introduced like a catalogue's."""
     from .identity_ops import _envelope
     info, issue = _usable(arguments.get("plugin"))
     if info is None:
         return _envelope("empty", None, issue=issue)
     query = str(arguments.get("query") or "").strip()[:128]
-    kind, value = search.classify(query)
     resolve = info.manifest.resolve
-    accepted = {str(scheme) for scheme in resolve.input_schemes} if resolve else set()
-    scheme = next((name for name in (FIGIS if kind == "figi" else (kind,)) if name in accepted), None)
     tool = resolve and info.operations.get(resolve.operation)
-    try:
-        value = normalize_identifier(scheme, value) if scheme and tool else None
-    except IdentifierError:
-        value = None
+    scheme, value = (tool and search_device.identifier(query, resolve)) or (None, None)
     if value is None:
         return _envelope("empty", None, issue=f"{info.label} cannot look up {query or 'nothing'}.")
     try:

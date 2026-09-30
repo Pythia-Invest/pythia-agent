@@ -27,6 +27,13 @@ def logrank(rank: int | None) -> float | None:
     return max(0.0, 1 - math.log10(rank) / 5) if rank else None
 
 
+def notability(signals: Mapping[str, float] | None) -> float | None:
+    """A plugin record's rank signals on `logrank`'s scale: its largest amount in US dollars (`*_usd`: market cap,
+    total value locked), $1M -> 0 and $1T -> 1. None without one."""
+    amounts = [value for key, value in (signals or {}).items() if key.endswith("_usd") and value > 0]
+    return min(1.0, max(0.0, (math.log10(max(amounts)) - 6) / 6)) if amounts else None
+
+
 def norm(text: str | None) -> str:
     return " ".join(re.findall(r"\w+", (text or "").lower()))
 

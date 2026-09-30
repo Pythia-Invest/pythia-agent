@@ -61,6 +61,7 @@ function optionLabel(option: SearchOption) {
     group.name,
     ownDetail(option),
     row.venue ?? row.mic,
+    row.source ? `from ${row.source}` : null,
     row.currency,
     KIND_LABELS[row.kind],
   ]
@@ -88,8 +89,9 @@ function GroupHeading({ option }: { option: SearchOption }) {
 
 /** One listing of a group on one line: ticker, the venue with its country
  * flag, what the listing is when it is not the plain share (a class, registry
- * shares), currency and type. No prices and no provider logos: search shows
- * what exists; sources belong on the instrument page.
+ * shares), the plugin that introduced a subject the reference lacks, currency
+ * and type. No prices and no provider logos: search shows what exists; data
+ * sources belong on the instrument page.
  *
  * A group's first listing carries the group's heading inside the same option,
  * so the heading is hoverable and choosable (it opens that first listing's
@@ -127,6 +129,14 @@ export function SearchRowOption({
         ) : null}
         {detail ? (
           <span className="min-w-0 shrink-1000 truncate">· {detail}</span>
+        ) : null}
+        {row.source ? (
+          <span
+            data-slot="investment-search-source"
+            className="min-w-0 truncate"
+          >
+            {venue || detail ? "· " : ""}from {row.source}
+          </span>
         ) : null}
       </span>
       <span className="w-9 flex-none text-foreground-secondary">

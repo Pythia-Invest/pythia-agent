@@ -1,11 +1,10 @@
 """Core identity operations on the native tool registry: search, subject and resolve.
 
-`identity-search` and `identity-subject` are local reads of the reference file,
-identity.sqlite3 and the installed plugins' contracts; neither calls a provider.
-`identity-resolve` runs one plugin's declared resolve tool, bounded by a short
-timeout, and stores the decided binding or queue item. `reference-status`
-describes the installed reference package. The resolution-queue operations live
-in `queue_ops`.
+`identity-search` and `identity-subject` are local reads of the reference file, identity.sqlite3 and the installed
+plugins' contracts; neither calls a provider. With no reference package, search finds the device's subjects and a
+saved instrument opens as a labelled stub (`stub`). `identity-resolve` runs one plugin's declared resolve tool, bounded
+by a short timeout, and stores the decided binding or queue item. `reference-status` describes the installed reference
+package. The resolution-queue operations live in `queue_ops`.
 """
 from __future__ import annotations
 
@@ -25,9 +24,9 @@ from .identity import (
 )
 from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
-from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
+from .queue_ops import ISSUE_CODES, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
 from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import declared, device, flags, trust
+from .identity import declared, device, flags, search_device, stub, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -40,9 +39,10 @@ SOURCE_ORDER = "source_order"             # declared in configuration.json: the 
 
 SEARCH_SCHEMA = {
     "name": "pythia_identity_search",
-    "description": "Search the device's local directory of securities, listings and crypto assets by name, ticker "
-                   "or identifier (ISIN, LEI, FIGI, CIK). Answers groups (a company, a fund or a crypto asset), "
-                   "each with its most relevant listings and its total listing count. Pass `group` with a group's "
+    "description": "Search the device's local directory of securities, listings, crypto assets and the pools and "
+                   "protocols plugins added, by name, ticker or identifier (ISIN, LEI, FIGI, CIK). Answers groups "
+                   "(a company, a fund, a crypto asset, a pool or a protocol), each with its most relevant listings "
+                   "and its total listing count. Pass `group` with a group's "
                    f"id instead of `query` to list its listings, up to {search.GROUP_ROWS}; `limit` (groups, "
                    "default 20) does not apply there. Local only; no provider is called.",
     "parameters": {"type": "object", "properties": {
@@ -123,22 +123,23 @@ class Identity:
         group = str(arguments.get("group") or "").strip()[:256]
         limit = max(1, min(50, arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20))
         try:
-            if (path := self.reference_path()) is None:
-                return _envelope("empty", empty, issue=no_reference(self.data_dir))
-            directory = self.directory(path)
-            kinds = arguments.get("kinds")
+            path, plugins = self.reference_path(), installed()  # with no package, the device's subjects alone
+            directory, kinds = self.directory(path, plugins), arguments.get("kinds")
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
                                           suffixes=search_venues.suffixes, priced=search_venues.priced) if query else empty)
+            from .platform.request_context import usage  # "Look up in X" is the investor's Desk action, never the agent's
+            data["lookup"] = search_device.offers(query, plugins) if query and not group and usage.get() == "dashboard" else []
         except (sqlite3.Error, OSError) as error:  # search degrades, never errors out; a closed store says why
             logger.warning("identity search unavailable", exc_info=True)
             return _envelope("empty", empty, issue=f"Search is unavailable. {location.reason(error)}")
-        return _envelope("ok" if data["groups"] else "empty", data)
+        issue = None if path or data["groups"] else no_reference(self.data_dir)
+        return _envelope("ok" if data["groups"] else "empty", data, issue=issue)
 
     def reference_status(self, _arguments: dict, **_context: Any) -> str:
         data = {**reference_package.status(self.data_dir), "both_present": location.both_present(self.data_dir)}
         installed = data["installed"]  # one this Pythia cannot read says so and what to do (`problem`)
-        return _envelope("ok" if installed else "empty", data, issue=installed["problem"] if installed else NO_REFERENCE)
+        return _envelope("ok" if installed else "empty", data, issue=installed["problem"] if installed else no_reference(self.data_dir))
 
     def subject(self, arguments: dict, **_context: Any) -> str:
         try:
@@ -148,7 +149,7 @@ class Identity:
         except (sqlite3.Error, OSError) as error:
             logger.warning("identity subject unavailable", exc_info=True)
             view, issue = None, location.reason(error)
-        return _envelope("ok", view) if view else _envelope("empty", None, issue=issue)
+        return _envelope("ok" if view else "empty", view, issue=issue)  # a stub says why it is one
 
     def resolve(self, arguments: dict, **_context: Any) -> str:
         subject_id, wanted = str(arguments.get("subject_id") or ""), arguments.get("plugin")
@@ -188,7 +189,7 @@ class Identity:
             return "primary"
         return next((item for item in search.PREFERENCES if (value or "").lower() == item.lower()), "primary")
 
-    def order(self) -> tuple[str, ...]:
+    def order(self, plugins: list | None = None) -> tuple[str, ...]:
         """The investor's `source_order` (settings.json): plugin ids or provider names; empty means core's order."""
         from .identity.concepts import parse_order
         from .platform import configuration
@@ -196,7 +197,7 @@ class Identity:
             _status, value = configuration.value(self.ctx, SOURCE_ORDER)
         except (AttributeError, TypeError, ValueError, OSError):  # no readable declaration beside this core
             return ()
-        plugins = installed()  # common names ("edgar", "esef") mean the plugin; unknown names are kept as written
+        plugins = installed() if plugins is None else plugins  # common names ("edgar", "esef") mean the plugin
         return tuple(dict.fromkeys(page.named(name, plugins) or name for name in parse_order(value)))
 
     # ---- internals -----------------------------------------------------------------------------------------------
@@ -206,7 +207,8 @@ class Identity:
         its quote and chart in core's order, the providers the investor named in `source_order` and those not
         yet audited (ADR 0042), or the reason there are none. Local only."""
         try:
-            path, subject, lookups, _issue = self._load(subject_id)
+            plugins = installed()
+            path, subject, lookups, _issue = self._load(subject_id, plugins)
         except ValueError:  # a malformed subject id
             return unrouted("unknown_subject")
         except (sqlite3.Error, OSError):
@@ -215,42 +217,40 @@ class Identity:
         if subject is None:
             # A market needs no reference file, so an unknown one is unknown, not missing reference data.
             return unrouted("unknown_subject" if path or subject_kind(subject_id) in markets.CURATED_KINDS else "no_reference_data")
-        plugins = installed()
         named = [info.manifest.provider for info in plugins if info.key in lookups["order"]]
         unaudited = [info.manifest.provider for info in plugins if info.manifest.unaudited]
         return {"asset_class": subject["asset_class"], "refs": page.price_sources(subject, plugins, **lookups),
                 "named": named, "unaudited": unaudited, "reason": None}
 
     def _compose(self, subject_id: str) -> tuple[dict | None, str | None]:
-        path, subject, lookups, issue = self._load(subject_id)
-        if subject is None:
-            return None, issue
-        security = subject["ids"].get(Level.SECURITY)
-        view = subject["view"]
+        (path, subject, lookups, issue), plugins = self._load(subject_id), installed()
+        if subject is None:  # a saved instrument while no package is read: its stub, never another subject
+            return (None if issue == UNKNOWN_SUBJECT else stub.view(self.store, subject_id, plugins, issue)), issue
+        security, view = subject["ids"].get(Level.SECURITY), subject["view"]
         view["other_securities"] = []
         if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
             view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
         if subject["asset_class"] == "equity" and security and path:  # the instrument's lines, receipts folded in
-            directory = self.directory(path)
+            directory = self.directory(path, plugins)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
             view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
-        sections = page.compose(subject, installed(), **lookups)
+        sections = page.compose(subject, plugins, **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 
-    def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
+    def _load(self, subject_id: str, plugins: list | None = None) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
         reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
-        plugins = installed()  # their evidence counts at their levels (`device.merge`)
+        plugins = installed() if plugins is None else plugins  # their evidence counts at their levels (`device.merge`)
         aliases = declared.aliases(info.manifest for info in plugins) if ":provisional:" in subject_id else {}
         curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
         try:
             subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)
             subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store, plugins)
-            default = subject and not curated and self._default_listing(path, subject)
+            default = subject and not curated and self._default_listing(path, subject, plugins)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store, plugins)
             subject = subject or device.load(ref, self.store, subject_id, plugins)
@@ -259,9 +259,9 @@ class Identity:
                 ref.close()
         if subject is None:  # an instrument with no reference installed may yet be in one
             return path, None, {}, no_reference(self.data_dir) if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
-        return path, subject, self._lookups(subject), None
+        return path, subject, self._lookups(subject, plugins), None
 
-    def _lookups(self, subject: dict) -> dict:
+    def _lookups(self, subject: dict, plugins: list | None = None) -> dict:
         """The store lookups page composition reads for a subject: bindings, queue items and misses at each level."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
@@ -271,19 +271,19 @@ class Identity:
                 "queue": identity_store.open_queue(subject_ids),
                 "misses": {(target, plugin): reason for target in subject_ids
                            for plugin, reason in identity_store.misses(target).items()},
-                "order": self.order(), **read_checks.lookups(self, subject_ids)}
+                "order": self.order(plugins), **read_checks.lookups(self, subject_ids)}
 
-    def directory(self, path: Path) -> search.Directory:  # a fold a confirm-level plugin contests stays apart
-        return search.directory(path, store.open_reference, ingest_ops.contested(self.store))
+    def directory(self, path: Path | None, plugins: list | None = None) -> search.Directory:  # with what plugins add
+        return search_device.directory(path, self.store, installed() if plugins is None else plugins)
 
-    def _default_listing(self, path: Path, subject: dict) -> str | None:
+    def _default_listing(self, path: Path, subject: dict, plugins: list | None = None) -> str | None:
         """The line an equity security or issuer subject is priced through: the first of the instrument's own
         lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
         and market-data reads agree with the selector. None for a listing subject or anything else."""
         security = subject["ids"].get(Level.SECURITY)
         if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
             return None
-        own = [line for line in self.directory(path).instrument_listings(security) if not line["folded"]]
+        own = [line for line in self.directory(path, plugins).instrument_listings(security) if not line["folded"]]
         return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:

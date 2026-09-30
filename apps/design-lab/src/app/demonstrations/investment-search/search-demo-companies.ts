@@ -16,7 +16,7 @@ export type Company = {
 
 export function line(
   id: string,
-  ticker: string,
+  ticker: string | null,
   name: string,
   venue: string | null,
   fields: Partial<SearchRow> = {},
@@ -250,6 +250,22 @@ export const demoCompanies: readonly Company[] = [
     "Solana",
     "SOL",
   ),
+  // A lending pool a DeFi plugin introduced: its own group, no ticker, and
+  // the plugin's label on its row.
+  {
+    id: "market:provisional:defillama:pool:demo-navi-usdc",
+    name: "NAVI Lending USDC",
+    kind: "market",
+    rows: [
+      line(
+        "market:provisional:defillama:pool:demo-navi-usdc",
+        null,
+        "NAVI Lending USDC",
+        null,
+        { kind: "market", source: "DefiLlama" },
+      ),
+    ],
+  },
   {
     id: "index:demo:AEX",
     name: "AEX Index",

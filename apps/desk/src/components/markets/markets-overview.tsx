@@ -53,7 +53,9 @@ export function referenceNote(status: ReferenceStatus | null | undefined) {
     ? `The installed reference package ${status.installed.build_id} is not compatible with this Pythia`
     : status?.refused
       ? `A reference package was refused (${status.refused.message})`
-      : "Reference data is not installed on this device yet";
+      : status?.removed
+        ? "The reference package was removed from this device"
+        : "Reference data is not installed on this device yet";
   return `${cause}, so some subjects cannot be shown. ${install}`;
 }
 

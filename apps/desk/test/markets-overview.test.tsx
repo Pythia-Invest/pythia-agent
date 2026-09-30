@@ -99,6 +99,12 @@ describe("a subject that cannot be read", () => {
     expect(note).toMatch(/^Reference data is not installed on this device yet/);
     expect(note).toContain("just reference-install");
     expect(referenceNote(undefined)).toBeUndefined();
+    expect(
+      referenceNote({
+        installed: null,
+        removed: { current: "reference-20260926-b826" },
+      }),
+    ).toMatch(/^The reference package was removed from this device/);
     const installed = {
       build_id: "reference-20260926",
       as_of: "2026-09-26",

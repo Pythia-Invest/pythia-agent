@@ -46,11 +46,12 @@ def keep(store, ref: sqlite3.Connection | None, plugin: str, claim, start: str, 
     return "conflicts" if disputed else "joined", db.total_changes != before
 
 
-def contested(store, granted: Mapping[str, str]) -> frozenset[Edge]:
-    """The one-target relations confirm-level plugins state (`granted`: each plugin's level, `device.levels`): each
-    contests a package relation of its type from the same subject to another subject (`contests`)."""
+def contested(store, granted: Mapping[str, str], types: Iterable[str] = ONE_TARGET) -> frozenset[Edge]:
+    """The one-target relations of `types` confirm-level plugins state (`granted`: each plugin's level,
+    `device.levels`): each contests a package relation of its type from the same subject to another subject
+    (`contests`)."""
     rows = store.select("SELECT type, from_id, to_id, plugin FROM relations WHERE type IN (SELECT value FROM json_each(?))",
-                        (json.dumps(sorted(ONE_TARGET)),))
+                        (json.dumps(sorted(types)),))
     return frozenset((type, start, end) for type, start, end, plugin in rows if granted.get(plugin) == CONFIRM)
 
 
