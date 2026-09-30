@@ -118,60 +118,65 @@ class DeFiLlamaPluginTest(IngestTest):
 
 
 TOYOTA, TOYOTA_ISIN = "security:isin:JP3633400001", "JP3633400001"
-OPENFIGI_VENUES = {"JT": "XJPX", "GY": "XETR", "GF": "XFRA", "GI": "XHAN", "GM": "XMUN", "LN": "XLON", "SE": "XSWX"}
-
-
-def toyota_line(openfigi, figi, code, ticker=None, share_class="BBG000TYSCF0"):
-    """One line of OpenFIGI's answer for Toyota's ISIN, as its plugin's `mapping.claims` writes it (stage0-openfigi):
-    the FIGI as native reference, the ISIN as the line's own, no currency, and an operating MIC only where the
-    contract's `venue_codes` maps the exchange code."""
-    attributes = {"name": "TOYOTA MOTOR CORP", "ticker": ticker, "provider_venue": code,
-                  "operating_mic": OPENFIGI_VENUES.get(code), "asset_class": "equity"}
-    return record(openfigi, figi, ("figi", figi), ("isin", TOYOTA_ISIN), ("share_class_figi", share_class),
-                  **{key: value for key, value in attributes.items() if value})
 
 
 class OpenFigiTest(IngestTest):
-    """Roadmap stage 0's overlapping financial source (S7): OpenFIGI's lines for one ISIN carry FIGIs and exchange
-    codes, never a currency. Lines the build holds join, a line on an exchange it lacks is introduced under the
-    security, and a line that could only be a second one on an exchange stays unmatched."""
+    """Roadmap stage 0's overlapping financial source (S7): the OpenFIGI plugin's answer for one ISIN (its
+    `mapping.claims`, on synthetic mapping candidates) carries FIGIs and exchange codes, never a currency. Lines the
+    build holds join, a line on an exchange it lacks is introduced under the security, and a line that could only be a
+    second one on an exchange stays unmatched."""
 
     def setUp(self):
         super().setUp()
+        from test_openfigi_connector import mapping
+        from test_plugin_contracts import PLUGINS
+        self.mapping = mapping
         self.world = self.fresh(("toyota.json",))
-        self.openfigi = source("openfigi", introduces={"listing": ["figi"]}, resolve=("isin",))
+        self.openfigi = page.PluginInfo(key="pythia-openfigi", manifest=identity.validate_manifest(
+            json.loads((PLUGINS / "openfigi" / "contract.json").read_text())))
+        self.world.plugins = [self.openfigi]
+
+    def answer(self, *lines, world=None):
+        """What core does with the plugin's answer for Toyota's ISIN: each line (FIGI, exchange code, ticker,
+        share-class FIGI) as OpenFIGI's mapping gives a candidate."""
+        world = world or self.world
+        candidates = [{"figi": figi, "compositeFIGI": None, "shareClassFIGI": share_class, "ticker": ticker,
+                       "exchCode": code, "name": "TOYOTA MOTOR CORP", "securityType": "Common Stock",
+                       "securityType2": "Common Stock", "marketSector": "Equity", "securityDescription": ticker}
+                      for figi, code, ticker, share_class in ((*line, "BBG000TYSCF0")[:4] for line in lines)]
+        batch = self.mapping.claims(TOYOTA_ISIN, candidates, "2026-09-30T10:00:00Z", self.openfigi.manifest.venue_codes)
+        return ingest.ingest(world.identity, world.ref, self.openfigi, identity.batch_from_json(batch),
+                             plugins=world.plugins)
 
     def line(self, venue, currency="EUR"):
         return f"listing:isin:{TOYOTA_ISIN}:{venue}:{currency}"
 
     def test_the_german_lines_join_the_builds_the_ticker_less_frankfurt_line_by_its_exchange(self):
-        done = self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYTKY0", "JT", "7203"),
-                           toyota_line(self.openfigi, "BBG000TYXTR4", "GY", "TOM"),
-                           toyota_line(self.openfigi, "BBG000TYFRN2", "GF", "TOM"),
-                           toyota_line(self.openfigi, "BBG000TYHNV0", "GI", "TOM"),  # two Hanover lines: which?
-                           toyota_line(self.openfigi, "BBG000TYMNX2", "GM"),  # Munich's line has another FIGI
-                           toyota_line(self.openfigi, "BBG000TYHNX8", "XX"), scope=None)  # an unmapped exchange
-        placed = {native: self.placed(self.openfigi, native) for native in
-                  ("BBG000TYTKY0", "BBG000TYXTR4", "BBG000TYFRN2", "BBG000TYHNV0", "BBG000TYMNX2", "BBG000TYHNX8")}
-        self.assertEqual(placed, {"BBG000TYTKY0": (self.line("XJPX", "JPY"), "joined"),
-                                  "BBG000TYXTR4": (self.line("XETR"), "joined"),
-                                  "BBG000TYFRN2": (self.line("XFRA"), "joined"),
-                                  "BBG000TYHNV0": (None, "unmatched"), "BBG000TYMNX2": (None, "unmatched"),
-                                  "BBG000TYHNX8": (None, "unmatched")})
+        lines = {"BBG000TYTKY0": ("JT", "7203"), "BBG000TYXTR4": ("GY", "TOM"), "BBG000TYFRN2": ("GF", "TOM"),
+                 "BBG000TYHNV0": ("GI", "TOM"),  # two Hanover lines: which one?
+                 "BBG000TYMNX2": ("GM", None),  # Munich's line has another FIGI
+                 "BBG000TYHNX8": ("XX", None)}  # an exchange code the contract maps to no venue
+        done = self.answer(*((figi, code, ticker) for figi, (code, ticker) in lines.items()))
+        self.assertEqual({figi: self.placed(self.openfigi, figi) for figi in lines},
+                         {"BBG000TYTKY0": (self.line("XJPX", "JPY"), "joined"),
+                          "BBG000TYXTR4": (self.line("XETR"), "joined"), "BBG000TYFRN2": (self.line("XFRA"), "joined"),
+                          "BBG000TYHNV0": (None, "unmatched"), "BBG000TYMNX2": (None, "unmatched"),
+                          "BBG000TYHNX8": (None, "unmatched")})
         self.assertEqual(done["introduced"], 0)  # never a second line on an exchange, nor a line nowhere
         self.assertEqual(self.world.identity.select("SELECT id FROM subjects"), [])
         # The Frankfurt line FIRDS gave no ticker gains OpenFIGI's FIGI and ticker, so search can find it by them.
         frankfurt = self.world.subject(self.line("XFRA"))
         self.assertEqual((frankfurt["values"]["figi"], frankfurt["values"]["ticker_mic"]), ("BBG000TYFRN2", "TOM@XFRA"))
-        self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "openfigi")
+        self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "pythia-openfigi")
         self.assertNoQuestions()
 
     def test_a_line_on_an_exchange_the_build_lacks_sits_under_the_security_until_a_release_holds_it(self):
         london = "listing:figi:BBG000TYLND5"
-        self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYLND5", "LN", "TYT"), scope=None)
+        self.answer(("BBG000TYLND5", "LN", "TYT"))
         self.assertEqual(self.placed(self.openfigi, "BBG000TYLND5"), (london, "introduced"))
         self.assertEqual(device.subject_row(self.world.identity, london)["parent_id"], TOYOTA)
-        ref = identity.ProviderRef("openfigi", "BBG000TYLND5", "ref")
+        ref = identity.ProviderRef("openfigi", "BBG000TYLND5", "figi")
+        self.assertEqual(self.world.identity.bound_subject(ref), london)
         # A later release holds the London line under its own key and states its FIGI: the device ID aliases to it.
         path = self.world.release("with-london")
         held = self.line("XLON", "GBP")
@@ -191,13 +196,12 @@ class OpenFigiTest(IngestTest):
                  if line["mic"] == "XLON"]
         self.assertEqual(lines, [held])  # one row
         before = self.world.identity.db.total_changes  # the same answer again: placed on the held line, nothing new
-        again = self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYLND5", "LN", "TYT"), scope=None)
+        again = self.answer(("BBG000TYLND5", "LN", "TYT"))
         self.assertEqual((again["subjects"], self.world.identity.db.total_changes), ([held], before))
 
     def test_a_differing_share_class_figi_stays_an_unresolved_conflict(self):
         other = "BBG000TYSCX0"
-        self.ingest(self.openfigi, toyota_line(self.openfigi, "BBG000TYXTR4", "GY", "TOM", share_class=other),
-                    toyota_line(self.openfigi, "BBG000TYSWX6", "SE", "TOM", share_class=other), scope=None)
+        self.answer(("BBG000TYXTR4", "GY", "TOM", other), ("BBG000TYSWX6", "SE", "TOM", other))
         self.assertEqual(self.placed(self.openfigi, "BBG000TYXTR4"), (self.line("XETR"), "conflict"))
         self.assertEqual(self.world.subject(self.line("XETR"))["ids"][identity.Level.SECURITY], TOYOTA)
         # A new line whose security the evidence contests is introduced without one, never under Toyota.
