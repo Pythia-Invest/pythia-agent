@@ -1,9 +1,9 @@
 import type { PluginRequest, PluginTransport } from "@pythia/widget-sdk";
 import { expect, it } from "vitest";
-import type { SearchGroup } from "../src/search";
+import type { SearchGroup, SearchRow } from "../src/search";
 import { transportLookup } from "../src/search-ui/controller";
 
-const row = (id: string, ticker: string) => ({
+const row = (id: string, ticker: string): SearchRow => ({
   id,
   instrument: "security:isin:JP3633400001",
   ticker,
