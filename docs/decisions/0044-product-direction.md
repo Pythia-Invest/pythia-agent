@@ -373,7 +373,7 @@ central curator exists.
 - **Sources are read only when asked.** A catalogue is read from Settings →
   Data sources ("Sync now"), and one identifier is looked up from search's
   "Look up in X". There is no scheduler.
-- **Disabling a plugin is Hermes's command.** Settings → Data sources shows
+- **Disabling a plugin is Hermes's command.** Settings → Data → Data sources shows
   first which subjects only that plugin supplies and which saved watchlist and
   card entries name them.
 - **Trust follows a digest of each plugin's files, never its name.** Pythia's

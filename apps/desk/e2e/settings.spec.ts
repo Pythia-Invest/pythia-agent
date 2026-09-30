@@ -1,132 +1,91 @@
-import { expect, type Page, test } from "@playwright/test";
-import { fixture } from "./stream-fixture";
+import { expect, test } from "@playwright/test";
+import { checkedToday, providers, settingsFixture } from "./settings-fixture";
 
-async function section(page: Page, name: string) {
-  if ((page.viewportSize()?.width ?? 1280) < 640) {
-    await page.getByRole("combobox", { name: "Settings section" }).click();
-    await page.getByRole("option", { name, exact: true }).click();
-  } else await page.getByRole("tab", { name, exact: true }).click();
-}
-
-test("native model readiness and capability toggles use the existing API", async ({
+test("Hermes settings save on their own, sending only what changed", async ({
   page,
 }) => {
-  const state = await fixture(page);
-  const snapshot = {
-    model_auth: {
-      provider: "openai-codex",
-      status: "missing",
-      setup_command: "hermes auth login",
-    },
-    skills_status: "ready",
-    skills: [
-      {
-        name: "Synthetic skill",
-        enabled: false,
-        mutable: true,
-        kind: "other-hermes-skill",
-      },
-      {
-        name: "Required skill",
-        enabled: true,
-        mutable: false,
-        kind: "other-hermes-skill",
-      },
-    ],
-    workspace: { root: null, native_cwd: null, status: "unavailable" as const },
-    toolsets_status: "ready",
-    toolsets: [
-      {
-        name: "synthetic-tools",
-        label: "Synthetic tools",
-        enabled: false,
-        configured: true,
-        tools: [],
-      },
-    ],
-  };
+  await checkedToday(page);
+  const state = await settingsFixture(page);
+  await page.goto("/?settings=chat/behavior");
+  await page.getByRole("switch", { name: "Reasoning blocks" }).click();
+  await expect
+    .poll(() => state.writes.map((write) => write.body))
+    .toContainEqual({ values: { "display.show_reasoning": false } });
+  expect(state.writes.at(-1)).toMatchObject({
+    method: "PATCH",
+    path: "/api/hermes/config",
+  });
+  // A choice Hermes's schema calls a string gets Hermes Desktop's options.
+  await page.goto("/?settings=safety/approvals");
+  await page.getByRole("combobox", { name: "Approval mode" }).click();
+  await page.getByRole("option", { name: "Smart" }).click();
+  await expect
+    .poll(() => state.writes.map((write) => write.body))
+    .toContainEqual({ values: { "approvals.mode": "smart" } });
+  expect(state.unexpected).toEqual([]);
+});
+
+test("a credential saves in place and comes back only as a stand-in", async ({
+  page,
+}) => {
+  await checkedToday(page);
+  await settingsFixture(page);
+  const view = structuredClone(providers);
+  const key: ((typeof view.keys)[number] & { hint?: string }) | undefined =
+    view.keys[0];
+  if (!key) throw new Error("Missing synthetic provider key");
   const writes: unknown[] = [];
-  await page.route("**/api/settings**", async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (request.method() === "GET") return route.fulfill({ json: snapshot });
-    const body = request.postDataJSON();
-    writes.push({ path, body });
-    if (path.includes("/skills/")) {
-      const skill = snapshot.skills[0];
-      if (!skill) throw new Error("Missing synthetic skill");
-      skill.enabled = body.enabled;
-      return route.fulfill({ json: { skill } });
-    }
-    if (path.includes("/toolsets/")) {
-      const toolset = snapshot.toolsets[0];
-      if (!toolset) throw new Error("Missing synthetic toolset");
-      toolset.enabled = body.enabled;
-      return route.fulfill({ json: { toolset } });
-    }
-    return route.fulfill({ status: 404 });
-  });
-  // Settings counts open repairs: none.
-  await page.route("**/api/data/read", (route) =>
-    route.request().postDataJSON().operation === "identity-queue"
-      ? route.fulfill({
-          json: { schema_version: 1, outcome: "empty", data: { items: [] } },
-        })
-      : route.fallback(),
+  let reject = true;
+  await page.route("**/api/hermes/providers", (route) =>
+    route.fulfill({ json: view }),
   );
-  await page.route("**/api/update-status", (route) =>
-    route.fulfill({
-      json: {
-        status: "ready",
-        channel: "preview",
-        update_available: true,
-        target_version: "synthetic-next",
-      },
-    }),
-  );
-  await page.goto("/settings");
-  await section(page, "Models");
-  const modelSettings = page.getByRole("tabpanel", {
-    name: "Models",
-    exact: true,
+  await page.route("**/api/hermes/keys", (route) => {
+    const body = route.request().postDataJSON();
+    writes.push(body);
+    if (reject)
+      return route.fulfill({
+        status: 400,
+        json: { error: { message: "Synthetic credential rejected" } },
+      });
+    key.set = body.value !== null;
+    if (key.set) key.hint = "9a7c";
+    else delete key.hint;
+    return route.fulfill({ json: view });
   });
-  await expect(modelSettings).toContainText("Codex authentication");
-  await expect(modelSettings).toContainText("Not configured");
-  await expect(modelSettings).toContainText(snapshot.model_auth.setup_command);
-  await section(page, "Skills and tools");
+  await page.goto("/?settings=providers/keys");
+  const field = page.getByRole("textbox", { name: "Synthetic API key" });
+  await field.fill("synthetic-key-0000-9a7c");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synthetic credential rejected")).toBeVisible();
+  // A rejected value stays for correcting; nothing claims it saved.
+  await expect(field).toHaveValue("synthetic-key-0000-9a7c");
+  reject = false;
+  await page.getByRole("button", { name: "Save" }).click();
   await expect(
-    page.getByRole("switch", { name: "Required skill", exact: true }),
-  ).toBeDisabled();
-  await page
-    .getByRole("switch", { name: "Synthetic skill", exact: true })
-    .click();
-  await expect(
-    page.getByRole("switch", { name: "Synthetic skill", exact: true }),
-  ).toBeChecked();
-  await page
-    .getByRole("switch", { name: "Synthetic tools", exact: true })
-    .click();
-  await expect(
-    page.getByRole("switch", { name: "Synthetic tools", exact: true }),
-  ).toBeChecked();
-  expect(writes).toContainEqual({
-    path: "/api/settings/skills/Synthetic%20skill",
-    body: { enabled: true },
+    page.getByRole("textbox", { name: "Synthetic API key" }),
+  ).toHaveValue("•••• 9a7c");
+  expect(writes.at(-1)).toEqual({
+    key: "SYNTHETIC_API_KEY",
+    value: "synthetic-key-0000-9a7c",
   });
-  expect(writes).toContainEqual({
-    path: "/api/settings/toolsets/synthetic-tools",
-    body: { enabled: true },
-  });
-  await section(page, "Updates");
-  await expect(
-    page
-      .locator('[data-slot="settings-view"]')
-      .getByRole("tabpanel", { name: "Updates", exact: true }),
-  ).toContainText("synthetic-next");
-  await expect(
-    page
-      .locator('[data-slot="settings-view"]')
-      .getByRole("tabpanel", { name: "Updates", exact: true }),
-  ).toContainText("pythia update");
+  await page.getByRole("textbox", { name: "Synthetic API key" }).focus();
+  await page.getByRole("button", { name: "Remove Synthetic API key" }).click();
+  await expect
+    .poll(() => writes.at(-1))
+    .toEqual({ key: "SYNTHETIC_API_KEY", value: null });
+});
+
+test("provider accounts show Hermes sign-ins and the command for outside sign-in", async ({
+  page,
+}) => {
+  await checkedToday(page);
+  const state = await settingsFixture(page);
+  await page.goto("/?settings=providers/accounts");
+  const connected = page.getByRole("region", { name: "Connected" });
+  await expect(connected).toContainText("Synthetic Subscription");
+  await expect(connected).toContainText("Signed in via Synthetic Portal");
+  await page.getByRole("button", { name: /Show 1/ }).click();
+  // A provider that signs in outside Hermes shows its command to run.
+  await expect(page.getByText("synthetic login")).toBeVisible();
   expect(state.unexpected).toEqual([]);
 });

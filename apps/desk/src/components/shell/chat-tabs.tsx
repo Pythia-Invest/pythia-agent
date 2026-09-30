@@ -1,9 +1,10 @@
 "use client";
 
 import { cn, IconButton, Popover, Tab as UITab, TabsList } from "@pythia/ui";
-import { FileText, MessageCircle, SquarePen, X } from "lucide-react";
+import { FileText, SquarePen, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { layOutTabs } from "./tabs-model";
+import { ChatIndicator } from "./chat-indicator";
 
 export interface ChatTab {
   id: string;
@@ -18,29 +19,34 @@ export interface ChatTabsProps {
   activeId: string | null;
   onClose: (tabId: string) => void;
   onSelect: (tabId: string) => void;
-  /**
-   * Chats with a run in flight, shown as a pulsing signal dot in place of the
-   * chat glyph. The desk has no index of active runs yet, so the shell passes
-   * nothing and every tab reads as idle; the slot is here because that is the
-   * point of the strip — seeing that a chat you are not looking at is working.
-   */
+  /** Sessions with runs observed by the retained browser chat owner. */
   runningIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
   tabs: readonly ChatTab[];
 }
 
-/** The chat glyph, or a pulsing dot while that chat has a run in flight. */
-function TabStatus({ running }: { running: boolean }) {
-  if (running) {
+/** A saved chat's working/unread state, or the pen of an unsent draft. */
+function ChatTabIcon({
+  tab,
+  runningIds,
+  unreadIds,
+}: {
+  tab: ChatTab;
+  runningIds?: ReadonlySet<string> | undefined;
+  unreadIds?: ReadonlySet<string> | undefined;
+}) {
+  if (!tab.sessionId)
     return (
-      <span className="grid size-3.5 flex-none place-items-center">
-        <span className="size-1.5 animate-pulse rounded-pill bg-signal" />
-      </span>
+      <SquarePen
+        aria-hidden="true"
+        className="size-3.5 shrink-0 text-foreground-secondary"
+      />
     );
-  }
   return (
-    <MessageCircle
-      aria-hidden="true"
-      className="size-3.5 flex-none stroke-[1.6] text-foreground-secondary"
+    <ChatIndicator
+      working={runningIds?.has(tab.sessionId) ?? false}
+      unread={unreadIds?.has(tab.sessionId) ?? false}
+      idleIcon
     />
   );
 }
@@ -49,14 +55,14 @@ function Tab({
   active,
   className,
   onClose,
-  running,
+  icon,
   tab,
   kind,
 }: {
   active: boolean;
   className: string;
   onClose: () => void;
-  running: boolean;
+  icon: ReactNode;
   tab: ChatTab;
   kind: "chat" | "file";
 }) {
@@ -99,13 +105,8 @@ function Tab({
               aria-hidden="true"
               className="size-3.5 shrink-0 text-foreground-secondary"
             />
-          ) : tab.sessionId ? (
-            <TabStatus running={running} />
           ) : (
-            <SquarePen
-              aria-hidden="true"
-              className="size-3.5 shrink-0 text-foreground-secondary"
-            />
+            icon
           ))}
         <span
           className={cn(
@@ -142,7 +143,7 @@ function Tab({
 }
 
 /**
- * The docked panel's open chats, as a tab strip.
+ * The docked panel's open chats, as a tab strip; on a phone, the current title.
  *
  * Tabs share a capped width and shrink together, independently of selection
  * or title length. Chats beyond the readable minimum go into the overflow menu.
@@ -153,6 +154,7 @@ export function ChatTabs({
   onClose,
   onSelect,
   runningIds,
+  unreadIds,
   tabs,
 }: ChatTabsProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -176,96 +178,112 @@ export function ChatTabs({
     hiddenIds.length ? "max-w-24" : "max-w-50",
   );
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));
-  const running = (id: string) => runningIds?.has(id) ?? false;
+  const icon = (tab: ChatTab) => (
+    <ChatTabIcon runningIds={runningIds} tab={tab} unreadIds={unreadIds} />
+  );
 
+  // A phone has no room for a strip at a size a finger can hit, so its header
+  // names the current chat, as a mobile app bar does; the history sheet
+  // switches between chats. Both render, and the breakpoint picks one, so the
+  // first paint is right before any script runs.
+  const current = tabs.find((tab) => tab.id === activeId)?.title ?? "";
   return (
-    <TabsList
-      activateOnFocus
-      aria-label={kind === "file" ? "Open files" : "Open chats"}
-      className="flex min-w-0 flex-1 items-stretch gap-0 overflow-hidden border-0"
-      ref={listRef}
-    >
-      {visibleIds.map((id) => {
-        const tab = byId.get(id);
-        if (!tab) return null;
-        const active = id === activeId;
-        return (
-          <Tab
-            active={active}
-            kind={kind}
-            className={tabClassName}
-            key={id}
-            onClose={() => onClose(id)}
-            running={running(id)}
-            tab={tab}
-          />
-        );
-      })}
-      {hiddenIds.length ? (
-        <Popover.Root open={overflowOpen} onOpenChange={setOverflowOpen}>
-          <Popover.Trigger
-            aria-label={`${hiddenIds.length} more open ${kind}${hiddenIds.length === 1 ? "" : "s"}`}
-            className="motion-fast flex h-full w-11 flex-none cursor-pointer items-center justify-center border-0 border-border border-r bg-transparent font-medium text-foreground-secondary text-xs tabular-nums transition-colors hover:bg-interaction-hover hover:text-foreground data-[popup-open]:bg-interaction-active data-[popup-open]:text-foreground"
-          >
-            +{hiddenIds.length}
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Positioner align="start" side="bottom">
-              <Popover.Popup className="w-70 p-1.5">
-                <p className="m-0 px-2 py-1.5 text-foreground-disabled text-xs">
-                  Open {kind === "file" ? "files" : "chats"} not shown
-                </p>
-                {hiddenIds.map((id) => {
-                  const tab = byId.get(id);
-                  if (!tab) return null;
-                  return (
-                    <div
-                      className="group relative flex min-h-7.5 min-w-0 items-center gap-2 rounded-md pr-7 pl-2 hover:bg-interaction-hover"
-                      key={id}
-                    >
-                      {tab.icon ??
-                        (kind === "file" ? (
-                          <FileText
-                            aria-hidden="true"
-                            className="size-3.5 shrink-0 text-foreground-secondary"
-                          />
-                        ) : (
-                          <TabStatus running={running(id)} />
-                        ))}
-                      <button
-                        title={tab.description ?? tab.title}
-                        className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent py-1 text-start text-body text-foreground"
-                        onClick={() => {
-                          setOverflowOpen(false);
-                          onSelect(id);
-                        }}
-                        type="button"
+    <>
+      {current ? (
+        <h2 className="m-0 min-w-0 flex-1 self-center truncate px-4 font-medium text-body text-foreground min-[900px]:hidden">
+          {current}
+        </h2>
+      ) : (
+        <span className="flex-1 min-[900px]:hidden" />
+      )}
+      <TabsList
+        activateOnFocus
+        aria-label={kind === "file" ? "Open files" : "Open chats"}
+        className="flex min-w-0 flex-1 items-stretch gap-0 overflow-hidden border-0 max-[899px]:hidden"
+        ref={listRef}
+      >
+        {visibleIds.map((id) => {
+          const tab = byId.get(id);
+          if (!tab) return null;
+          const active = id === activeId;
+          return (
+            <Tab
+              active={active}
+              kind={kind}
+              className={tabClassName}
+              key={id}
+              onClose={() => onClose(id)}
+              icon={icon(tab)}
+              tab={tab}
+            />
+          );
+        })}
+        {hiddenIds.length ? (
+          <Popover.Root open={overflowOpen} onOpenChange={setOverflowOpen}>
+            <Popover.Trigger
+              aria-label={`${hiddenIds.length} more open ${kind}${hiddenIds.length === 1 ? "" : "s"}`}
+              className="motion-fast flex h-full w-11 flex-none cursor-pointer items-center justify-center border-0 border-border border-r bg-transparent font-medium text-foreground-secondary text-xs tabular-nums transition-colors hover:bg-interaction-hover hover:text-foreground data-[popup-open]:bg-interaction-active data-[popup-open]:text-foreground"
+            >
+              +{hiddenIds.length}
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Positioner align="start" side="bottom">
+                <Popover.Popup className="w-70 p-1.5">
+                  <p className="m-0 px-2 py-1.5 text-foreground-disabled text-xs">
+                    Open {kind === "file" ? "files" : "chats"} not shown
+                  </p>
+                  {hiddenIds.map((id) => {
+                    const tab = byId.get(id);
+                    if (!tab) return null;
+                    return (
+                      <div
+                        className="group relative flex min-h-7.5 min-w-0 items-center gap-2 rounded-md pr-7 pl-2 hover:bg-interaction-hover"
+                        key={id}
                       >
-                        {tab.title}
-                        {tab.description ? (
-                          <span className="block truncate text-foreground-secondary text-xs">
-                            {tab.description}
-                          </span>
-                        ) : null}
-                      </button>
-                      <span className="absolute inset-y-0 right-1 flex items-center">
-                        <IconButton
-                          className="motion-fast size-5 rounded-sm text-foreground-secondary opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-                          label={`Close ${tab.title}`}
-                          onClick={() => onClose(id)}
-                          size="sm"
+                        {tab.icon ??
+                          (kind === "file" ? (
+                            <FileText
+                              aria-hidden="true"
+                              className="size-3.5 shrink-0 text-foreground-secondary"
+                            />
+                          ) : (
+                            icon(tab)
+                          ))}
+                        <button
+                          title={tab.description ?? tab.title}
+                          className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent py-1 text-start text-body text-foreground"
+                          onClick={() => {
+                            setOverflowOpen(false);
+                            onSelect(id);
+                          }}
+                          type="button"
                         >
-                          <X aria-hidden="true" className="stroke-[1.6]" />
-                        </IconButton>
-                      </span>
-                    </div>
-                  );
-                })}
-              </Popover.Popup>
-            </Popover.Positioner>
-          </Popover.Portal>
-        </Popover.Root>
-      ) : null}
-    </TabsList>
+                          {tab.title}
+                          {tab.description ? (
+                            <span className="block truncate text-foreground-secondary text-xs">
+                              {tab.description}
+                            </span>
+                          ) : null}
+                        </button>
+                        <span className="absolute inset-y-0 right-1 flex items-center">
+                          <IconButton
+                            className="motion-fast size-5 rounded-sm text-foreground-secondary opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                            label={`Close ${tab.title}`}
+                            onClick={() => onClose(id)}
+                            size="sm"
+                          >
+                            <X aria-hidden="true" className="stroke-[1.6]" />
+                          </IconButton>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+        ) : null}
+      </TabsList>
+    </>
   );
 }

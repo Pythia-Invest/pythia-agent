@@ -46,7 +46,40 @@
   src: url("./assets/IBMPlexSans-Bold.woff2") format("woff2");
 }
 
-/* Reading face for conversation text only; interface chrome stays Plex. */
+/* Pythia's editorial serif, as on pythiainvest.com: the reading face for Pythia's answers (ADR 0022). */
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/IBMPlexSerif-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/IBMPlexSerif-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/IBMPlexSerif-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Serif";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/IBMPlexSerif-Bold.woff2") format("woff2");
+}
+
+/* The previous reading face, kept for the Design Lab typography comparison. */
 @font-face {
   font-family: Inter;
   font-style: normal;
@@ -95,6 +128,7 @@
   --py-color-amber-tint: #fef1d4;
   --py-color-warm-white: #fdfdfd;
   --py-color-neutral-100: #eef0f2;
+  --py-color-neutral-200: #e2e5e9;
   --py-color-neutral-300: #c5cbd3;
   --py-color-neutral-500: #687383;
   --py-color-neutral-600: #4d5868;
@@ -104,6 +138,7 @@
   --py-color-slate-500: #707c8c;
   --py-color-slate-600: #5c6370;
   --py-color-slate-650: #495362;
+  --py-color-slate-700: #323a45;
   --py-color-slate-775: #252c35;
   --py-color-blue-50: #e8f2fc;
   --py-color-blue-300: #a9d3f7;
@@ -185,7 +220,7 @@
   /* Semantic meanings shared by both profiles. */
   --py-font-body: var(--py-font-family);
   --py-font-numeric: var(--py-font-family);
-  --py-font-reading: Inter, "Helvetica Neue", Arial, sans-serif;
+  --py-font-reading: "IBM Plex Serif", Georgia, serif;
   --py-radius-interactive: var(--py-radius-control);
   --py-radius-group: var(--py-radius-container);
   --py-action-primary-background: var(--py-color-oracle-ink);
@@ -199,6 +234,9 @@
 [data-theme="light"] {
   color-scheme: light;
   --py-surface-canvas: var(--py-color-product-surface);
+  --py-surface-scrim: #000;
+  --py-shadow-popup: 0 2px 8px -2px rgb(0 0 0 / 16%);
+  --py-shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 22%);
   --py-surface-raised: var(--py-color-warm-white);
   --py-surface-subtle: var(--py-color-neutral-100);
   --py-surface-overlay: var(--py-color-warm-white);
@@ -256,6 +294,9 @@
 [data-theme="dark"] {
   color-scheme: dark;
   --py-surface-canvas: var(--py-color-oracle-ink);
+  --py-surface-scrim: #000;
+  --py-shadow-popup: 0 2px 8px -2px rgb(0 0 0 / 32%);
+  --py-shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 40%);
   --py-surface-raised: var(--py-color-neutral-900);
   --py-surface-subtle: var(--py-color-neutral-800);
   --py-surface-overlay: var(--py-color-slate-775);
@@ -360,6 +401,7 @@
   --color-raised: var(--py-surface-raised);
   --color-subtle: var(--py-surface-subtle);
   --color-overlay: var(--py-surface-overlay);
+  --color-scrim: var(--py-surface-scrim);
   --color-container: var(--py-profile-container-surface);
   --color-atmosphere: var(--py-profile-atmosphere);
 
@@ -439,19 +481,68 @@
   --leading-reading: var(--py-line-height-reading);
 
   /* Elevation, only for genuinely floating surfaces. */
-  --shadow-popup: 0 0.5rem 1.25rem
-    color-mix(in srgb, var(--py-text-primary) 12%, transparent);
-  --shadow-overlay: 0 1rem 3rem
-    color-mix(in srgb, var(--py-text-primary) 18%, transparent);
+  --shadow-popup: var(--py-shadow-popup);
+  --shadow-overlay: var(--py-shadow-overlay);
 
   /* Motion */
   --ease-standard: var(--py-motion-easing);
   --animate-spin-slow: spin 900ms linear infinite;
   --animate-shimmer: shimmer 1.5s var(--py-motion-easing) infinite;
+  /* A light sweep across live status text: work in progress, no duration claimed. */
+  --animate-text-shimmer: text-shimmer 2.4s linear infinite;
+  /* New content settles in rather than appearing; used with motion-safe. */
+  --animate-enter: enter 240ms var(--py-motion-easing) both;
+  /* Text that replaces text in place: a fade, no movement. */
+  --animate-fade: fade 220ms var(--py-motion-easing) both;
+  /* An icon that replaces another, such as send turning into stop. */
+  --animate-pop: pop 180ms var(--py-motion-easing) both;
+  /* The Pythia working dot: a slow breath rather than a blink. */
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
 
   @keyframes shimmer {
     to {
       transform: translateX(100%);
+    }
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.72);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes text-shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
     }
   }
 }
@@ -519,20 +610,21 @@
     outline: var(--py-focus-width) solid var(--py-focus-ring);
     outline-offset: 2px;
   }
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    :root {
-      --py-motion-fast: 0.01ms;
-      --py-motion-standard: 0.01ms;
-    }
+/* Outside every layer, so it outranks animate-* and transition utilities. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --py-motion-fast: 0.01ms;
+    --py-motion-standard: 0.01ms;
+  }
 
-    *,
-    *::before,
-    *::after {
-      scroll-behavior: auto;
-      animation-duration: 0.01ms;
-      animation-iteration-count: 1;
-      transition-duration: 0.01ms;
-    }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
   }
 }

@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { lei, page_, primary } from "./instrument-fixture";
+import { useSyntheticDesk } from "./synthetic-desk";
 
 /**
  * What a page-open lookup changes: core's answers are synthetic routes that
  * follow core's rules (a miss hands the section to the next source; a source
- * found joins the combined filings), against the running Desk.
+ * found joins the combined filings), against the synthetic Desk.
  */
+useSyntheticDesk();
 test("a lookup's outcome reshapes the page: a miss hands over, a found source joins the filings", async ({
   page,
 }) => {

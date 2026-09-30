@@ -2,15 +2,18 @@ import { existsSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { readJson } from "./files.mjs";
 import { identityMatches, signalOwned } from "./processes.mjs";
+import { secrets } from "./runtime-config.mjs";
 import { bootstrapRuntime } from "./runtime.mjs";
 import {
   acquirePreparationAdmission,
+  retireDeadReceipt,
   validateReceipt,
 } from "./supervisor-admission.mjs";
 import {
   deskReady,
   developmentServices,
   hermesReady,
+  hermesSettingsReady,
 } from "./supervisor-services.mjs";
 import { supervise } from "./supervisor-run.mjs";
 
@@ -40,10 +43,17 @@ export async function runDevelopment(paths, options = {}) {
     console.log(`Starting ${paths.id} (${paths.profile})`);
     console.log(`Desk:         http://127.0.0.1:${paths.ports.desk}`);
     console.log(`Hermes API:   http://127.0.0.1:${paths.ports.hermes}`);
-    const services = developmentServices(paths, environment);
+    console.log(`Settings:     http://127.0.0.1:${paths.ports.settings}`);
+    const services = developmentServices(
+      paths,
+      environment,
+      secrets(paths).hermes_settings_token,
+    );
     for (const service of services) {
       if (service.name === "hermes")
         service.ready = (child) => hermesReady(paths, child);
+      if (service.name === "hermes-settings")
+        service.ready = (child) => hermesSettingsReady(paths, child);
       if (service.name === "desk")
         service.ready = (child) => deskReady(paths, child);
     }
@@ -76,7 +86,11 @@ export function stackStatus(paths) {
     hermes_restarting: receipt.hermes_restarting,
     runtime_generation: receipt.runtime_generation,
     runtime_refreshing: receipt.runtime_refreshing,
-    ports: { hermes: paths.ports.hermes, desk: paths.ports.desk },
+    ports: {
+      hermes: paths.ports.hermes,
+      settings: paths.ports.settings,
+      desk: paths.ports.desk,
+    },
     services: receipt.children.map((child) => ({
       name: child.name,
       status: identityMatches(child) ? "running" : "stale",
@@ -89,6 +103,8 @@ export async function stopStack(paths) {
   if (!existsSync(paths.receipt)) {
     return { stopped: false, reason: "already-stopped" };
   }
+  const retired = retireDeadReceipt(paths);
+  if (retired) return { stopped: false, reason: "already-exited", retired };
   const receipt = validateReceipt(paths, readJson(paths.receipt));
   await signalOwned(receipt.supervisor, "SIGTERM");
   const deadline = Date.now() + 15_000;
@@ -104,6 +120,7 @@ export async function stopStack(paths) {
 }
 
 export function resetDerivedDevelopmentState(paths) {
+  retireDeadReceipt(paths);
   if (existsSync(paths.receipt)) {
     const receipt = validateReceipt(paths, readJson(paths.receipt));
     const state = identityMatches(receipt.supervisor) ? "running" : "stale";

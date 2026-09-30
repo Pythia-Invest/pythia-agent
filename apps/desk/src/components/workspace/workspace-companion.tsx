@@ -2,6 +2,7 @@
 
 import {
   Drawer,
+  IconButton,
   Tabs,
   TabPanel,
   ResizableGroup,
@@ -9,8 +10,9 @@ import {
   ResizableSeparator,
 } from "@pythia/ui";
 import { ChatTabs } from "@/components/shell/chat-tabs";
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useWideShell } from "@/components/shell/shell-dock";
+import { PHONE_SHEET, useWideShell } from "@/components/shell/shell-dock";
 import { useWorkspaceReader } from "./reader-context";
 import { WorkspaceFileIcon } from "./workspace-file-icon";
 import { WorkspaceReader } from "./workspace-reader";
@@ -54,6 +56,19 @@ export function WorkspaceCompanion({ children }: { children: ReactNode }) {
               title: file.path.split("/").at(-1) || "Workspace",
             }))}
           />
+          {/* A phone shows the viewer full screen, with no page beside it to
+              tap away to, so it carries its own way out. */}
+          {wide ? null : (
+            <div className="flex flex-none items-center px-1">
+              <IconButton
+                label="Close file viewer"
+                onClick={() => reader?.close()}
+                size="sm"
+              >
+                <X className="stroke-[1.6]" />
+              </IconButton>
+            </div>
+          )}
         </header>
         <TabPanel
           key={reader.artifact.path}
@@ -86,7 +101,7 @@ export function WorkspaceCompanion({ children }: { children: ReactNode }) {
               <Drawer.Viewport>
                 <Drawer.Popup
                   aria-label="Workspace artifact"
-                  className="border-0"
+                  className={PHONE_SHEET}
                 >
                   <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
                     {panel}

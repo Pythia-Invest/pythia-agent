@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 import { referenceStatusSchema } from "@/client/reference-status";
-import { ReferenceSettings } from "@/components/shell/settings-controls";
+import { ReferenceSettings } from "@/components/settings/reference";
 
 const state = vi.hoisted(() => ({ body: null as unknown }));
 vi.mock("@/client/reference-status", async (original) => {

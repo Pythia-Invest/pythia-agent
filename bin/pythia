@@ -39,7 +39,7 @@ checkout=$(
 
 command=${1:-help}
 case "$command" in
-  check-update|status|doctor|paths|auth-status|help)
+  check-update|update-status|start-update|status|doctor|paths|auth-status|help)
     exec env PYTHIA_CHECKOUT="$checkout" "$node" "$checkout/scripts/install/cli.mjs" "$@"
     ;;
 esac

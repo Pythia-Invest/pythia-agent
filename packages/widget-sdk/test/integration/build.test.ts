@@ -123,9 +123,6 @@ test("builds an inert module that receives the actual host React, context, and U
   expect(artifact.css).toContain(artifact.metadata.scope);
   expect(await readdir(join(directory, "widgets"))).toEqual(["research.mjs"]);
   delete globals.widgetFactoryRuns;
-  console.info(
-    `Representative widget: ${result.bytes} bytes, ${result.durationMs} ms`,
-  );
 }, 20_000);
 
 test("a failed build leaves an existing artifact and source intact", async () => {
@@ -216,12 +213,18 @@ test("unsupported host imports and missing SDK exports fail before replacing a m
   const entry = join(directory, "widget.tsx");
   const output = join(directory, "widget.mjs");
   await writeFile(output, "Prior widget");
-  for (const source of [
-    'import { createRoot } from "react-dom/client"; export default createRoot;',
-    'import { FutureComponent } from "@pythia/widget-sdk"; export default FutureComponent;',
-  ]) {
+  for (const [source, failure] of [
+    [
+      'import { createRoot } from "react-dom/client"; export default createRoot;',
+      /Unsupported shared import react-dom\/client/,
+    ],
+    [
+      'import { FutureComponent } from "@pythia/widget-sdk"; export default FutureComponent;',
+      /FutureComponent/,
+    ],
+  ] as const) {
     await writeFile(entry, source);
-    await expect(buildWidget(entry, output)).rejects.toThrow();
+    await expect(buildWidget(entry, output)).rejects.toThrow(failure);
     expect(await readFile(output, "utf8")).toBe("Prior widget");
   }
 });

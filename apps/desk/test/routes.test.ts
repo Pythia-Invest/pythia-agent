@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { browserAdmissionNames } from "@/server/admission";
 import { createDeskRoutes } from "@/server/routes";
 import { HermesApiError } from "@/server/hermes";
 import type { DeviceSettingsService } from "@/server/device-settings";
@@ -15,6 +14,7 @@ function fakeClient() {
       providers: [],
     })),
     listSessions: vi.fn(async () => []),
+    getSession: vi.fn(async (id: string) => ({ id })),
     createSession: vi.fn(async (title?: string) => ({
       id: "s-1",
       title: title ?? null,
@@ -97,6 +97,10 @@ function fakeSettings() {
 
 function fakeReleases() {
   return {
+    start: vi.fn(async (expected: { target: string }) => ({
+      started: true as const,
+      target_revision: expected.target,
+    })),
     snapshot: vi.fn(async () => ({
       status: "ready" as const,
       channel: "stable" as const,
@@ -125,16 +129,40 @@ function mutation(
     body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
-      cookie: `${browserAdmissionNames.sessionCookie}=${token}`,
+      cookie: `pythia_desk_session=${token}`,
       host: "127.0.0.1:43121",
       origin,
-      [browserAdmissionNames.csrfHeader]: token,
+      "x-pythia-csrf": token,
     },
     method,
   });
 }
 
 describe("Desk routes", () => {
+  it("projects native work for an admitted session read", async () => {
+    const accepted = await createDeskRoutes(fakeClient()).work(
+      readRequest("/api/sessions/s-1/work"),
+      { params: Promise.resolve({ sessionId: "s-1" }) },
+    );
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toMatchObject({
+      plans: [],
+      agents: [],
+      offset: 0,
+    });
+  });
+  it("lets Hermes own automatic naming when no title is supplied", async () => {
+    const client = fakeClient();
+    const response = await createDeskRoutes(client).createSession(
+      mutation("/api/sessions", {}),
+    );
+    expect(response.status).toBe(201);
+    expect(client.createSession).toHaveBeenCalledExactlyOnceWith(undefined);
+    expect(await response.json()).toEqual({
+      session: { id: "s-1", title: null },
+    });
+  });
+
   it("retries a rejected suggested title once without a title", async () => {
     const client = fakeClient();
     client.createSession.mockRejectedValueOnce(
@@ -171,18 +199,10 @@ describe("Desk routes", () => {
     ).toBe(400);
     expect(client.createSession).toHaveBeenCalledTimes(2);
   });
-  it("admits catalog reads and validates selections before starting a run", async () => {
+  it("refreshes the catalog on request and validates selections before starting a run", async () => {
     const client = fakeClient();
     const settings = fakeSettings();
     const routes = createDeskRoutes(client, settings);
-    expect(
-      (
-        await routes.modelOptions(
-          readRequest("/api/models", { origin: "null" }),
-        )
-      ).status,
-    ).toBe(403);
-    expect(client.modelOptions).not.toHaveBeenCalled();
     expect((await routes.modelOptions(readRequest("/api/models"))).status).toBe(
       200,
     );
@@ -226,33 +246,6 @@ describe("Desk routes", () => {
     ).toBe(400);
     expect(client.startRun).not.toHaveBeenCalled();
   });
-  it("rejects hostile reads before the adapter", async () => {
-    const client = fakeClient();
-    const routes = createDeskRoutes(client);
-    const response = await routes.listSessions(
-      readRequest("/api/sessions", { origin: "null" }),
-    );
-    expect(response.status).toBe(403);
-    expect(client.listSessions).not.toHaveBeenCalled();
-  });
-
-  it("rejects missing CSRF before parsing state or calling the adapter", async () => {
-    const client = fakeClient();
-    const routes = createDeskRoutes(client);
-    const request = new Request(`${origin}/api/sessions`, {
-      body: JSON.stringify({ title: "Never read" }),
-      headers: {
-        "content-type": "application/json",
-        host: "127.0.0.1:43121",
-        origin,
-      },
-      method: "POST",
-    });
-    const response = await routes.createSession(request);
-    expect(response.status).toBe(403);
-    expect(client.createSession).not.toHaveBeenCalled();
-  });
-
   it("uses native session rename, approval, steering, and cancellation calls", async () => {
     const client = fakeClient();
     const routes = createDeskRoutes(client);
@@ -306,94 +299,35 @@ describe("Desk routes", () => {
     expect(text).not.toContain("stream.disconnected");
   });
 
-  it("reports a non-terminal upstream close without claiming cancellation", async () => {
-    const client = fakeClient();
-    (client as HermesClient).streamRun = async function* () {
-      yield { event: "tool.started", run_id: "r-1" };
-    };
-    const routes = createDeskRoutes(client);
-    const response = await routes.streamRun(
-      readRequest("/api/runs/r-1/events"),
-      { params: Promise.resolve({ runId: "r-1" }) },
-    );
-    const text = await response.text();
-    expect(text).toContain("stream.disconnected");
-    expect(text).not.toContain("run.cancelled");
-  });
-
-  it("reports an unavailable native event queue as a connection problem", async () => {
-    const client = fakeClient();
-    (client as HermesClient).streamRun = async function* () {
-      yield await Promise.reject(new Error("Event queue unavailable"));
-    };
-    const response = await createDeskRoutes(client).streamRun(
-      readRequest("/api/runs/r-1/events"),
-      { params: Promise.resolve({ runId: "r-1" }) },
-    );
-    const text = await response.text();
-    expect(text).toContain('"event":"stream.disconnected"');
-    expect(text).not.toContain('"event":"run.failed"');
-  });
-
   it.each([
-    ["foreign Origin", { origin: "https://attacker.example" }],
-    ["opaque Origin", { origin: "null" }],
-    ["hostile Host", { host: "attacker.example:43121" }],
-    ["cross-site metadata", { "sec-fetch-site": "cross-site", origin: "" }],
+    [
+      "a non-terminal upstream close",
+      async function* () {
+        yield { event: "tool.started" as const, run_id: "r-1" };
+      },
+    ],
+    [
+      "an unavailable native event queue",
+      async function* () {
+        yield await Promise.reject(new Error("Event queue unavailable"));
+      },
+    ],
   ])(
-    "rejects settings reads from %s before any device action",
-    async (_label, headers) => {
-      const settings = fakeSettings();
-      const routes = createDeskRoutes(fakeClient(), settings);
-      const response = await routes.settingsSnapshot(
-        readRequest("/api/settings", headers),
+    "reports %s as a disconnect, not a run outcome",
+    async (_label, streamRun) => {
+      const client: HermesClient = { ...fakeClient(), streamRun };
+      const response = await createDeskRoutes(client).streamRun(
+        readRequest("/api/runs/r-1/events"),
+        { params: Promise.resolve({ runId: "r-1" }) },
       );
-      expect(response.status).toBe(403);
-      expect(settings.snapshot).not.toHaveBeenCalled();
+      const text = await response.text();
+      expect(text).toContain('"event":"stream.disconnected"');
+      expect(text).not.toContain('"event":"run.cancelled"');
+      expect(text).not.toContain('"event":"run.failed"');
     },
   );
 
-  it("rejects settings mutations before body, state, or native command action", async () => {
-    const settings = fakeSettings();
-    const routes = createDeskRoutes(fakeClient(), settings);
-    const request = new Request(`${origin}/api/settings/toolsets/example`, {
-      body: JSON.stringify({ enabled: false }),
-      headers: {
-        "content-type": "application/json",
-        host: "127.0.0.1:43121",
-        origin,
-      },
-      method: "POST",
-    });
-    expect(
-      (
-        await routes.setToolsetEnabled(request, {
-          params: new Promise(() => undefined),
-        })
-      ).status,
-    ).toBe(403);
-    expect(settings.setToolsetEnabled).not.toHaveBeenCalled();
-
-    const hostileSkill = new Request(`${origin}/api/settings/skills/secret`, {
-      body: JSON.stringify({ enabled: false }),
-      headers: {
-        "content-type": "application/json",
-        host: "attacker.example:43121",
-        origin: "https://attacker.example",
-      },
-      method: "POST",
-    });
-    expect(
-      (
-        await routes.setSkillEnabled(hostileSkill, {
-          params: new Promise(() => undefined),
-        })
-      ).status,
-    ).toBe(403);
-    expect(settings.setSkillEnabled).not.toHaveBeenCalled();
-  });
-
-  it("admits read-only update status and rejects hostile callers first", async () => {
+  it("reads update status locally unless a remote check is requested", async () => {
     const releases = fakeReleases();
     const routes = createDeskRoutes(fakeClient(), fakeSettings(), releases);
     const accepted = await routes.updateStatus(
@@ -404,14 +338,23 @@ describe("Desk routes", () => {
       channel: "stable",
       update_available: true,
     });
-    const rejected = await routes.updateStatus(
-      readRequest("/api/update-status", { host: "attacker.example" }),
-    );
-    expect(rejected.status).toBe(403);
-    expect(releases.snapshot).toHaveBeenCalledTimes(1);
+    expect(releases.snapshot).toHaveBeenCalledExactlyOnceWith(false);
+    await routes.updateStatus(readRequest("/api/update-status?check=1"));
+    expect(releases.snapshot).toHaveBeenLastCalledWith(true);
   });
 
-  it("returns confirmed native capability state after an admitted settings change", async () => {
+  it("hands an admitted update to the lifecycle", async () => {
+    const releases = fakeReleases();
+    const routes = createDeskRoutes(fakeClient(), fakeSettings(), releases);
+    const expected = { current: "a".repeat(40), target: "b".repeat(40) };
+    const accepted = await routes.startUpdate(
+      mutation("/api/update-status", expected),
+    );
+    expect(accepted.status).toBe(202);
+    expect(releases.start).toHaveBeenCalledWith(expected);
+  });
+
+  it("wraps the service result for an admitted toolset change", async () => {
     const settings = fakeSettings();
     const routes = createDeskRoutes(fakeClient(), settings);
     const response = await routes.setToolsetEnabled(
@@ -428,4 +371,68 @@ describe("Desk routes", () => {
     });
     expect(settings.setToolsetEnabled).toHaveBeenCalledWith("example", true);
   });
+
+  it.each([
+    ["read", "work", "/api/sessions/s-1/work", "client.listMessages"],
+    ["read", "modelOptions", "/api/models", "client.modelOptions"],
+    ["read", "listSessions", "/api/sessions", "client.listSessions"],
+    ["read", "settingsSnapshot", "/api/settings", "settings.snapshot"],
+    ["read", "updateStatus", "/api/update-status", "releases.snapshot"],
+    ["mutation", "createSession", "/api/sessions", "client.createSession"],
+    [
+      "mutation",
+      "setToolsetEnabled",
+      "/api/settings/toolsets/x",
+      "settings.setToolsetEnabled",
+    ],
+    [
+      "mutation",
+      "setSkillEnabled",
+      "/api/settings/skills/x",
+      "settings.setSkillEnabled",
+    ],
+    ["mutation", "startUpdate", "/api/update-status", "releases.start"],
+  ] as const)(
+    "admits a %s through %s before its service",
+    async (kind, route, path, service) => {
+      const services = {
+        client: fakeClient(),
+        settings: fakeSettings(),
+        releases: fakeReleases(),
+      };
+      const routes = createDeskRoutes(
+        services.client,
+        services.settings,
+        services.releases,
+      );
+      // A foreign read, or a same-origin mutation without its CSRF token.
+      const request =
+        kind === "read"
+          ? readRequest(path, { origin: "https://attacker.example" })
+          : new Request(`${origin}${path}`, {
+              body: JSON.stringify({ enabled: false, title: "Never read" }),
+              headers: {
+                "content-type": "application/json",
+                host: "127.0.0.1:43121",
+                origin,
+              },
+              method: "POST",
+            });
+      const handler = routes[route] as (
+        request: Request,
+        context: unknown,
+      ) => Promise<Response>;
+      const response = await handler(request, {
+        params: Promise.resolve({ sessionId: "s-1", name: "x" }),
+      });
+      expect(response.status).toBe(403);
+      const [owner, method] = service.split(".") as [
+        keyof typeof services,
+        string,
+      ];
+      expect(
+        (services[owner] as Record<string, unknown>)[method],
+      ).not.toHaveBeenCalled();
+    },
+  );
 });

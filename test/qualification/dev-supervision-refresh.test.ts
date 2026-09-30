@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -11,7 +11,7 @@ import type { Server } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readJson } from "../../scripts/dev/files.mjs";
+import { atomicWriteJson, readJson } from "../../scripts/dev/files.mjs";
 import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import {
   assertPortsFree,
@@ -75,10 +75,39 @@ async function startFixture(root: string, extra: Record<string, string> = {}) {
   const child = spawn(
     process.execPath,
     [join(repositoryRoot, "scripts/dev/test/fixture-supervisor.mjs")],
-    { cwd: repositoryRoot, env, stdio: "ignore" },
+    { cwd: repositoryRoot, env, stdio: ["ignore", "pipe", "pipe"] },
   );
+  let output = "";
+  const keep = (chunk: Buffer) => {
+    output = `${output}${chunk}`.slice(-8_000);
+  };
+  child.stdout?.on("data", keep);
+  child.stderr?.on("data", keep);
   children.push(child);
-  return { child, env, paths };
+  return { child, env, paths, root, output: () => output };
+}
+
+/** What the supervisor was doing, for a failure that cannot be reproduced locally. */
+function diagnostics(fixture: Awaited<ReturnType<typeof startFixture>>) {
+  const receipt = existsSync(fixture.paths.receipt)
+    ? readFileSync(fixture.paths.receipt, "utf8")
+    : "(no receipt)";
+  const processes = execFileSync(
+    "ps",
+    ["-Ao", "pid,ppid,pgid,stat,etime,args"],
+    {
+      encoding: "utf8",
+    },
+  )
+    .split("\n")
+    .filter((line) => line.includes(fixture.root))
+    .join("\n");
+  return [
+    `supervisor exit: ${fixture.child.exitCode ?? "running"}`,
+    `receipt: ${receipt}`,
+    `processes:\n${processes || "(none)"}`,
+    `supervisor output:\n${fixture.output()}`,
+  ].join("\n");
 }
 
 afterEach(async () => {
@@ -163,15 +192,22 @@ describe("foreground supervision refresh", () => {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, contents);
     }
+    // A running stack was initialized by dev-init, whose runtime receipt
+    // proves the Workspace model; refresh refuses a profile without it.
+    atomicWriteJson(first.paths.runtimeReceipt, {
+      schema_version: 1,
+      stack: first.paths.id,
+      repository: first.paths.repositoryRoot,
+      profile: first.paths.profile,
+      hermes_root: first.paths.hermesRoot,
+      state_root: first.paths.stateRoot,
+      workspace_guidance: "[PYTHIA_WORKSPACE_GUIDANCE_V1]",
+    });
     const firstBefore = readJson(first.paths.receipt);
     const secondBefore = readJson(second.paths.receipt);
 
+    // Nothing watches managed sources: only the explicit CLI refreshes.
     writeFileSync(source, "runner-and-plugin-v2\n");
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    const untouched = readJson(first.paths.receipt);
-    expect(untouched.runtime_generation).toBe(0);
-    expect(untouched.children).toEqual(firstBefore.children);
-    expect(readFileSync(output, "utf8")).toBe("runner-and-plugin-v1\n");
 
     const cli = spawn(
       process.execPath,
@@ -194,8 +230,7 @@ describe("foreground supervision refresh", () => {
     const code = await new Promise<number | null>((resolve) => {
       cli.once("close", resolve);
     });
-    expect(code).toBe(0);
-    expect(stderr).toBe("");
+    expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
     expect(JSON.parse(stdout)).toMatchObject({
       refreshed: true,
       running: true,
@@ -344,11 +379,17 @@ describe("foreground supervision refresh", () => {
     await waitUntil(() =>
       existsSync(join(fixture.paths.stateRoot, "fixture-ready")),
     );
-    // Shutdown itself allows eight seconds for process-group exit. The client
-    // must outlive that cleanup plus port-release/startup on a loaded runner.
-    await expect(requestHermesRestart(fixture.paths, 20_000)).rejects.toThrow(
-      /foreground supervisor (?:stopped|identity changed)/u,
+    // After the replacement dies the supervisor tears down (up to eight
+    // seconds per process group plus port release) before its receipt goes.
+    // The client must outlive that worst case on a loaded runner.
+    const outcome = await requestHermesRestart(fixture.paths, 45_000).then(
+      () => "acknowledged",
+      (error: Error) => error.message,
     );
+    // Intermittent in CI with "did not acknowledge"; report the supervisor's
+    // state so the hang can be located (every wait in this path is bounded).
+    if (!/foreground supervisor (?:stopped|identity changed)/u.test(outcome))
+      throw new Error(`${outcome}\n${diagnostics(fixture)}`);
     await waitUntil(() => fixture.child.exitCode !== null);
     expect(fixture.child.exitCode).not.toBe(0);
     expect(
@@ -356,5 +397,5 @@ describe("foreground supervision refresh", () => {
     ).toBe(false);
     expect(existsSync(fixture.paths.receipt)).toBe(false);
     await assertPortsFree(fixture.paths.ports);
-  }, 30_000);
+  }, 60_000);
 });

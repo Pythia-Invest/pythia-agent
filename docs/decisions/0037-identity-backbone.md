@@ -201,7 +201,7 @@ reference build changed. It runs inside write operations only, with no
 scheduler, and nothing triggers the agent: it works the queue when asked. While
 a plugin has an open conflict for a subject, its section shows the conflict and
 a ready plugin serves the section instead. The instrument page shows no queue
-note; the Desk lists issues on one generic page, Settings → Repairs (modelled on
+note; the Desk lists issues on one generic page, Settings → Data → Repairs (modelled on
 Home Assistant's Repairs), outside the main navigation and counted in Settings
 only while issues are open. It uses the back-office table (docs/design.md): each
 question is a row (kind, instrument, provider, status, created, resolved) whose
@@ -1648,7 +1648,7 @@ a plugin would take away.
   a short sample. Without `plugin` it answers every enabled plugin that
   declares a bulk catalogue or a resolve, with its trust level. It is a Desk
   operation; the agent's tool list has no room for it.
-- **Settings → Data sources** lists those plugins, each with its trust level,
+- **Settings → Data → Data sources** lists those plugins, each with its trust level,
   that effect beside the `hermes plugins disable` command, and, for a bulk
   catalogue, a "Sync now" control that runs `identity-sync` and shows what it
   joined, introduced, found in conflict and left unmatched. Enabling and

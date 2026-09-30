@@ -7,6 +7,5 @@ export default defineConfig({
       "runtime/test/**/*.test.{ts,tsx,js,mjs}",
       "test/**/*.test.{ts,tsx,js,mjs}",
     ],
-    passWithNoTests: true,
   },
 });

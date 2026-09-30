@@ -26,8 +26,12 @@ inside `src/client/hermes-transport.ts`, its `hermes-run-mapper.ts`, and
 `src/client/chat-message.ts`,
 and components consume only `UIMessage` parts
 ([ADR 0009](../../docs/decisions/0009-chat-surface-on-ai-sdk-transport.md)). Unit
-tests live in `test/`; Playwright smoke tests in `e2e/` run against a running
-Desk named by `PYTHIA_DESK_URL` and must not start or reconfigure the stack.
+tests live in `test/` and integration tests in `test/integration/`. Playwright
+tests in `e2e/` run in CI against this checkout's production build with no
+Hermes, so they supply every API response through route fixtures; specs that
+need a real profile live in `e2e/live/` and run against a running Desk. The
+suite never starts Hermes or reconfigures the stack
+([test allocation](../../.agents/testing.md)).
 
 Check affected workflows with keyboard navigation, narrow viewports and their
 loading, empty and failure states. Use the supported-environment scope in

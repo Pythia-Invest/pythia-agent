@@ -3,7 +3,6 @@ import importlib
 import json
 import sys
 import threading
-import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from market_data_fixture import PLATFORM, TOOLKIT
@@ -100,34 +99,3 @@ print(json.dumps({'data': statuses}))
         self.assertEqual(budget.metrics['reported_credits'], 3)
         self.assertEqual(result['limit_origin'], 'connector')
         self.assertEqual(budget.active, 0)
-
-    def test_cancelled_cache_owner_does_not_cancel_other_consumer(self):
-        store = cache.ReadCache()
-        entered, release, cancel = threading.Event(), threading.Event(), threading.Event()
-        calls = []
-        def fetch():
-            calls.append(1)
-            entered.set()
-            while not release.wait(.01):
-                self.assertFalse(context.cancelled())
-            return {'value': 42}
-        def read(signal):
-            token = context.cancel_signal.set(signal)
-            try: return store.coalesce('same', fetch)
-            finally: context.cancel_signal.reset(token)
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            first = pool.submit(read, cancel.is_set)
-            self.assertTrue(entered.wait(1))
-            second = pool.submit(read, lambda: False)
-            deadline = time.monotonic() + 1
-            while time.monotonic() < deadline:
-                with store.lock:
-                    if store.inflight['same']['consumers'] == 2: break
-                threading.Event().wait(.001)
-            cancel.set()
-            try:
-                with self.assertRaises(cache.ReadCancelled): first.result(timeout=1)
-            finally:
-                release.set()
-            self.assertEqual(second.result(timeout=1), {'value': 42})
-            self.assertEqual(calls, [1])

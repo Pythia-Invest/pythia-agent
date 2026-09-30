@@ -1,0 +1,16 @@
+[Unit]
+Description=Pythia Agent Hermes settings server
+After=pythia-agent-hermes.service
+PartOf=pythia-agent.target
+
+[Service]
+Type=simple
+EnvironmentFile=@@SETTINGS_ENVIRONMENT_FILE@@
+UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY HERMES_DASHBOARD_SESSION_TOKEN
+WorkingDirectory=@@WORKSPACE@@
+ExecStart=@@PYTHON@@ @@SERVICE_LAUNCHER@@ hermes-settings @@HERMES@@ -p pythia serve --isolated --host 127.0.0.1 --port 8646
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=pythia-agent.target

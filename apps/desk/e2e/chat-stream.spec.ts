@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { fixture, send } from "./stream-fixture";
 
-test("keeps prose stable and updates one compact activity line", async ({
+test("model search reaches the whole catalog and visible models can be edited", async ({
   page,
 }) => {
   const f = await fixture(page);
@@ -72,6 +72,13 @@ test("keeps prose stable and updates one compact activity line", async ({
     modelList.getByRole("option", { name: /compact-model-24/u }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
+  expect(f.unexpected).toEqual([]);
+});
+
+test("keeps activity inspectable while streamed prose uses the answer area", async ({
+  page,
+}) => {
+  const f = await fixture(page);
   await send(page);
   await f.emit([
     {
@@ -79,13 +86,13 @@ test("keeps prose stable and updates one compact activity line", async ({
       text: "Gathering the example sources",
     },
   ]);
-  const live = page
-    .locator('[data-slot="process-block"][data-state="live"]')
-    .getByRole("status");
-  await expect(
-    live.getByText("Gathering the example sources", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator('[data-slot="process-block"]')).toHaveCount(1);
+  // One quiet line while Pythia works; its record opens on request. Guidance
+  // closes the segment before it, so the live line is always the last one.
+  const activity = page.locator('[data-slot="turn-activity"]').last();
+  const toggle = activity.getByRole("button").first();
+  await expect(activity).toHaveAttribute("data-state", "live");
+  await expect(toggle).toHaveText("Thinking");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(
     page.getByRole("button", { name: "Stop generating" }),
   ).toBeVisible();
@@ -96,39 +103,44 @@ test("keeps prose stable and updates one compact activity line", async ({
     page.getByRole("button", { name: "Stop generating" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Send message" }).click();
+  // Guidance reads as the user's own message at once, before Hermes reports it.
+  const steer = page
+    .locator('[data-role="user"]')
+    .filter({ hasText: "Use the annual report as the primary source." });
+  await expect(steer).toBeVisible();
   await expect
     .poll(() => f.steers)
     .toEqual(["Use the annual report as the primary source."]);
   await f.emit([{ event: "run.steered" }]);
-  await expect(
-    page.getByText(/Direction added · Use the annual report/u),
-  ).toBeVisible();
+  await expect(steer).toHaveCount(1);
   await f.emit([
     {
       event: "reasoning.available",
       text: "Reviewing the example report",
     },
   ]);
-  await expect(
-    live.getByText("Reviewing the example report", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    live.getByText("Gathering the example sources", { exact: true }),
-  ).toHaveCount(0);
   await f.emit([
     { event: "tool.started", tool: "read_file", preview: "example-report.md" },
   ]);
+  await expect(toggle).toHaveText("Reading example-report.md");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const record = activity.locator('[data-slot="activity-list"]');
   await expect(
-    live.getByText("Exploring example-report.md", { exact: true }),
+    record.getByText("Reviewing the example report", { exact: true }),
   ).toBeVisible();
-  const activity = live;
-  await expect(activity).toBeVisible();
   await expect(
-    activity.getByText("Exploring example-report.md", { exact: true }),
+    record.locator('[data-slot="activity-row"][data-state="running"]'),
+  ).toHaveText("Reading example-report.md");
+  await toggle.click();
+  // The work before the guidance stays with its own segment.
+  const earlier = page.locator('[data-slot="turn-activity"]').first();
+  await earlier.getByRole("button").first().click();
+  await expect(
+    earlier.getByText("Gathering the example sources", { exact: true }),
   ).toBeVisible();
-  await expect(activity.getByText(/\d+s/u)).toBeVisible();
-  await expect(page.locator('[data-slot="process-block"]')).toHaveCount(1);
-  await expect(page.locator('[data-slot="process-body"]')).toHaveCount(0);
+  await earlier.getByRole("button").first().click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await f.emit([
     { event: "tool.completed", tool: "read_file", duration: 1.4 },
     { event: "message.delta", delta: "An incomplete draft" },
@@ -138,14 +150,6 @@ test("keeps prose stable and updates one compact activity line", async ({
       hasText: "An incomplete draft",
     }),
   ).toBeVisible();
-  const collapsed = page.getByRole("button", {
-    name: /\d+ steps?/,
-    exact: true,
-  });
-  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
-  await expect(
-    page.locator('[data-slot="process-block"][data-state="live"]'),
-  ).toHaveCount(0);
   const commentary = page.getByText("I will compare the two example sources.", {
     exact: true,
   });
@@ -201,11 +205,11 @@ test("keeps prose stable and updates one compact activity line", async ({
     page.getByRole("dialog").getByRole("link", { name: /synthetic report/u }),
   ).toHaveAttribute("href", "https://example.com/report");
   await page.keyboard.press("Escape");
-  const group = page.getByRole("button", { name: /\d+ steps?/, exact: true });
-  if ((await group.getAttribute("aria-expanded")) === "false")
-    await group.click();
+  await expect(toggle).toHaveText(/^Worked for/u);
+  if ((await toggle.getAttribute("aria-expanded")) === "false")
+    await toggle.click();
   await expect(
-    page.getByText("Explored example-report.md", { exact: true }),
+    page.getByText("Read example-report.md", { exact: true }),
   ).toBeVisible();
   await expect(commentary).toBeVisible();
   expect(
@@ -213,9 +217,6 @@ test("keeps prose stable and updates one compact activity line", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.evaluate(() =>
-    document.documentElement.setAttribute("data-theme", "dark"),
-  );
   expect(f.submissions).toEqual(["Check the synthetic example."]);
   expect(f.selections).toEqual([
     { provider: "synthetic", model: "research-model" },
@@ -280,7 +281,7 @@ test("keeps latest hidden after no-op scroll gestures in a short chat", async ({
   expect(f.unexpected).toEqual([]);
 });
 
-test("leaves a streamed answer in place when the reader scrolls up", async ({
+test("leaves a streamed answer in place after a gentle upward gesture", async ({
   page,
 }) => {
   const f = await fixture(page);
@@ -299,10 +300,11 @@ test("leaves a streamed answer in place when the reader scrolls up", async ({
       ),
     )
     .toBeGreaterThan(200);
+  await viewport.dispatchEvent("wheel", { deltaY: -8 });
   await viewport.evaluate((element) => {
     element.scrollTop = Math.max(
       0,
-      element.scrollHeight - element.clientHeight - 240,
+      element.scrollHeight - element.clientHeight - 8,
     );
     element.dispatchEvent(new Event("scroll"));
   });
@@ -317,11 +319,24 @@ test("leaves a streamed answer in place when the reader scrolls up", async ({
       delta: "\n\nA newly streamed line must not move the reader.",
     },
   ]);
+  await expect(
+    page.getByText("A newly streamed line must not move the reader."),
+  ).toBeAttached();
   await expect
     .poll(() => viewport.evaluate((element) => element.scrollTop))
     .toBeLessThanOrEqual(before + 1);
 
   await page.getByRole("button", { name: "Jump to latest" }).click();
+  await expect
+    .poll(() =>
+      viewport.evaluate(
+        (element) =>
+          element.scrollHeight - element.scrollTop - element.clientHeight,
+      ),
+    )
+    .toBeLessThan(2);
+  await f.emit([{ event: "message.delta", delta: "\n\nFollowing again." }]);
+  await expect(page.getByText("Following again.")).toBeVisible();
   await expect
     .poll(() =>
       viewport.evaluate(
@@ -373,7 +388,9 @@ test("recovers by status when reload loses the native event queue", async ({
     { event: "tool.started", tool: "web_search", preview: "filing" },
   ]);
   await expect(
-    page.getByText("Exploring filing", { exact: true }),
+    page.locator('[data-slot="turn-status"]').getByText("Searching the web", {
+      exact: true,
+    }),
   ).toBeVisible();
   await page.reload();
   await expect(
@@ -423,28 +440,22 @@ test("shows the exact approval command and leaves interrupted parallel tools unc
     },
     { event: "tool.started", tool: "read_file", preview: "example.md" },
   ]);
-  const activity = page
-    .locator('[data-slot="process-block"][data-state="live"]')
-    .getByRole("status");
-  await expect(
-    activity.getByText("Exploring example.md", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator('[data-slot="process-block"]')).toHaveCount(1);
-  await expect(page.locator('[data-slot="process-body"]')).toHaveCount(0);
+  const activity = page.locator('[data-slot="turn-activity"]');
+  const toggle = activity.getByRole("button").first();
+  await expect(activity).toHaveAttribute("data-state", "live");
+  await expect(toggle).toHaveText("Reading example.md");
+  await expect(activity).toHaveCount(1);
   await f.emit([{ event: "run.cancelled" }]);
   await expect(page.getByText("Stopped.", { exact: true })).toBeVisible();
-  await page
-    .getByRole("button", {
-      name: /steps · some results unavailable/,
-      exact: true,
-    })
-    .click();
+  await expect(activity).toHaveAttribute("data-state", "settled");
+  await toggle.click();
+  const record = activity.locator('[data-slot="activity-list"]');
   await expect(
-    page.locator('[data-slot="process-tool"][data-state="unconfirmed"]'),
+    record.getByText("You allowed a command once", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    record.locator('[data-slot="activity-row"][data-state="unconfirmed"]'),
   ).toHaveCount(2);
-  await expect(
-    page.locator('[data-slot="process-tool"][data-state="completed"]'),
-  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Allow once", exact: true }),
   ).toHaveCount(0);

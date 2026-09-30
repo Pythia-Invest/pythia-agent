@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  backendIdentifierLabel,
-  formatBackendError,
-} from "@/components/chat/backend-error";
+import { formatBackendError } from "@/components/chat/backend-error";
 
 describe("backend error formatting", () => {
   it.each([
@@ -19,12 +16,5 @@ describe("backend error formatting", () => {
     expect(formatBackendError("No Anthropic credentials found.")).toEqual({
       message: "No Anthropic credentials found.",
     });
-  });
-
-  it("turns native identifiers into compact display labels", () => {
-    expect(backendIdentifierLabel("opencode-free")).toBe("OpenCode Free");
-    expect(backendIdentifierLabel("deepseek-v4-flash-free")).toBe(
-      "DeepSeek V4 Flash Free",
-    );
   });
 });

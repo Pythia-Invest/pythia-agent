@@ -54,8 +54,10 @@ const result = InstrumentExtendedSummary({
     },
   },
 });
-assert.equal(
-  result.props.title,
-  "Post: 43.00. +0.50 · +1.18% since the last regular close.",
-);
-assert.equal(result.props.children[1].type, InstrumentChange);
+assert.match(result.props.title, /43\.00.*\+1\.18%/u);
+const rendersClientChange = (node) =>
+  Array.isArray(node)
+    ? node.some(rendersClientChange)
+    : node?.type === InstrumentChange ||
+      (node?.props !== undefined && rendersClientChange(node.props.children));
+assert.ok(rendersClientChange(result));

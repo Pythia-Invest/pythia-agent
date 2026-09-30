@@ -127,6 +127,19 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/markets.json",
 ]);
 
+/**
+ * The core files a read-only ownership check can compare in `source`. A
+ * committed release tree, or a checkout that has not been prepared, has no
+ * release grants yet: preparation generates them before it copies core, so a
+ * check that runs first compares the files that exist. Copies still need the
+ * whole list.
+ */
+export function coreFilesPresent(source) {
+  return MANAGED_CORE_FILES.filter(
+    (name) => name !== RELEASE_GRANTS || existsSync(join(source, name)),
+  );
+}
+
 export function ensurePrivateDirectory(path) {
   if (!existsSync(path)) {
     mkdirSync(path, { recursive: true, mode: 0o700 });

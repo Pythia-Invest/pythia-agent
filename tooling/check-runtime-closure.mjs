@@ -3,11 +3,6 @@ import { extname, join, relative, resolve, sep } from "node:path";
 import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
 import { MANAGED_CORE_FILES, RELEASE_GRANTS } from "../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../scripts/install/paths.mjs";
-import {
-  renderUnits,
-  serviceEnvironments,
-  UNIT_NAMES,
-} from "../scripts/install/systemd.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
 import {
   MANAGED_PLUGINS,
@@ -36,89 +31,6 @@ const syntheticEnvironment = {
   PYTHIA_INSTALL_SYSTEMD_HOME: "/home/pythia-test/.config/systemd/user",
 };
 const paths = resolveInstallPaths(syntheticEnvironment);
-const executables = {
-  node: `${paths.runtimeRoot}/node/22.16.0/bin/node`,
-  python: `${paths.runtimeRoot}/python/python3.12`,
-  uv: `${paths.runtimeRoot}/uv/0.9.28/uv`,
-  hermes: `${paths.hermesSource}/.venv/bin/hermes`,
-  next: `${paths.checkout}/apps/desk/node_modules/next/dist/bin/next`,
-};
-const previousHome = process.env.HOME;
-process.env.HOME = syntheticEnvironment.HOME;
-const installedEnvironments = serviceEnvironments(paths, executables);
-if (previousHome === undefined) delete process.env.HOME;
-else process.env.HOME = previousHome;
-const units = renderUnits(paths, executables);
-const unitPayload = Object.values(units).join("\n");
-
-if (
-  Object.keys(units).sort().join("\0") !== [...UNIT_NAMES].sort().join("\0")
-) {
-  violations.push("systemd: rendered unit set differs from the unit allowlist");
-}
-for (const text of forbiddenPayloadText) {
-  if (unitPayload.includes(text)) violations.push(`systemd: contains ${text}`);
-}
-if (unitPayload.includes("CLOSURE_CANARY_SECRET")) {
-  violations.push("systemd: embeds the private service bearer");
-}
-if (
-  unitPayload.includes("basic-memory") ||
-  Object.keys(installedEnvironments).some(
-    (role) => !["hermes", "desk"].includes(role),
-  )
-) {
-  violations.push(
-    "services: retired research service remains a required runtime role",
-  );
-}
-for (const role of ["hermes", "desk"]) {
-  const environment = installedEnvironments[role] ?? "";
-  if (
-    !environment.includes(`PYTHIA_DESK_VIEW_STATE="${paths.deskViewState}"`)
-  ) {
-    violations.push(
-      `service environment ${role}: missing shared private Desk view state`,
-    );
-  }
-  if (!environment.includes(`PYTHIA_WORKSPACE="${paths.workspace}"`)) {
-    violations.push(
-      `service environment ${role}: missing shared Desk research root`,
-    );
-  }
-  if (/BASIC_MEMORY|FASTMCP|FASTEMBED|PYTHIA_PYTHON=/u.test(environment)) {
-    violations.push(
-      `service environment ${role}: retired research dependency remains`,
-    );
-  }
-}
-const expectedUnitFragments = [
-  `WorkingDirectory=${paths.workspace}\n`,
-  `ExecStart="${executables.python}" "${paths.serviceLauncher}" hermes "${executables.hermes}" -p pythia gateway run --external-supervisor`,
-  `WorkingDirectory=${join(paths.checkout, "apps", "desk")}\n`,
-  `ExecStart="${executables.python}" "${paths.serviceLauncher}" desk "${executables.node}" "${executables.next}" start --hostname 127.0.0.1 --port 8644`,
-];
-for (const fragment of expectedUnitFragments) {
-  if (!unitPayload.includes(fragment)) {
-    violations.push(`systemd: missing exact runtime fragment ${fragment}`);
-  }
-}
-for (const [role, environment] of Object.entries(installedEnvironments)) {
-  if (
-    environment.includes("CLOSURE_CANARY_SECRET") ||
-    environment.includes("API_SERVER_KEY=")
-  ) {
-    violations.push(`service environment ${role}: embeds the private bearer`);
-  }
-  const pathLine = environment
-    .split("\n")
-    .find((line) => line.startsWith("PATH="));
-  if (!pathLine || pathLine.includes(paths.checkout)) {
-    violations.push(
-      `service environment ${role}: checkout entered executable PATH`,
-    );
-  }
-}
 const developmentPaths = {
   ...paths,
   repositoryRoot: paths.checkout,

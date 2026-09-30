@@ -1,10 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Browser smoke tests run against an already running Desk. Point
- * PYTHIA_DESK_URL at this worktree's loopback Desk (see `just dev-paths`) or
- * at its Tailscale Serve origin. Nothing here starts, stops, or reconfigures
- * the development stack.
+ * Browser tests run against a Desk named by PYTHIA_DESK_URL (ADR 0008).
+ * `just test-e2e-hermetic` (e2e/hermetic.mjs) starts this checkout's
+ * production Desk build with disposable state and no Hermes and runs every
+ * spec outside e2e/live; CI requires those. Specs in e2e/live need a real
+ * profile: point PYTHIA_DESK_URL at this worktree's running Desk (see
+ * `just dev-paths`). Nothing here starts, stops, or reconfigures the
+ * development stack.
  */
 const baseURL = process.env.PYTHIA_DESK_URL;
 if (!baseURL) {
@@ -15,7 +18,10 @@ if (!baseURL) {
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: process.env.PYTHIA_E2E_HERMETIC ? ["live/**"] : [],
   fullyParallel: true,
+  // CI runners have four CPUs; Playwright's default would use two.
+  ...(process.env.CI ? { workers: 4 } : {}),
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: process.env.CI ? "github" : "list",

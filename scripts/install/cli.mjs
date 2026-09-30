@@ -7,6 +7,10 @@ import { doctor } from "../doctor/doctor.mjs";
 import { uninstall } from "../uninstall/uninstall.mjs";
 import { applyUpdate, recoverUpdate } from "../update/apply.mjs";
 import { releaseStatus } from "../update/release.mjs";
+import {
+  installedUpdateStatus,
+  startDeskUpdate,
+} from "../update/desk-update.mjs";
 import { readJsonIfPresent, transactionReceipt } from "./files.mjs";
 import { resolveInstallPaths, publicPathSummary } from "./paths.mjs";
 import {
@@ -22,7 +26,7 @@ import { recoverInterruptedProfileInitialization } from "../dev/runtime.mjs";
 function usage() {
   console.log(`Usage: pythia <command>
 
-  workspace-transition   Preview research migration; --apply --expect <value> [--adopt-seed <source> | --retain-seed <source>], then --complete <fresh-session-id>
+  workspace-transition   Preview research migration; --apply --expect <value> [--adopt-seed <source> | --retain-seed <source>], --chat opens a native recovery chat, then --complete <fresh-session-id>
   status                 Show installed channel, revision, and service state
   doctor                 Check local runtime, ownership, health, and capabilities
   check-update [--json]  Report update availability without applying it
@@ -200,8 +204,24 @@ async function main() {
       } else console.log(`Update check unavailable: ${status.message}`);
       break;
     }
+    case "update-status":
+      print(installedUpdateStatus(paths));
+      break;
+    case "start-update":
+      print(
+        startDeskUpdate(paths, {
+          current: option("--expect-current") ?? "",
+          target: option("--expect-target") ?? "",
+        }),
+      );
+      break;
     case "update":
-      print(await applyUpdate(paths));
+      print(
+        await applyUpdate(paths, {
+          expectedCurrent: option("--expect-current"),
+          expectedTarget: option("--expect-target"),
+        }),
+      );
       break;
     case "rebuild":
       print(await rebuildDevice(paths));

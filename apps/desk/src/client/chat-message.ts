@@ -6,6 +6,7 @@ import {
 import { splitAttachmentNote, IMAGE_TYPES } from "@/attachments";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 import type { ApprovalChoice, HermesMessage, RunUsage } from "@/server/types";
+import type { WorkAgent } from "@/work/types";
 
 /**
  * The browser's conversation model is the AI SDK `UIMessage`. Everything
@@ -29,11 +30,22 @@ export type RunStatusData = {
   model?: string;
 };
 
+/** Guidance the user sent while a run was working. */
+export type SteerData = {
+  text: string;
+  context?: WorkspaceContext;
+  /** Epoch ms Hermes accepted (live) or delivered (saved) it. */
+  at?: number;
+  /** Seconds the run had worked since the turn or the previous steer. */
+  worked?: number;
+};
+
 export type DeskDataParts = {
   approval: ApprovalData;
   "run-status": RunStatusData;
-  steer: { text: string; context?: WorkspaceContext };
+  steer: SteerData;
   "workspace-context": WorkspaceContext;
+  agent: WorkAgent;
 };
 
 /**
@@ -42,9 +54,10 @@ export type DeskDataParts = {
  * injected a skill. They become system notes rather than user bubbles.
  */
 export const NOTE_COPY = {
-  async_delegation_complete: "A delegated task finished",
+  async_delegation_complete: "Research agents finished",
+  async_delegation_incomplete: "Not every research agent finished",
   auto_continue: "Continued automatically",
-  internal_notification: "Runtime notification",
+  internal_notification: "Background work finished",
   model_switch: "Model switched",
   personality_switch: "Personality switched",
   skill_invocation: "Skill loaded",
@@ -63,14 +76,58 @@ export type DeskMetadata = {
     provider?: string;
     /** Wall-clock seconds from the run's first event to its terminal one. */
     durationSeconds?: number;
+    /** Epoch ms the answer was completed. */
+    completedAt?: number;
   };
 };
 
 export type DeskUIMessage = UIMessage<DeskMetadata, DeskDataParts>;
 
-function noteKind(row: HermesMessage): NoteKind | null {
+/**
+ * Hermes re-enters finished background delegations as synthetic user rows.
+ * Its gateway marks them `internal_notification`, but the API-server path in
+ * this pin stores them unmarked, so its fixed notice headers identify them.
+ */
+const DELEGATION_NOTICE = /^\s*\[ASYNC DELEGATION (?:BATCH )?COMPLETE\b/u;
+const BACKGROUND_NOTICE =
+  /^\s*\[IMPORTANT: (?:Background process|\d+ background (?:processes|subagent delegations))\b/u;
+
+function noteKind(row: HermesMessage, text: string): NoteKind | null {
   const kind = row.display_kind;
-  return kind && kind in NOTE_COPY ? (kind as NoteKind) : null;
+  // A delegation's outcome is only in its text, whatever the row is marked.
+  if (kind && kind in NOTE_COPY && kind !== "async_delegation_complete")
+    return kind as NoteKind;
+  // A batch marks each task ✓, ✗ or ⚠ (truncated), and a failed batch with an
+  // ERROR block; a single delegation reports its `Status:` line.
+  if (DELEGATION_NOTICE.test(text) || kind === "async_delegation_complete")
+    return /^--- (?:✗|⚠|ERROR)|^Status: (?!completed\b|success\b)/mu.test(text)
+      ? "async_delegation_incomplete"
+      : "async_delegation_complete";
+  if (BACKGROUND_NOTICE.test(text)) return "internal_notification";
+  return null;
+}
+
+/** Hermes wraps mid-run guidance in this fixed out-of-band marker (`format_steer_marker`). */
+const STEER_MARKER =
+  /\n*\[OUT-OF-BAND USER MESSAGE\b[^\]\n]*\]\n([\s\S]*?)\n\[\/OUT-OF-BAND USER MESSAGE\]/gu;
+
+export function splitSteers(output: string) {
+  const steers: string[] = [];
+  const text = output.replace(STEER_MARKER, (_, steer: string) => {
+    if (steer.trim()) steers.push(steer.trim());
+    return "";
+  });
+  return { text, steers };
+}
+
+export function steerData(text: string, at?: number, worked?: number) {
+  const steer = splitWorkspaceNotes(text);
+  return {
+    text: steer.text,
+    ...(hasWorkspaceContext(steer.context) ? { context: steer.context } : {}),
+    ...(at === undefined ? {} : { at }),
+    ...(worked === undefined || worked < 0 ? {} : { worked }),
+  } satisfies SteerData;
 }
 
 /** Plain text of a Hermes message body, whatever shape the provider stored. */
@@ -98,7 +155,10 @@ type ToolCallRecord = {
   input: unknown;
 };
 
-function parseToolCalls(value: unknown, messageId: string): ToolCallRecord[] {
+export function parseToolCalls(
+  value: unknown,
+  messageId: string,
+): ToolCallRecord[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry, index) => {
     if (!entry || typeof entry !== "object") return [];
@@ -152,10 +212,26 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
   let turn: {
     message: DeskUIMessage;
     calls: Map<string, { call: ToolCallRecord; index: number }>;
+    endedAt?: number;
+    steeredAt?: number;
   } | null = null;
+  /** When the row that prompted the next reply was saved, in epoch seconds. */
+  let promptedAt: number | undefined;
 
   const closeTurn = () => {
-    if (turn?.message.parts.length) messages.push(turn.message);
+    if (turn?.message.parts.length) {
+      // A saved turn keeps its "worked for" time: prompt row to last reply row.
+      if (turn.endedAt !== undefined && turn.message.metadata) {
+        const seconds =
+          promptedAt === undefined ? 0 : turn.endedAt - promptedAt;
+        turn.message.metadata.run = {
+          ...turn.message.metadata.run,
+          completedAt: turn.endedAt * 1000,
+          ...(seconds > 0 ? { durationSeconds: seconds } : {}),
+        };
+      }
+      messages.push(turn.message);
+    }
     turn = null;
   };
 
@@ -163,12 +239,32 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
     // Compaction carriers and interrupt placeholders: Hermes projects them to
     // empty hidden rows so every transcript surface drops them.
     if (row.display_kind === "hidden") continue;
+    // Mid-run guidance: Hermes (v2026.9.11+) saves it as its own typed user
+    // row after the tool result it followed. It belongs to the running turn.
+    if (row.role === "user" && row.display_kind === "steer" && turn) {
+      const at = row.timestamp ?? undefined;
+      const since = turn.steeredAt ?? promptedAt;
+      turn.message.metadata?.historyRows?.push(row.id);
+      for (const steer of splitSteers(messageText(row.content)).steers)
+        turn.message.parts.push({
+          type: "data-steer",
+          id: row.id,
+          data: steerData(
+            steer,
+            at === undefined ? undefined : at * 1000,
+            at === undefined || since === undefined ? undefined : at - since,
+          ),
+        });
+      if (at !== undefined) turn.steeredAt = at;
+      continue;
+    }
     if (row.role === "user") {
       closeTurn();
+      promptedAt = row.timestamp ?? undefined;
       const content = splitAttachmentNote(messageText(row.content));
       const workspace = splitWorkspaceNotes(content.text);
       const text = workspace.text;
-      const note = noteKind(row);
+      const note = noteKind(row, text);
       if (note) {
         messages.push({
           id: row.id,
@@ -209,6 +305,7 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
       continue;
     }
     if (row.role !== "assistant" && row.role !== "tool") continue;
+    if (turn && typeof row.timestamp === "number") turn.endedAt = row.timestamp;
 
     if (row.role === "tool") {
       if (!turn) continue;
@@ -236,6 +333,7 @@ export function historyToMessages(history: HermesMessage[]): DeskUIMessage[] {
       };
     }
     turn.message.metadata?.historyRows?.push(row.id);
+    if (typeof row.timestamp === "number") turn.endedAt = row.timestamp;
     const reasoning = row.reasoning?.trim();
     if (reasoning) {
       turn.message.parts.push({

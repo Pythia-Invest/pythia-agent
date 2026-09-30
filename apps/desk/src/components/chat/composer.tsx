@@ -110,11 +110,35 @@ export function Composer({
 
   const submit = async () => {
     if (!canSend) return;
-    setSubmitting(true);
     setSubmitError(null);
+    if (streaming && onSteer) {
+      // Guidance is shown at once. The field is free for the next thought, and
+      // gets this one back only if the run turns it down.
+      const text = value.trim();
+      const context = draft.context;
+      drafts.update(draftKey, { text: "", context: { references: [] } });
+      try {
+        await onSteer(text, context);
+      } catch (error) {
+        // Never lose words: put the message back ahead of anything typed since.
+        const current = drafts.get(draftKey);
+        drafts.update(draftKey, {
+          text: current.text ? `${text}\n${current.text}` : text,
+          context: current.context.references.length
+            ? current.context
+            : context,
+        });
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : "The message could not be sent.",
+        );
+      }
+      return;
+    }
+    setSubmitting(true);
     try {
-      if (streaming && onSteer) await onSteer(value.trim(), draft.context);
-      else await onSend(value.trim(), receipts, draft.context);
+      await onSend(value.trim(), receipts, draft.context);
       setValue("");
       attachments.clear();
       drafts.update(draftKey, { context: { references: [] } });
@@ -198,7 +222,7 @@ export function Composer({
       ) : null}
       <div
         className={cn(
-          "motion-fast flex flex-col gap-1.5 rounded-container border border-border bg-raised px-2.5 pt-2.5 pb-2 transition-colors focus-within:border-border-strong",
+          "motion-fast flex flex-col gap-2 rounded-container border border-transparent bg-subtle/60 px-3 pt-3 pb-2 transition-colors dark:bg-subtle",
           dragging && "border-info bg-info-surface",
         )}
         data-slot="composer-input"
@@ -245,7 +269,7 @@ export function Composer({
         />
         <textarea
           aria-label="Message Pythia"
-          className="field-sizing-content max-h-[min(12.5rem,25dvh)] min-h-[1.375rem] min-w-0 resize-none border-0 bg-transparent px-1 pt-0.5 font-reading text-foreground text-reading leading-reading outline-hidden placeholder:text-foreground-disabled"
+          className="field-sizing-content max-h-[min(12.5rem,25dvh)] min-h-[1.375rem] min-w-0 resize-none border-0 bg-transparent px-1 pt-0.5 text-foreground text-reading leading-reading outline-hidden placeholder:text-foreground-disabled"
           disabled={disabled || submitting}
           id={id}
           onChange={(event) => setValue(event.target.value)}
@@ -265,9 +289,9 @@ export function Composer({
           rows={1}
           value={value}
         />
-        <div className="flex min-w-0 items-center gap-0.5">
+        <div className="flex min-w-0 items-center gap-1">
           <IconButton
-            className="size-7 rounded-md text-foreground-secondary"
+            className="-ms-1 size-8 rounded-pill text-foreground-secondary hover:text-foreground"
             disabled={disabled || streaming || submitting}
             label="Attach files and images"
             onClick={() => fileInputRef.current?.click()}
@@ -276,27 +300,27 @@ export function Composer({
           >
             <Paperclip className="stroke-[1.6]" />
           </IconButton>
-          {controls}
           <span className="min-w-0 flex-1" />
+          {controls}
           {showStop ? (
             <IconButton
-              className="size-7 shrink-0 rounded-md bg-foreground text-canvas hover:bg-foreground/85"
+              className="ms-1 size-8 shrink-0 rounded-full bg-foreground text-canvas transition-[transform,background-color] hover:bg-foreground/85 active:scale-92"
               label="Stop generating"
               onClick={onStop}
               size="sm"
               type="button"
             >
-              <Square className="fill-current" />
+              <Square className="scale-75 fill-current motion-safe:animate-pop" />
             </IconButton>
           ) : (
             <IconButton
-              className="size-7 shrink-0 rounded-md bg-foreground text-canvas hover:bg-foreground/85 disabled:bg-subtle disabled:text-foreground-disabled"
+              className="ms-1 size-8 shrink-0 rounded-full bg-foreground text-canvas transition-[transform,background-color] hover:bg-foreground/85 active:scale-92 disabled:bg-foreground/15 disabled:text-canvas disabled:opacity-100"
               disabled={!canSend}
               label="Send message"
               size="sm"
               type="submit"
             >
-              <ArrowUp className="stroke-[1.8]" />
+              <ArrowUp className="stroke-[1.8] motion-safe:animate-pop" />
             </IconButton>
           )}
         </div>

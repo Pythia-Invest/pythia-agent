@@ -43,24 +43,16 @@ class WorkerTest(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(pid, 0)
 
-    def test_cancellation_after_child_closes_output(self):
-        with tempfile.TemporaryDirectory() as raw:
-            pidfile = Path(raw) / "pid"
-            source = "import os, pathlib, threading; os.close(1); os.close(2); p=pathlib.Path(%r); p.with_suffix('.tmp').write_text(str(os.getpid())); os.replace(p.with_suffix('.tmp'),p); threading.Event().wait()" % str(pidfile)
-            with self.assertRaisesRegex(WORKER.WorkerError, "cancelled"):
-                self.run_worker(source, timeout=3, cancelled=pidfile.exists)
-            with self.assertRaises(ProcessLookupError):
-                os.kill(int(pidfile.read_text()), 0)
-
     def test_cancellation_waits_for_observed_start_then_reaps(self):
-        with tempfile.TemporaryDirectory() as raw:
-            pidfile = Path(raw) / "pid"
-            source = "import os, pathlib, threading; p=pathlib.Path(%r); p.with_suffix('.tmp').write_text(str(os.getpid())); os.replace(p.with_suffix('.tmp'),p); threading.Event().wait()" % str(pidfile)
-            with self.assertRaisesRegex(WORKER.WorkerError, "cancelled"):
-                self.run_worker(source, timeout=3, cancelled=pidfile.exists)
-            pid = int(pidfile.read_text())
-            with self.assertRaises(ProcessLookupError):
-                os.kill(pid, 0)
+        for close_output in (False, True):
+            with self.subTest(close_output=close_output), tempfile.TemporaryDirectory() as raw:
+                pidfile = Path(raw) / "pid"
+                closing = "os.close(1); os.close(2); " if close_output else ""
+                source = "import os, pathlib, threading; %sp=pathlib.Path(%r); p.with_suffix('.tmp').write_text(str(os.getpid())); os.replace(p.with_suffix('.tmp'),p); threading.Event().wait()" % (closing, str(pidfile))
+                with self.assertRaisesRegex(WORKER.WorkerError, "cancelled"):
+                    self.run_worker(source, timeout=3, cancelled=pidfile.exists)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(int(pidfile.read_text()), 0)
 
 
 if __name__ == "__main__":

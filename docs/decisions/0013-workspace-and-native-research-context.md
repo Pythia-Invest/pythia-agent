@@ -218,6 +218,29 @@ and [Meilisearch typo rules](https://www.meilisearch.com/docs/resources/internal
 for the research behind this choice. Arbitrary abbreviations are intentionally
 removed in favor of predictable typo tolerance.
 
+### Update recovery and the native checkpoint
+
+The production update from the pre-Workspace release exposed two distinct
+boundaries: discovering prerequisites before stopping an old stack, and recognizing
+historical managed copies without claiming user-owned files. Transition preview
+now inspects the exact managed plugin ownership and rechecks it before writes.
+The deployed receipt format and byte-for-byte historical bundles are authoritative;
+unknown, edited and symlinked copies remain preserved. Plugin validation precedes
+instruction replacement and legacy binding disable, so a predictable conflict
+cannot partially retire the old configuration.
+
+The fresh native-session checkpoint remains required. Hermes builds and persists
+the prompt before provider execution; a successful answer or a magic response is
+not required. The native offline `prompt-size` diagnostic returns counts, not a
+persisted session proving loaded guidance. Creating an API session with a supplied
+prompt would manufacture evidence, so neither replaces the checkpoint. A thin
+interactive `workspace-transition --chat` entry point starts native Hermes with
+the existing installed profile and service environment when Desk is unavailable.
+It sends no prompt automatically. The user chooses whether to submit a message,
+then completes with its native session ID. Existing conversations retain their
+cached guidance and subsequent work should start in a new chat. An upstream offline
+session-preparation capability can be evaluated separately when supported.
+
 ## Amendment (2026-09-29): mandates get a limits file
 
 [ADR 0044](0044-product-direction.md) keeps the workspace schema-free with one

@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { readJsonIfPresent } from "../install/files.mjs";
+import { coreFilesPresent } from "../dev/files.mjs";
+import { inspectManagedPluginCopy } from "../dev/plugin-copy.mjs";
 import { assertLegacyBasicMemoryOwned } from "../install/systemd.mjs";
 export const VERSION = 1;
 const MARKER = "[PYTHIA_WORKSPACE_GUIDANCE_V1]";
@@ -113,7 +115,7 @@ export function assertWorkspaceTransitionReady(paths) {
   )
     return;
   throw new Error(
-    `Workspace transition ${current?.phase ?? "pending"}. Preview with ${paths.id === "production" ? "pythia" : "node scripts/dev/cli.mjs"} workspace-transition. Existing notes, dependencies and services are preserved; ordinary Workspace browsing remains available.`,
+    `Workspace transition ${current?.phase ?? "pending"}. Preview with ${paths.id === "production" ? "pythia" : "node scripts/dev/cli.mjs"} workspace-transition. This check makes no changes to notes or dependencies. Service availability is unchanged by this check: use pythia status to inspect it. If an older updater has already stopped services, Desk remains unavailable until recovery completes.`,
   );
 }
 
@@ -258,7 +260,12 @@ export function previewWorkspaceTransition(paths, options = {}) {
   });
   const files = inventory(paths.knowledge);
   const configHash = digest(regular(join(paths.profileRoot, "config.yaml")));
-  const expected = digest(JSON.stringify({ configHash, seeds, files }));
+  const plugin = inspectManagedPluginCopy(
+    paths.managedCore,
+    join(paths.profileRoot, "plugins", "pythia"),
+    coreFilesPresent(paths.managedCore),
+  );
+  const expected = digest(JSON.stringify({ configHash, seeds, files, plugin }));
   return {
     status: state?.phase ?? "pending",
     expected,
@@ -267,10 +274,11 @@ export function previewWorkspaceTransition(paths, options = {}) {
     files,
     seeds,
     legacyService,
+    plugin,
     legacyUnit: paths.unitRoot
       ? join(paths.unitRoot, "pythia-agent-basic-memory.service")
       : null,
     instructions:
-      "Apply stages verified copies without deleting originals, backs up configuration and explicitly selected seed replacements. Review each proposed before/after pair; --adopt-seed selects replacement, --retain-seed preserves reviewed user customizations (including missing seeds). Retained instructions remain authoritative, so reconcile obsolete Basic Memory directions before choosing retain. It disables only the owned Basic Memory MCP binding, and copies the current plugin. The old environment and service remain. Restart the owned Hermes service explicitly, start a new chat, then complete with that new session ID. Old chats retain cached instructions and remain readable; use Continue in a new chat to adopt current guidance. Rebuild afterward to retire dependencies. Customized MCP bindings require manual reconciliation before applying.",
+      "Apply stages verified copies without deleting originals, backs up configuration and explicitly selected seed replacements. Review each proposed before/after pair; --adopt-seed selects replacement, --retain-seed preserves reviewed user customizations (including missing seeds). Retained instructions remain authoritative, so reconcile obsolete Basic Memory directions before choosing retain. It disables only the owned Basic Memory MCP binding, and copies the current plugin. The old environment and service remain. Restart the owned Hermes service explicitly, start a new chat, then complete with that new session ID. If Desk is offline, installed users can run pythia workspace-transition --chat to open the native CLI without submitting a prompt automatically. Send a brief message yourself and use /status to see the session ID. A successful model answer is not required, but submitting a message may contact your provider. Old chats retain cached instructions and remain readable; use Continue in a new chat to adopt current guidance. Rebuild afterward to retire dependencies. Customized MCP bindings require manual reconciliation before applying.",
   };
 }

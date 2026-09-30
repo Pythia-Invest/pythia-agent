@@ -62,9 +62,3 @@ export function takePendingPrompt(sessionId: string): {
     return null;
   }
 }
-
-/** A session title Hermes will accept, taken from the opening prompt. */
-export function titleFromPrompt(prompt: string) {
-  const line = prompt.trim().split(/\r?\n/u)[0] ?? "";
-  return line.length > 60 ? `${line.slice(0, 57).trimEnd()}…` : line;
-}

@@ -1,18 +1,22 @@
+import { createReleaseRoutes } from "./release-routes";
 import { createWorkspaceRunRoutes } from "./workspace/run-routes";
+import { createWorkRoutes } from "./work-routes";
 import { createDeskViewRoutes } from "./view-context/routes";
 import {
   createNativeSessionContextRoutes,
   createNativeSessionContextReader,
 } from "./native-session-context";
-import { deskViewStore, type DeskViewStore } from "./view-context/store";
+import { deskViewStore } from "./view-context/store";
 import { createWorkspaceRoutes } from "./workspace/routes";
 import { createTopBarRoutes } from "./top-bar-routes";
-import { createPluginInvokeRoutes } from "./plugin-invoke-routes";
 import { createWidgetRoutes } from "./widget-routes";
-import { createPluginReadRoutes } from "./plugin-read-routes";
+import {
+  createPluginInvokeRoutes,
+  createPluginReadRoutes,
+} from "./plugin-read-routes";
 import { createDataUpdateRoutes } from "./data-update-routes";
 import { createFinancialDataRoutes } from "./financial-data-routes";
-import { workspaceStore, type WorkspaceStore } from "./workspace/store";
+import { workspaceStore } from "./workspace/store";
 import {
   result,
   routeError,
@@ -36,6 +40,7 @@ import {
   releaseStatusService,
   type ReleaseStatusService,
 } from "./release-status";
+import { createHermesSettingsRoutes } from "./hermes-settings-routes";
 import { createSettingsRoutes } from "./settings-routes";
 import type { ApprovalChoice, DeskRunEvent, HermesClient } from "./types";
 
@@ -99,11 +104,13 @@ export function createDeskRoutes(
   settings: DeviceSettingsService = deviceSettingsService,
   releases: ReleaseStatusService = releaseStatusService,
   attachments: AttachmentStore = attachmentStore,
-  workspace: WorkspaceStore = workspaceStore,
-  views: DeskViewStore = deskViewStore,
-  sessionContext = createNativeSessionContextReader(),
 ) {
+  const workspace = workspaceStore;
+  const views = deskViewStore;
+  const sessionContext = createNativeSessionContextReader();
   return {
+    ...createWorkRoutes(client),
+    ...createReleaseRoutes(releases),
     ...createWidgetRoutes(),
     ...createTopBarRoutes(workspace),
     ...createPluginInvokeRoutes(),
@@ -199,31 +206,22 @@ export function createDeskRoutes(
         return routeError(error);
       }
     },
-    async updateStatus(request: Request) {
-      const rejection = admitBrowserRequest(request, "read");
-      if (rejection) return rejection;
-      try {
-        return result(await releases.snapshot());
-      } catch (error) {
-        return routeError(error);
-      }
-    },
     async createSession(request: Request) {
       const rejection = admitBrowserRequest(request, "mutation");
       if (rejection) return rejection;
       try {
-        const title = textField(
-          await readBody(request),
-          "title",
-          120,
-          "A session title",
-        );
+        const body = await readBody(request);
+        const title =
+          body.title === undefined
+            ? undefined
+            : textField(body, "title", 120, "A session title");
         const session = await client
           .createSession(title)
           .catch((error: unknown) => {
             // Native invalid_title rolls back creation. Retry exactly once without
             // our suggested title; never retry an ambiguous transport failure.
             if (
+              title !== undefined &&
               error instanceof HermesApiError &&
               error.status === 400 &&
               error.code === "invalid_title"
@@ -372,6 +370,7 @@ export function createDeskRoutes(
       }
     },
     ...createSettingsRoutes(settings),
+    ...createHermesSettingsRoutes(),
   };
 }
 

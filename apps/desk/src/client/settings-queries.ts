@@ -1,8 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { DeskReleaseStatus } from "@/server/release-status";
 import { useDeskApi } from "./providers";
 import { deskKeys } from "./query-cache";
+import { updateComplete } from "./update-progress";
 
 type SettingChange = {
   kind: "skill" | "toolset";
@@ -18,11 +20,47 @@ export function useDeviceSettings() {
   });
 }
 
-export function useReleaseStatus() {
+export function useReleaseStatus(watch?: { target: string; until: number }) {
   const api = useDeskApi();
   return useQuery({
     queryKey: deskKeys.release,
     queryFn: () => api.updateStatus(),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // A Desk that stays unreachable for the whole update window stops being
+      // polled; Retry connection asks again.
+      if (query.state.fetchFailureCount >= 200) return false;
+      if (data?.updater === "running") return 3_000;
+      return watch &&
+        Date.now() < watch.until &&
+        !updateComplete(data, watch.target) &&
+        data?.updater !== "failed"
+        ? 3_000
+        : false;
+    },
+    retry: false,
+  });
+}
+
+/** A remote check; its answer is kept for every update surface to read. */
+export function useCheckUpdate() {
+  const api = useDeskApi();
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.updateStatus(true),
+    retry: false,
+    onSuccess: (status) => cache.setQueryData(deskKeys.releaseCheck, status),
+  });
+}
+
+export function useStartUpdate() {
+  const api = useDeskApi();
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (expected: { current: string; target: string }) =>
+      api.startUpdate(expected),
+    retry: false,
+    onSettled: () => cache.invalidateQueries({ queryKey: deskKeys.release }),
   });
 }
 
@@ -59,5 +97,17 @@ export function useChangeDeviceSetting() {
         ].map((queryKey) => cache.invalidateQueries({ queryKey })),
       );
     },
+  });
+}
+
+/** The last remote check, if any; it never refetches on its own. */
+export function useReleaseCheck() {
+  const cache = useQueryClient();
+  return useQuery({
+    queryKey: deskKeys.releaseCheck,
+    queryFn: () =>
+      cache.getQueryData<DeskReleaseStatus>(deskKeys.releaseCheck) ?? null,
+    enabled: false,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }

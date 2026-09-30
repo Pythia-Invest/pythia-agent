@@ -100,7 +100,7 @@ elsewhere = {platform: [name for name in names(assembled("off", sorted(_get_plat
     or name.split("_")[0] in ("sec", "esef", "gleif", "eodhd", "yahoo", "coinmarketcap", "openfigi")]
     for platform in ("cli", "cron")}
 routing = {platform: "pythia_find" in "".join(section.content for section in manager.render_system_prompt_sections(
-    {"platform": platform}) if section.id == "pythia.operating") for platform in ("api_server", "cli", "cron")}
+    {"platform": platform}) if section.id in ("pythia.operating", "pythia.routing")) for platform in ("api_server", "cli", "cron")}
 print(json.dumps({
     "loaded": names(loaded), "deferred_visible": names(deferred),
     "catalog": sorted({line.split(":", 1)[0].strip().lstrip("- ") for line in listing.splitlines()

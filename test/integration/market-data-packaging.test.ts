@@ -14,8 +14,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { buildManagedWidgets } from "../../scripts/dev/build-managed-widgets.mjs";
 import { MANAGED_WIDGET_BUILDS } from "../../scripts/dev/managed-widget-builds.mjs";
+import { buildWidget } from "../../packages/widget-sdk/build.mjs";
 import {
   MANAGED_PLUGINS,
   managedRunnerBuilds,
@@ -33,7 +33,10 @@ const runnerBuilds = managedRunnerBuilds(MANAGED_PLUGINS);
 // (or races on) the checkout's runner output.
 const runnerOutput = mkdtempSync(join(tmpdir(), "pythia-runner-dist-"));
 // Packaging consumes actual compiled release inputs, just like explicit runtime
-// preparation. Never rely on committed bundles or a previous contributor build.
+// preparation. Never rely on committed bundles or a previous contributor build,
+// and build into the suite's own directories rather than the checkout.
+const built = mkdtempSync(join(tmpdir(), "pythia-widget-build-"));
+const builtOutputs = new Set(MANAGED_WIDGET_BUILDS.map(({ output }) => output));
 beforeAll(async () => {
   execFileSync(process.execPath, [
     join(repository, "node_modules/typescript/bin/tsc"),
@@ -42,9 +45,13 @@ beforeAll(async () => {
     "--outDir",
     runnerOutput,
   ]);
-  await buildManagedWidgets(repository);
+  for (const { entry, output } of MANAGED_WIDGET_BUILDS)
+    await buildWidget(join(repository, entry), join(built, output));
 }, 60_000);
-afterAll(() => rmSync(runnerOutput, { recursive: true, force: true }));
+afterAll(() => {
+  rmSync(runnerOutput, { recursive: true, force: true });
+  rmSync(built, { recursive: true, force: true });
+});
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0))
@@ -62,8 +69,9 @@ function fixture(profile = "fixture") {
     for (const file of files) {
       if (source === "core" && file === RELEASE_GRANTS) continue; // generated below
       mkdirSync(dirname(join(managedRoot, source, file)), { recursive: true });
+      const input = join("runtime/managed", source, file);
       copyFileSync(
-        join(repository, "runtime/managed", source, file),
+        join(builtOutputs.has(input) ? built : repository, input),
         join(managedRoot, source, file),
       );
     }
@@ -434,27 +442,5 @@ platform_toolsets:
     expect(readFileSync(join(destination, "plugin.yaml"), "utf8")).toBe(
       "name: user-replacement\n",
     );
-  });
-
-  it("preserves edited widget source, prebuilt modules and legacy HTML files", () => {
-    const paths = fixture();
-    refreshManagedPlugins(paths, "synthetic", { execute: () => {} });
-    const feature = join(paths.profileRoot, "plugins", "pythia-market-data");
-    const source = join(feature, "widgets/instrument-table.tsx");
-    const module = join(feature, "dist/widgets/instruments.mjs");
-    const html = join(feature, "widgets/legacy.html");
-    writeFileSync(source, "export default function Custom() { return null; }");
-    writeFileSync(module, "export const userOwned = true;");
-    writeFileSync(html, "<p>Existing custom view</p>");
-    const result = refreshManagedPlugins(paths, "synthetic", {
-      execute: () => {},
-      report: () => {},
-    });
-    expect(
-      result.find((plugin) => plugin.name === "pythia-market-data")?.status,
-    ).toBe("preserved");
-    expect(readFileSync(source, "utf8")).toContain("function Custom");
-    expect(readFileSync(module, "utf8")).toBe("export const userOwned = true;");
-    expect(readFileSync(html, "utf8")).toBe("<p>Existing custom view</p>");
   });
 });

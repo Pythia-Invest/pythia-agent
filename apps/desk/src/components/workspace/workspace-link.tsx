@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  citedSources,
+  type HastNode,
+  textOf,
+  WebLink,
+} from "@/components/chat/citations";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
@@ -161,9 +167,15 @@ function NativePathLink({
 export function ChatArtifactLink({
   href,
   children,
+  node,
+  "data-citation": citation,
+  "data-sources": sources,
 }: {
   href?: string | undefined;
   children?: ReactNode;
+  node?: HastNode | undefined;
+  "data-citation"?: boolean | string | undefined;
+  "data-sources"?: string | undefined;
 }) {
   if (!href) return <span>{children}</span>;
   if (/^file:/i.test(href))
@@ -187,7 +199,18 @@ export function ChatArtifactLink({
         {children}
       </WorkspaceLink>
     );
-  return /^https?:\/\//i.test(href) || /^mailto:/i.test(href) ? (
+  if (/^https?:\/\//i.test(href))
+    return (
+      <WebLink
+        citation={citation !== undefined && citation !== false}
+        href={href}
+        sources={citedSources(sources)}
+        label={node ? textOf(node) : ""}
+      >
+        {children}
+      </WebLink>
+    );
+  return /^mailto:/i.test(href) ? (
     <a
       className="text-primary underline"
       href={href}

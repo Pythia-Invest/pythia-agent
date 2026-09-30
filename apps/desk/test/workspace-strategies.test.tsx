@@ -1,9 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import type { WorkspaceEntry } from "@/workspace/types";
 import {
   readableStrategyBrief,
-  strategyBriefPath,
   strategyName,
   strategyTitle,
 } from "@/workspace/strategies";
@@ -12,18 +11,9 @@ import {
   StrategyChatContext,
 } from "@/components/workspace/strategies/strategy-context";
 
-const queries = vi.hoisted(() => ({
-  entries: new Map<
-    string,
-    { data?: WorkspaceEntry; isPending: boolean; isError: boolean }
-  >(),
-  requestedEntries: [] as string[],
-}));
+// The brief is never loaded here, so the moved-brief state is rendered.
 vi.mock("@/client/queries", () => ({
-  useWorkspaceEntry: (path: string) => {
-    queries.requestedEntries.push(path);
-    return queries.entries.get(path) ?? { isPending: false, isError: true };
-  },
+  useWorkspaceEntry: () => ({ isPending: false, isError: true }),
 }));
 
 // Same metadata projection as the real bounded Workspace file API. No market
@@ -42,18 +32,10 @@ const entry = (
   previewable: kind !== "directory",
 });
 const briefPath = "strategies/income/README.md";
-const onOpen = vi.fn();
-const onStartStrategy = vi.fn();
-beforeEach(() => {
-  queries.entries.clear();
-  queries.requestedEntries.length = 0;
-  onOpen.mockClear();
-  onStartStrategy.mockClear();
-});
+const onOpen = () => undefined;
+const onStartStrategy = () => undefined;
 
 it("recognizes only optional immediate strategy briefs and uses an available opening title", () => {
-  expect(strategyBriefPath("strategies/income")).toBe(briefPath);
-  expect(strategyBriefPath("research/income")).toBeNull();
   expect(strategyName("strategies/income/notes/README.md")).toBeNull();
   expect(strategyName("strategies/../README.md")).toBeNull();
   expect(
@@ -67,7 +49,7 @@ it("recognizes only optional immediate strategy briefs and uses an available ope
   ).toBe(false);
 });
 
-it("enables explicit strategy start for a readable brief without creating a session during browsing", () => {
+it("offers an enabled strategy start only for a readable brief", () => {
   const html = renderToStaticMarkup(
     <StrategyBriefAction
       path={briefPath}
@@ -79,7 +61,6 @@ it("enables explicit strategy start for a readable brief without creating a sess
   );
   expect(html).toContain("Start chat for strategy");
   expect(html).not.toContain('disabled=""');
-  expect(onStartStrategy).not.toHaveBeenCalled();
   const ordinary = renderToStaticMarkup(
     <StrategyBriefAction
       path="research/notes.md"
@@ -114,7 +95,6 @@ it("uses native origin provenance and distinguishes a moved brief from general c
   expect(missing).toContain(
     "Brief unavailable; the original reference is retained",
   );
-  expect(onOpen).not.toHaveBeenCalled();
   const general = renderToStaticMarkup(
     <StrategyChatContext context={{ ...context, scope: { status: "none" } }} />,
   );

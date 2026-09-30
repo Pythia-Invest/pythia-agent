@@ -312,8 +312,10 @@ describe("fail-closed uninstall", () => {
     }
   });
 
-  it("accepts command failures only after explicit absent-state readback", () => {
+  it("accepts command failures only after explicit absent-state readback and retains user data", () => {
     const { paths } = fixture();
+    mkdirSync(paths.knowledge, { recursive: true, mode: 0o700 });
+    writeFileSync(join(paths.knowledge, "case.md"), "Investor-owned\n");
     const inspected: string[] = [];
     const result = uninstall(paths, {
       actions: {
@@ -333,9 +335,56 @@ describe("fail-closed uninstall", () => {
       },
     });
     expect(inspected).toEqual([LEGACY_UNIT, ...UNIT_NAMES]);
-    expect(result).toMatchObject({ uninstalled: true, services: "stopped" });
+    expect(result).toMatchObject({
+      uninstalled: true,
+      services: "stopped",
+      knowledge_deleted: false,
+    });
     expect(existsSync(paths.installedCommand)).toBe(false);
     expect(existsSync(paths.runtimeRoot)).toBe(false);
     expect(existsSync(paths.installFile)).toBe(false);
+    expect(readFileSync(join(paths.knowledge, "case.md"), "utf8")).toBe(
+      "Investor-owned\n",
+    );
+    expect(existsSync(paths.configRoot)).toBe(true);
+  });
+
+  it("purges config, state, and cache but retains authoritative Markdown and the store", () => {
+    const { paths } = fixture();
+    for (const path of [
+      paths.configRoot,
+      paths.stateRoot,
+      paths.cacheRoot,
+      paths.knowledge,
+      paths.store,
+    ]) {
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    writeFileSync(join(paths.knowledge, "case.md"), "Keep me\n");
+    writeFileSync(join(paths.store, "identity.sqlite3"), "The answers\n");
+    const result = uninstall(paths, {
+      purge: true,
+      actions: {
+        stop: () => undefined,
+        disable: () => undefined,
+        unitState: () => "absent",
+        enablement: () => "not-found",
+        removeUnits: () => undefined,
+        reload: () => undefined,
+      },
+    });
+    expect(result.purged_device_configuration).toBe(true);
+    expect(result.knowledge_deleted).toBe(false);
+    expect(existsSync(paths.configRoot)).toBe(false);
+    expect(existsSync(paths.stateRoot)).toBe(false);
+    expect(existsSync(paths.cacheRoot)).toBe(false);
+    expect(readFileSync(join(paths.knowledge, "case.md"), "utf8")).toBe(
+      "Keep me\n",
+    );
+    // The investor's identity answers stay, like the workspace (ADR 0034).
+    expect(readFileSync(join(paths.store, "identity.sqlite3"), "utf8")).toBe(
+      "The answers\n",
+    );
+    expect(result.retained).toContain(paths.store);
   });
 });

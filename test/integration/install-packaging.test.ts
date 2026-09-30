@@ -90,23 +90,53 @@ describe("installed packaging", () => {
     ).toThrow();
   });
 
-  it("renders only the four loopback runtime units without host mutation", () => {
+  it("renders only the five loopback runtime units without host mutation", () => {
     const { executables, paths } = fixture();
     const units = renderUnits(paths, executables);
     expect(Object.keys(units).sort()).toEqual([...UNIT_NAMES].sort());
     const text = Object.values(units).join("\n");
-    expect(text).toContain("127.0.0.1");
-    expect(text).toContain("gateway run --external-supervisor");
-    expect(text).not.toContain("Design Lab");
-    expect(UNIT_NAMES).not.toContain("pythia-desk.service");
-    expect(UNIT_NAMES).not.toContain("pythia.target");
-    expect(text).not.toContain("pythia-desk.service");
+    // Every service starts through the launcher (which supplies its bearer)
+    // and listens on loopback only.
+    const launch = (role: string, ...command: string[]) =>
+      `ExecStart="${executables.python}" "${paths.serviceLauncher}" ${role} ${command.join(" ")}`;
+    expect(units["pythia-agent-hermes.service"]).toContain(
+      launch(
+        "hermes",
+        `"${executables.hermes}"`,
+        "-p pythia gateway run --external-supervisor",
+      ),
+    );
+    expect(units["pythia-agent-desk.service"]).toContain(
+      launch(
+        "desk",
+        `"${executables.node}"`,
+        `"${executables.next}"`,
+        "start --hostname 127.0.0.1 --port 8644",
+      ),
+    );
+    expect(units["pythia-agent-hermes-settings.service"]).toContain(
+      launch(
+        "hermes-settings",
+        `"${executables.hermes}"`,
+        "-p pythia serve --isolated --host 127.0.0.1 --port 8646",
+      ),
+    );
     expect(paths.ports.hermes).toBe(8645);
     expect(text).not.toContain(".agents");
     expect(text).toContain(
       "UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY",
     );
     expect(text).not.toContain("PRIVATE_BEARER");
+    expect(paths.ports.settings).toBe(8646);
+    // The settings server is Hermes's own backend, bound to loopback and
+    // scoped to Pythia's profile, and never sees the chat API bearer.
+    const settingsUnit = units["pythia-agent-hermes-settings.service"] ?? "";
+    expect(settingsUnit).toContain(
+      "-p pythia serve --isolated --host 127.0.0.1 --port 8646",
+    );
+    expect(settingsUnit).toContain(
+      "UnsetEnvironment=API_SERVER_KEY EODHD_API_TOKEN EDGAR_IDENTITY HERMES_DASHBOARD_SESSION_TOKEN",
+    );
     const hermesUnit = units["pythia-agent-hermes.service"] ?? "";
     expect(hermesUnit).toContain(`WorkingDirectory=${paths.workspace}\n`);
     expect(hermesUnit).not.toContain(`WorkingDirectory=${paths.checkout}\n`);
@@ -222,7 +252,20 @@ describe("installed packaging", () => {
     const environments = serviceEnvironments(paths, executables);
     expect(JSON.stringify(environments)).not.toContain(secret);
     expect(JSON.stringify(environments)).not.toContain("API_SERVER_KEY");
-    expect(environments).not.toHaveProperty("basicMemory");
+    expect(Object.keys(environments).sort()).toEqual([
+      "desk",
+      "hermes",
+      "settings",
+    ]);
+    // Services resolve executables from the installed runtime, never from
+    // the mutable checkout.
+    for (const values of Object.values(
+      serviceEnvironmentValues(paths, executables),
+    )) {
+      expect(values.PATH.split(":")).not.toContainEqual(
+        expect.stringContaining(paths.checkout),
+      );
+    }
     expect(environments.desk).toContain('NEXT_TELEMETRY_DISABLED="1"');
     expect(
       serviceEnvironmentValues(paths, executables).hermes.PYTHIA_WORKSPACE,
@@ -238,7 +281,6 @@ describe("installed packaging", () => {
     expect(environments.desk).toContain(
       `PYTHIA_LIFECYCLE_COMMAND="${paths.installedCommand}"`,
     );
-    expect(JSON.stringify(environments)).not.toContain("PYTHIA_PYTHON");
     expect(environments.desk).toContain(
       `PYTHIA_INSTALL_CONFIG_HOME="${resolve(paths.configRoot, "..")}"`,
     );
@@ -256,6 +298,58 @@ describe("installed packaging", () => {
     for (const path of Object.values(paths.serviceEnvironments)) {
       expect(readFileSync(path, "utf8")).not.toContain(secret);
     }
+    expect(environments.settings).not.toContain("TOKEN");
+    // Every role that starts through the launcher reads its bearer from the
+    // private secrets file, which it finds through the config root.
+    for (const role of ["hermes", "settings", "desk"] as const)
+      expect(environments[role]).toContain(
+        `PYTHIA_CONFIG_ROOT="${paths.configRoot}"`,
+      );
+    expect(environments.desk).toContain(
+      'PYTHIA_HERMES_SETTINGS_URL="http://127.0.0.1:8646"',
+    );
+  });
+
+  it("launches each role with only its own stored bearer", () => {
+    const { paths, root } = fixture();
+    const config = join(root, "launch-config");
+    mkdirSync(config, { mode: 0o700 });
+    writeFileSync(
+      join(config, "secrets.json"),
+      JSON.stringify({
+        hermes_api_key: "A".repeat(32),
+        hermes_settings_token: "S".repeat(32),
+      }),
+      { mode: 0o600 },
+    );
+    const launch = (role: string) =>
+      execFileSync(
+        "python3",
+        [paths.serviceLauncher ?? "", role, "/usr/bin/env"],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH,
+            PYTHIA_CONFIG_ROOT: config,
+            // Ambient values never pass through.
+            HERMES_DASHBOARD_SESSION_TOKEN: "ambient-value",
+            API_SERVER_KEY: "ambient-value",
+          },
+        },
+      );
+    const hermes = launch("hermes");
+    expect(hermes).toContain(`API_SERVER_KEY=${"A".repeat(32)}`);
+    expect(hermes).not.toContain("SESSION_TOKEN");
+    const settings = launch("hermes-settings");
+    expect(settings).toContain(
+      `HERMES_DASHBOARD_SESSION_TOKEN=${"S".repeat(32)}`,
+    );
+    expect(settings).not.toContain("API_SERVER_KEY");
+    const desk = launch("desk");
+    expect(desk).toContain(`API_SERVER_KEY=${"A".repeat(32)}`);
+    expect(desk).toContain(`PYTHIA_HERMES_SETTINGS_TOKEN=${"S".repeat(32)}`);
+    expect(desk).not.toContain("ambient-value");
+    expect(() => launch("unknown")).toThrow();
   });
 
   it("verifies the exact active owned units without mutating the host", () => {
@@ -269,6 +363,10 @@ describe("installed packaging", () => {
       "pythia-agent-hermes.service": [
         executables.python,
         `${paths.serviceLauncher} hermes ${executables.hermes} -p pythia gateway run --external-supervisor`,
+      ],
+      "pythia-agent-hermes-settings.service": [
+        executables.python,
+        `${paths.serviceLauncher} hermes-settings ${executables.hermes} -p pythia serve --isolated --host 127.0.0.1 --port 8646`,
       ],
       "pythia-agent-desk.service": [
         executables.python,

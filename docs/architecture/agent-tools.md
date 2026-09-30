@@ -109,9 +109,10 @@ agent.
 - **Operation tools** keep their `pythia_<provider>_<operation>` names. They are
   never offered to the model.
 
-The operating prompt names the core tools and says where provider tools come
-from: they are named after their source, they come from the investor's installed
-Pythia plugins, and `tool_search` finds them when they are not loaded.
+The routing section of the prompt (`pythia.routing`, Desk chat only) names the
+core tools and says where provider tools come from: they are named after their
+source, they come from the investor's installed Pythia plugins, and
+`tool_search` finds them when they are not loaded.
 
 ## How a provider tool runs
 
@@ -216,8 +217,8 @@ when that changes.
     `fixtures/agent-tools.json`;
   - per-tool and total size budgets, a first sentence of at most 60 characters
     (the Tool Search listing), and that no `$comment` marker leaks;
-  - that the operating section stays within its budget and names only delivered
-    tools and provider prefixes;
+  - that each prompt section stays within its budget and the two name only
+    delivered tools and provider prefixes;
   - that each live-eval question's expected calls
     (`tooling/agent-eval/questions.json`) name a delivered tool with valid
     arguments.

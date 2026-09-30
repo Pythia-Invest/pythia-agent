@@ -1,40 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fixture, send } from "./stream-fixture";
-
-test("reload recovers a completed run without duplicating the hydrated answer", async ({
-  page,
-}) => {
-  const f = await fixture(page);
-  await send(page);
-  await f.emit([{ event: "message.delta", delta: "Starting" }]);
-  f.setHistory([
-    {
-      id: "native-user",
-      role: "user",
-      content: "Check the synthetic example.",
-    },
-    { id: "native-answer", role: "assistant", content: "Saved answer" },
-  ]);
-  f.setStatus({
-    run_id: "synthetic-run",
-    status: "completed",
-    output: "Saved answer",
-  });
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Stop generating" }),
-  ).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("pythia-desk:active-run:synthetic-chat"),
-      ),
-    )
-    .toBeNull();
-  await expect(page.getByText("Saved answer", { exact: true })).toHaveCount(1);
-  expect(f.streamRequests()).toBe(1);
-  expect(f.unexpected).toEqual([]);
-});
+import { fixture, send, isPhone } from "./stream-fixture";
 
 test("search selects exact native variants and keeps the current variant visible", async ({
   page,
@@ -65,10 +30,7 @@ test("search selects exact native variants and keeps the current variant visible
 test("mobile navigation contains keyboard focus and returns it on Escape", async ({
   page,
 }) => {
-  test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
-    "Mobile navigation drawer",
-  );
+  test.skip(!isPhone(page), "Mobile navigation drawer");
   await fixture(page);
   const trigger = page.getByRole("button", { name: "Open navigation" });
   await expect(
@@ -88,12 +50,18 @@ test("mobile navigation contains keyboard focus and returns it on Escape", async
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+  // The scrim sits behind the drawer; tapping the uncovered strip closes it.
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  const viewport = page.viewportSize() ?? { width: 412, height: 915 };
+  await page.mouse.click(viewport.width - 24, viewport.height / 2);
+  await expect(dialog).toHaveCount(0);
 });
 
 test("dock tabs activate with arrows and label the displayed panel", async ({
   page,
 }) => {
-  test.skip((page.viewportSize()?.width ?? 0) < 900, "Desktop dock tab strip");
+  test.skip(isPhone(page), "Desktop dock tab strip");
   await fixture(page);
   await page.route(/\/api\/sessions(?:\?|$)/, (route) =>
     route.fulfill({
@@ -109,8 +77,8 @@ test("dock tabs activate with arrows and label the displayed panel", async ({
   await page.getByRole("link", { name: "Markets", exact: true }).click();
   const dock = page.getByRole("complementary", { name: "Pythia", exact: true });
   await dock.getByRole("button", { name: "Chat history" }).click();
-  await page
-    .getByRole("dialog")
+  const history = page.getByRole("dialog");
+  await history
     .getByRole("button", { name: "Second synthetic chat", exact: true })
     .click();
   const first = dock.getByRole("tab", {
@@ -121,6 +89,19 @@ test("dock tabs activate with arrows and label the displayed panel", async ({
     name: "Second synthetic chat",
     exact: true,
   });
+  await expect(second).toHaveAttribute("aria-selected", "true");
+  // A chat that already has a tab says so, and picking it selects that tab
+  // instead of adding one, without leaving the page.
+  const tabs = dock.getByRole("tab");
+  const count = await tabs.count();
+  await dock.getByRole("button", { name: "Chat history" }).click();
+  await expect(history.getByText("Open", { exact: true })).toHaveCount(2);
+  await history
+    .getByRole("button", { name: "First synthetic chat", exact: true })
+    .click();
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await expect(tabs).toHaveCount(count);
+  await expect(page).toHaveURL(/\/markets$/);
   await second.focus();
   await second.press("ArrowLeft");
   await expect(first).toBeFocused();
@@ -143,7 +124,7 @@ test("dock tabs activate with arrows and label the displayed panel", async ({
 test("an open chat missing from the bounded session list still renders in the dock", async ({
   page,
 }) => {
-  test.skip((page.viewportSize()?.width ?? 0) < 900, "Desktop dock");
+  test.skip(isPhone(page), "Desktop dock");
   await fixture(page, [
     { id: "u", role: "user", content: "Earlier question" },
     { id: "a", role: "assistant", content: "Earlier saved answer" },

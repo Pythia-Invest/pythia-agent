@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .desk_view import SCHEMA as DESK_VIEW_SCHEMA, desk_view
-from .operating import operating_context
+from .operating import operating_context, routing_context
 
 
 def register(ctx: Any) -> None:
@@ -40,6 +40,13 @@ def register(ctx: Any) -> None:
     ctx.register_system_prompt_section(
         "pythia.operating",
         operating_context,
+        position="after_memory",
+        max_chars=4000,
+    )
+    # Hermes renders sections by id, so this follows the operating section.
+    ctx.register_system_prompt_section(
+        "pythia.routing",
+        routing_context,
         position="after_memory",
         max_chars=4000,
     )

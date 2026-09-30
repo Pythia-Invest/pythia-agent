@@ -59,6 +59,7 @@ export function DeskProviders({ children }: { children: ReactNode }) {
   const [view] = useState(() => new DeskViewPublisher(api));
   const [chats] = useState(() => new DeskChats(api, queryClient, view));
   useEffect(() => view.start(), [view]);
+  useEffect(() => chats.attention.restore(), [chats]);
   return (
     <DeskApiContext.Provider value={api}>
       <QueryClientProvider client={queryClient}>

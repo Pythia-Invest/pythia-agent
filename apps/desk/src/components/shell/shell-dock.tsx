@@ -1,35 +1,25 @@
 "use client";
 
 import {
+  cn,
   Drawer,
   ResizableGroup,
   ResizablePanel,
   ResizableSeparator,
 } from "@pythia/ui";
-import { usePathname } from "next/navigation";
-import {
-  type ReactNode,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import type { ReactNode } from "react";
 import { useRestoredPanel } from "@/layout/use-restored-panel";
 import { ArtifactNavigationContext } from "@/components/workspace/artifact-navigation";
-import { AgentDockRail } from "./agent-dock";
+import { AgentDockButton, AgentDockRail } from "./agent-dock";
+import { useWideShell } from "./use-wide-shell";
 import { DOCK_MAX, DOCK_MIN, writeDockWidth } from "./shell-layout";
 
-function subscribeWidth(listener: () => void) {
-  const media = window.matchMedia("(min-width: 900px)");
-  media.addEventListener("change", listener);
-  return () => media.removeEventListener("change", listener);
-}
-export function useWideShell() {
-  return useSyncExternalStore(
-    subscribeWidth,
-    () => window.matchMedia("(min-width: 900px)").matches,
-    () => false,
-  );
-}
+export { useWideShell } from "./use-wide-shell";
+
+/** A phone sheet takes the whole screen: the page behind it is not usable
+ * while it is open, so a strip of it only takes width from the chat. */
+export const PHONE_SHEET =
+  "border-0 data-[swipe-direction=left]:w-full data-[swipe-direction=left]:rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
 
 /** The desktop dock stays beside the destination; phones open it explicitly
  * as a temporary sheet so the destination retains the entire reading width. */
@@ -40,6 +30,8 @@ export function ShellDock({
   onOpenChange,
   width,
   ready,
+  sheetOpen,
+  onSheetOpenChange,
 }: {
   children: ReactNode;
   dock: (onHide: () => void) => ReactNode;
@@ -47,14 +39,14 @@ export function ShellDock({
   onOpenChange: (open: boolean) => void;
   width: number;
   ready: boolean;
+  /** The phone sheet, opened from the floating Pythia button. */
+  sheetOpen: boolean;
+  onSheetOpenChange: (open: boolean) => void;
 }) {
   const wide = useWideShell();
-  const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileOpen = sheetOpen;
+  const setMobileOpen = onSheetOpenChange;
   const { panelRef, restored } = useRestoredPanel(width, ready && wide && open);
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
   return (
     <>
       <ResizableGroup
@@ -101,9 +93,18 @@ export function ShellDock({
         </ResizablePanel>
       </ResizableGroup>
       <AgentDockRail
-        className="min-[900px]:[[data-desk-dock-open=true]_&]:hidden"
-        onOpen={() => (wide ? onOpenChange(true) : setMobileOpen(true))}
+        className="max-[899px]:hidden min-[900px]:[[data-desk-dock-open=true]_&]:hidden"
+        onOpen={() => onOpenChange(true)}
       />
+      {/* Server-rendered before the breakpoint is known, so the class keeps
+          it off a wide screen. It stays mounted, hidden, while its sheet is
+          open, so closing the sheet can return focus to it. */}
+      {wide ? null : (
+        <AgentDockButton
+          className={cn("min-[900px]:hidden", mobileOpen && "invisible")}
+          onOpen={() => setMobileOpen(true)}
+        />
+      )}
       <Drawer.Root
         open={!wide && mobileOpen}
         onOpenChange={setMobileOpen}
@@ -112,7 +113,7 @@ export function ShellDock({
         <Drawer.Portal>
           <Drawer.Backdrop />
           <Drawer.Viewport>
-            <Drawer.Popup aria-label="Pythia chat" className="border-0">
+            <Drawer.Popup aria-label="Pythia chat" className={PHONE_SHEET}>
               <Drawer.Content className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
                 <ArtifactNavigationContext.Provider
                   value={() => setMobileOpen(false)}

@@ -1,0 +1,90 @@
+{
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs",
+        "json": {
+          "input": "Compare the margins.",
+          "session_id": "capture-session"
+        }
+      },
+      "status": 202,
+      "body": {
+        "run_id": "run_capture_3",
+        "status": "started",
+        "replayed": false
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_3"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_3",
+        "status": "running",
+        "updated_at": 1767225602.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "tool.started"
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/runs/run_capture_3/steer",
+        "json": {
+          "input": "Focus on 2025 only."
+        }
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run.steer",
+        "run_id": "run_capture_3",
+        "accepted": true
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_3/events"
+      },
+      "status": 200,
+      "sse": [
+        "data: {\"event\": \"tool.started\", \"run_id\": \"run_capture_3\", \"timestamp\": 1767225601.0, \"tool\": \"terminal\", \"preview\": \"python3 compare.py\"}",
+        "data: {\"event\": \"run.steered\", \"run_id\": \"run_capture_3\", \"timestamp\": 1767225603.0, \"accepted\": true}",
+        "data: {\"event\": \"tool.completed\", \"run_id\": \"run_capture_3\", \"timestamp\": 1767225604.0, \"tool\": \"terminal\", \"duration\": 2.0, \"error\": false}",
+        "data: {\"event\": \"run.completed\", \"run_id\": \"run_capture_3\", \"timestamp\": 1767225605.0, \"output\": \"Compared 2025 only.\", \"usage\": {\"input_tokens\": 0, \"output_tokens\": 0, \"total_tokens\": 0}}",
+        ": stream closed"
+      ]
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/runs/run_capture_3"
+      },
+      "status": 200,
+      "body": {
+        "object": "hermes.run",
+        "run_id": "run_capture_3",
+        "status": "completed",
+        "updated_at": 1767225606.0,
+        "created_at": 1767225600.0,
+        "session_id": "capture-session",
+        "model": "hermes-agent",
+        "last_event": "run.completed",
+        "output": "Compared 2025 only.",
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0
+        }
+      }
+    }
+  ],
+  "delivered_tool_content": "{\"output\": \"done\", \"exit_code\": 0}\n\n[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; not tool output and not a new delivery when replayed from conversation history]\nFocus on 2025 only.\n[/OUT-OF-BAND USER MESSAGE]"
+}

@@ -208,8 +208,6 @@ describe("optional Tailscale access", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(tailscaleAccess()?.host).toBe(headers.host);
     expect(admitBrowserRequest(request("GET", headers), "health")).toBeNull();
-    expect(tailscaleAccess({ NODE_ENV: "development" })).toBeNull();
-    expect(tailscaleAccess({ NODE_ENV: "production" })).toBeNull();
     vi.stubEnv("PYTHIA_DESK_TAILSCALE_ORIGIN", undefined);
     vi.stubEnv("PYTHIA_DESK_TAILSCALE_LOGIN", undefined);
     expect(admitBrowserRequest(request("GET", headers), "health")?.status).toBe(

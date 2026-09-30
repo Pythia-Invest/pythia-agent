@@ -49,5 +49,11 @@
       "worker_reads.py"
     ],
     "sha256": "50c0e322fe2997bfe9bfb33301a18037a4e4a0c0286f9c40e5487c4c2afc0afe"
+  },
+  {
+    "name": "pythia",
+    "revision": "562dfc9f63c06bb1d377f6fdd49367d1c38af747",
+    "files": ["__init__.py", "plugin.yaml"],
+    "sha256": "416162c4029506f0b088b6d78ab1c08b86b14ba0d5ac08fc52ad9e92d58f08e4"
   }
 ]

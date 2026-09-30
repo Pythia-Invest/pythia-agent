@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { fixture, send } from "./stream-fixture";
+import { fixture, send, isPhone } from "./stream-fixture";
 
 test("carries one live reply through navigation and hiding the dock", async ({
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) < 900,
+    isPhone(page),
     "The persistent side dock belongs to desktop; phone sheet access is covered separately.",
   );
   const f = await fixture(page);
@@ -66,20 +66,10 @@ test("loads older messages without moving the visible history anchor", async ({
   );
 });
 
-test("Stop during run creation reaches Hermes once the run is accepted", async ({
-  page,
-}) => {
+test("Stop generating asks Hermes to stop the run", async ({ page }) => {
   const f = await fixture(page);
-  const creating = Promise.withResolvers<void>();
-  f.delayCreation(creating.promise);
-  try {
-    await send(page);
-    await expect.poll(() => f.submissions.length).toBe(1);
-    await page.getByRole("button", { name: "Stop generating" }).click();
-    expect(f.stops).toEqual([]);
-  } finally {
-    creating.resolve();
-  }
+  await send(page);
+  await page.getByRole("button", { name: "Stop generating" }).click();
   await expect.poll(() => f.stops).toEqual(["synthetic-run"]);
   await expect(page.getByText("Stopped.", { exact: true })).toBeVisible();
   expect(f.unexpected).toEqual([]);
@@ -99,7 +89,6 @@ test("keeps rejected guidance in the composer", async ({ page }) => {
     page.getByText("This run no longer accepts guidance.", { exact: true }),
   ).toBeVisible();
   await expect(input).toHaveValue("Keep this guidance draft");
-  await expect(page.getByText("Approval not recorded.")).toHaveCount(0);
   await f.emit([{ event: "run.cancelled" }]);
 });
 
@@ -127,26 +116,32 @@ test("an older failure cannot retry a different successful prompt", async ({
   ]);
 });
 
-test("phone settings stays usable while chat opens and closes as a sheet", async ({
+test("on a phone, a page opens Pythia as a sheet from its floating button", async ({
   page,
 }) => {
   test.skip(
-    (page.viewportSize()?.width ?? 0) >= 900,
+    !isPhone(page),
     "Sheet behavior belongs to narrow viewports; desktop dock is covered separately.",
   );
   await fixture(page);
   await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  const theme = page.getByRole("combobox", { name: "Theme" });
-  await theme.click();
-  await page.getByRole("option", { name: "Dark", exact: true }).click();
-  await page.getByRole("button", { name: "Open Pythia", exact: true }).click();
+  await page.getByRole("link", { name: "Markets", exact: true }).click();
+  await expect(page).toHaveURL(/\/markets$/);
+  const open = page.getByRole("button", { name: "Open Pythia", exact: true });
+  await open.click();
   const sheet = page.getByRole("dialog", { name: "Pythia chat" });
   await expect(
     sheet.getByRole("textbox", { name: "Message Pythia" }),
   ).toBeVisible();
+  await expect(open).toBeHidden();
+  // A phone header names the chat and switches through history, not tabs.
+  await expect(sheet.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  await expect(sheet.getByRole("tablist")).toBeHidden();
+  for (const name of ["New chat", "Chat history"])
+    await expect(
+      sheet.getByRole("button", { name, exact: true }),
+    ).toBeVisible();
   await sheet.getByRole("button", { name: "Hide Pythia" }).click();
   await expect(sheet).toBeHidden();
-  await theme.click();
-  await page.getByRole("option", { name: "System", exact: true }).click();
+  await expect(open).toBeVisible();
 });

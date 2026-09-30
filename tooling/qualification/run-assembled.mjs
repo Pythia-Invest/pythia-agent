@@ -2,8 +2,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   CONTEXT_PASS_TOOLSET,
   CONTEXT_TOOL,
@@ -23,6 +23,11 @@ import {
   runAssembledCommand,
   seedSyntheticState,
 } from "./assembled-operations.mjs";
+import { runHermesCapture } from "./hermes-capture.mjs";
+
+const REPOSITORY_ROOT = resolve(
+  fileURLToPath(new URL("../..", import.meta.url)),
+);
 
 const READY_TIMEOUT_MS = 4 * 60_000;
 const STOP_TIMEOUT_MS = 20_000;
@@ -161,6 +166,18 @@ export async function runAssembledQualification() {
     instrumentContextProbe(root, "one");
     runAssembledCommand(root, "one", ["just", "dev-init"]);
     qualifyAgentTools(stack);
+    // The fixture has just hydrated the pinned Hermes; compare the committed
+    // goldens with a fresh provider-free capture from it (ADR 0020).
+    if (
+      runHermesCapture({
+        hermesSource: stack.paths.hermesSource,
+        repositoryRoot: REPOSITORY_ROOT,
+        check: true,
+      }) !== 0
+    )
+      throw new Error(
+        "Committed Hermes goldens differ from the pinned capture.",
+      );
     const seededState = seedSyntheticState(root, "one");
     const seededSession = seedNativeSession(root, "one");
     child = spawn("just", ["dev"], {
@@ -183,6 +200,7 @@ export async function runAssembledQualification() {
       agent_tools: "qualified",
       context_probe: CONTEXT_PASS_TOOLSET,
       native_skills: observation.native_skills,
+      hermes_capture: "match",
       provider_or_model_call: false,
       stack: stack.id,
     };

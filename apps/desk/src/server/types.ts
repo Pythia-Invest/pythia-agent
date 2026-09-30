@@ -7,6 +7,9 @@ export type HermesSession = {
   preview?: string | null;
   message_count?: number | null;
   ended_at?: number | null;
+  parent_session_id?: string;
+  source?: string;
+  model?: string;
 };
 
 export type HermesMessage = {
@@ -67,6 +70,8 @@ export type DeskRunEvent = {
   task_count?: number;
   task_index?: number;
   subagent_id?: string;
+  parent_id?: string;
+  depth?: number;
   model?: string;
   tool_count?: number;
   duration_seconds?: number;
@@ -127,13 +132,23 @@ export type HermesInput =
 export interface HermesClient {
   capabilities(): Promise<HermesCapabilities>;
   modelOptions(refresh?: boolean): Promise<ModelCatalog>;
-  listSessions(limit: number, offset: number): Promise<HermesSession[]>;
+  listSessions(
+    limit: number,
+    offset: number,
+    options?: {
+      includeChildren: boolean;
+      source?: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<HermesSession[]>;
+  getSession(sessionId: string, signal?: AbortSignal): Promise<HermesSession>;
   createSession(title?: string): Promise<HermesSession>;
   renameSession(sessionId: string, title: string): Promise<HermesSession>;
   listMessages(
     sessionId: string,
     limit: number,
     offset: number,
+    options?: { order?: "latest" | "oldest"; signal?: AbortSignal },
   ): Promise<HermesMessagePage>;
   startRun(
     sessionId: string,

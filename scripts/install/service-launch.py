@@ -1,4 +1,8 @@
-"""Inject the sole stored Hermes bearer into only Hermes or Desk, then exec."""
+"""Inject each service's stored Hermes bearer into only that service, then exec.
+
+Hermes gets the API server bearer, the Hermes settings server its own session
+token, and Desk both, since it is the only client of either server.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +19,7 @@ def fail(message: str) -> NoReturn:
     raise SystemExit(1)
 
 
-def api_key() -> str:
+def stored(field: str, label: str) -> str:
     raw_root = os.environ.get("PYTHIA_CONFIG_ROOT")
     if not raw_root:
         fail("PYTHIA_CONFIG_ROOT is missing.")
@@ -32,24 +36,50 @@ def api_key() -> str:
             fail("the secret store is not a regular file.")
         if info.st_mode & 0o077:
             fail("the secret store permissions are too open.")
-        value = json.loads(path.read_text(encoding="utf-8")).get("hermes_api_key")
+        value = json.loads(path.read_text(encoding="utf-8")).get(field)
     except (OSError, ValueError, TypeError):
         fail("the secret store is missing or invalid.")
     if not isinstance(value, str) or len(value.strip()) < 16:
-        fail("the Hermes API bearer is missing or invalid.")
+        fail(f"the {label} is missing or invalid.")
     return value.strip()
 
 
+BEARERS = {
+    "hermes": {"API_SERVER_KEY": ("hermes_api_key", "Hermes API bearer")},
+    "hermes-settings": {
+        "HERMES_DASHBOARD_SESSION_TOKEN": (
+            "hermes_settings_token",
+            "Hermes settings bearer",
+        )
+    },
+    "desk": {
+        "API_SERVER_KEY": ("hermes_api_key", "Hermes API bearer"),
+        "PYTHIA_HERMES_SETTINGS_TOKEN": (
+            "hermes_settings_token",
+            "Hermes settings bearer",
+        ),
+    },
+}
+AMBIENT = (
+    "API_SERVER_KEY",
+    "HERMES_DASHBOARD_SESSION_TOKEN",
+    "PYTHIA_HERMES_SETTINGS_TOKEN",
+    "EODHD_API_TOKEN",
+    "EDGAR_IDENTITY",
+)
+
+
 def main() -> None:
-    if len(sys.argv) < 3 or sys.argv[1] not in {"hermes", "desk"}:
+    if len(sys.argv) < 3 or sys.argv[1] not in BEARERS:
         fail("the fixed service role or command is missing.")
     command = sys.argv[2:]
     if not Path(command[0]).is_absolute():
         fail("the service executable must be absolute.")
     environment = os.environ.copy()
-    for name in ("API_SERVER_KEY", "EODHD_API_TOKEN", "EDGAR_IDENTITY"):
+    for name in AMBIENT:
         environment.pop(name, None)
-    environment["API_SERVER_KEY"] = api_key()
+    for name, (field, label) in BEARERS[sys.argv[1]].items():
+        environment[name] = stored(field, label)
     os.execve(command[0], command, environment)
 
 
