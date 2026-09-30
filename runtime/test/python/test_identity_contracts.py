@@ -381,7 +381,7 @@ class ClaimTest(unittest.TestCase):
         wire = json.loads(json.dumps(identity.batch_to_json(batch)))
         self.assertEqual(wire["claims"][0]["attributes"]["aliases"], ["ASML Holding", "Veldhoven"])
         self.assertEqual(identity.batch_from_json(wire).claims[0].attributes.aliases, ("ASML Holding", "Veldhoven"))
-        for refused in ([""], [None], [7], ["x" * 513], ["name"] * 33):
+        for refused in ("ASML", {"ASML": 1}, [""], [None], [7], ["x" * 513], ["name"] * 33):
             wire["claims"][0]["attributes"]["aliases"] = refused
             with self.subTest(aliases=str(refused)[:20]), self.assertRaisesRegex(identity.ClaimError, r"^claims\[0\].*aliases"):
                 identity.batch_from_json(wire)

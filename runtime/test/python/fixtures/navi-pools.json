@@ -21,7 +21,8 @@
       },
       "contract": {
         "pool": "0x88fb36f9ab1ac2a47a974c53daf5ef37862e063f4875bf54e5853e2ca1e9ddad"
-      }
+      },
+      "borrowedAmount": "19446931443"
     },
     {
       "uniqueId": "main-30",
@@ -43,7 +44,8 @@
       },
       "contract": {
         "pool": "0xadc7f434a042018d41d08c9e9efc851a6fcaeb779273755d47a5029f056206ef"
-      }
+      },
+      "borrowedAmount": "0"
     },
     {
       "uniqueId": "main-21",
@@ -65,7 +67,8 @@
       },
       "contract": {
         "pool": "0x348f4049063e6c4c860064d67a170a7b3de033db9d67545d98fa5da3999966bc"
-      }
+      },
+      "borrowedAmount": "2483660332"
     },
     {
       "uniqueId": "main-19",
@@ -87,7 +90,8 @@
       },
       "contract": {
         "pool": "0xa3e0471746e5d35043801bce247d3b3784cc74329d39f7ed665446ddcf22a9e2"
-      }
+      },
+      "borrowedAmount": "976194674278030"
     },
     {
       "uniqueId": "main-10",
@@ -109,7 +113,8 @@
       },
       "contract": {
         "pool": "0xa3582097b4c57630046c0c49a88bfc6b202a3ec0a9db5597c31765f7563755a8"
-      }
+      },
+      "borrowedAmount": "25174350033145388"
     },
     {
       "uniqueId": "main-8",
@@ -131,7 +136,8 @@
       },
       "contract": {
         "pool": "0xd162cbe40f8829ce71c9b3d3bf3a83859689a79fa220b23d70dc0300b777ae6e"
-      }
+      },
+      "borrowedAmount": "13760096"
     },
     {
       "uniqueId": "main-5",
@@ -153,7 +159,8 @@
       },
       "contract": {
         "pool": "0x9790c2c272e15b6bf9b341eb531ef16bcc8ed2b20dfda25d060bf47f5dd88d01"
-      }
+      },
+      "borrowedAmount": "656475296576903"
     },
     {
       "uniqueId": "main-1",
@@ -175,7 +182,8 @@
       },
       "contract": {
         "pool": "0xa02a98f9c88db51c6f5efaaf2261c81f34dd56d86073387e0ef1805ca22e39c8"
-      }
+      },
+      "borrowedAmount": "2125545923929922"
     },
     {
       "uniqueId": "main-0",
@@ -197,7 +205,8 @@
       },
       "contract": {
         "pool": "0x96df0fce3c471489f4debaaa762cf960b3d97820bd1f3f025ff8190730e958c5"
-      }
+      },
+      "borrowedAmount": "20951813183934548"
     },
     {
       "uniqueId": "ember-2",
@@ -219,7 +228,8 @@
       },
       "contract": {
         "pool": "0x0e5c1d0d9d81bb12fa360a3088446fa13e7868af1f7a7c1421f9c106b9af5faf"
-      }
+      },
+      "borrowedAmount": "0"
     },
     {
       "uniqueId": "ember-0",
@@ -241,7 +251,8 @@
       },
       "contract": {
         "pool": "0x660194c215d84cf9ac1de39de440edc059671ce04ee8131374159472a791ff84"
-      }
+      },
+      "borrowedAmount": "11039604283"
     },
     {
       "uniqueId": "sui-usdc-1",
@@ -263,7 +274,8 @@
       },
       "contract": {
         "pool": "0x981de52ee841ac80387e0edd85c944197a273110043351e1bf5242b47c23abe8"
-      }
+      },
+      "borrowedAmount": "1274306495650556"
     },
     {
       "uniqueId": "wbtc-usdc-0",
@@ -285,7 +297,8 @@
       },
       "contract": {
         "pool": "0x5d6616d8bed2add4eeca1220cd6129a66f140dcdd9663e490ec52ac0a0f3f8e6"
-      }
+      },
+      "borrowedAmount": "0"
     }
   ],
   "meta": {}

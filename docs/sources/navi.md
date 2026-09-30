@@ -60,10 +60,10 @@ API is authoritative.
 | `contract.pool` | Object id of the reserve's `Pool<T>` (SDK `Pool.contract`) | Native reference, scope `reserve`: the reserve's ID | A 66-character lowercase id for all 62 reserves, all distinct; the object's type names the coin | Yes |
 | `suiCoinType` | The coin type, as a full Sui type | The coin the reserve holds: `market_asset` link, a `listing` keyed by CAIP-19 | Always `0x` plus the address. `coinType` is the same without `0x` and not zero-padded, so core's pattern would refuse it: never read | Yes |
 | `market` | The market key (SDK `MARKETS`) | Which reserves a setting takes; part of the name through the SDK's display name | 11 keys; `main` has 35 reserves, `ember` 3, `rwa` 3, `sui-eco` 7, the seven pair markets 2 each | Yes |
-| `token.symbol` | The token's symbol | The token's label; part of the reserve's name | Drifts: `vSUI` here, `VSUI` at DeFiLlama, `voloSUI` in NAVI's stale documentation; `wBTC`/`WBTC` for three different coins in one market. A symbol never identifies | Yes |
+| `token.symbol` | The token's symbol | The token's label; part of the reserve's name | Drifts: `vSUI` here, `VSUI` at DeFiLlama; `wBTC`/`WBTC` for three different coins in one market. A symbol never identifies | Yes |
 | `isSuiBridge`, `isWormhole`, `isLayerZero` | Bridge flavour of the coin | The bridge tag in the label ("suiUSDT (Sui Bridge)") | Independent booleans; at most one is true on any reserve | Yes |
 | `isDeprecated` | Reserve is being wound down | `status: inactive` | True for 11 reserves of `main`; `status` reads `deprecating` with it. The app marks the whole `ember` market "Deprecating" while its API records are not flagged: the API decides | Yes |
-| `totalSupplyAmount`, `oracle.price` | Supplied amount in units of 1e-9 of the coin; the oracle's USD price (SDK `getPools` computes the supply value the same way) | `rank.tvl_usd`: a search rank signal only | `main-10` USDC: about $36.7M supplied, DeFiLlama's TVL for the same pool (supply minus borrow) $11.5M | Yes |
+| `totalSupplyAmount`, `borrowedAmount`, `oracle.price` | Supplied and borrowed amounts in units of 1e-9 of the coin; the oracle's USD price (SDK `getPools` computes its supply and borrow values the same way) | `rank.tvl_usd` = (supplied - borrowed) x price, DeFiLlama's definition for lending: a search rank signal only. A record missing one of the three has no rank | `main-10` USDC: about $36.7M supplied and $25.2M borrowed, so $11.5M, DeFiLlama's $11.48M for the same pool | Yes |
 | `id`, `uniqueId` | The reserve's number in its market; `<market>-<id>` | Not read | `id` is contiguous in `main`; deprecated reserves stay listed. Its permanence rests on NAVI's discipline, unlike the object id | No |
 | `isIsolated` | Not documented | Not read | `false` on all 62 reserves although NAVI presents some markets as isolated risk silos | No |
 
@@ -101,8 +101,9 @@ data, not identity, and wait for stage 1.
 | Every requested market returns a reserve | 11 of 11 | `empty_market` warning naming the markets |
 
 There is no alarm for a market NAVI launches later: NAVI publishes no list of
-markets, so the plugin carries the SDK's 11 keys. The investor adds a new key
-to `navi_markets`; until then its reserves are not in the catalogue.
+markets, so the plugin carries the SDK's 11 keys. The setting `navi_markets`
+replaces that default, as `defillama_chains` does its own, so the investor lists
+all 11 keys and the new one; until then its reserves are not in the catalogue.
 
 ## 3. Identifiers of introduced subjects
 
@@ -148,8 +149,8 @@ Open items accepted for the first version:
 
 - NAVI publishes no data terms for its open API; opt-in and local only. Open:
   ask NAVI whether the API may be used by a desktop app before sign-off.
-- No list of markets is published: a new market needs its key in
-  `navi_markets`.
+- No list of markets is published: a new market needs its key listed in
+  `navi_markets` beside the others, which the setting replaces rather than extends.
 - Reserves are not fused with DeFiLlama's pools, and the two NAVI Lending
   protocols stay separate (a founder decision).
 - An on-chain check that each Pool object's type matches its coin (three

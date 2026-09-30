@@ -9,7 +9,7 @@ from . import catalogue
 from .definition import TOOLS, schemas
 
 MARKETS = 'navi_markets'  # native plugin setting: NAVI market keys; unset or empty is every market the SDK names
-POLICY = 'navi-catalogue-1'  # the projection cached reads carry; bump it when the projection changes
+POLICY = 'navi-catalogue-2'  # the projection cached reads carry; bump it when the projection changes
 
 
 def envelope(data, issues=(), **extra):

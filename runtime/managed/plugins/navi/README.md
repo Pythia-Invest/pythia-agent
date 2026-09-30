@@ -67,18 +67,21 @@ not a published quota.
   for a bridged coin "NAVI Lending suiUSDT (Sui Bridge, Main Market)". A token is
   labelled by its symbol, with its bridge for a bridged coin ("suiUSDT (Sui
   Bridge)"), so two coins NAVI both calls wBTC stay apart. The protocol also
-  answers to "NAVI" and "NAVI Protocol", and Volo's vSUI to "voloSUI"
-  (`RecordAttributes.aliases`). A label is never evidence.
-- A deprecated reserve (`isDeprecated`) is `status: inactive`. Its total supply
-  in US dollars is kept only as a search rank signal (`rank.tvl_usd`).
+  answers to "NAVI" and "NAVI Protocol" (`RecordAttributes.aliases`). A label is
+  never evidence.
+- A deprecated reserve (`isDeprecated`) is `status: inactive`. Its TVL, as
+  DeFiLlama defines it for lending (supplied minus borrowed, in US dollars at
+  the oracle price), is kept only as a search rank signal (`rank.tvl_usd`). A
+  reserve whose response lacks a supplied, borrowed or price value has none.
 
 ## Markets
 
 NAVI publishes no list of its markets. The plugin carries the 11 keys of the
 SDK's `MARKETS` constant, with its display names, and reads all of them. The
 native plugin setting `navi_markets` names keys as a list or comma-separated
-text; unset or empty is all 11. A market NAVI launches later is invisible
-until its key is added:
+text; unset or empty is all 11. Like `defillama_chains`, a list **replaces** the
+default rather than extending it: to read a market NAVI launches later, list
+all 11 keys and the new one. Until then it is invisible:
 
 ```sh
 hermes -p <profile> config set plugins.entries.pythia-navi.settings.navi_markets 'main, sui-eco'

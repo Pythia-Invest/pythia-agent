@@ -424,7 +424,6 @@ central curator exists.
   subject. Their pools, reserves and protocols stay separate subjects, adjacent
   on the token's page: no plugin states an identifier at that scope, and a
   bridge between them is a founder decision ([ADR 0038](0038-plugin-addressing-contract.md)).
-  Every plugin's aliases are search names.
 
 Still open:
 

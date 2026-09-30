@@ -67,12 +67,6 @@ def sui_caip19(coin_type):
     return f'sui:mainnet/coin:{encoded}' if len(encoded) <= 128 else None
 
 
-# What NAVI's own documentation calls a coin the API labels otherwise: its Supported Assets page says voloSUI where the
-# API and app say vSUI (a Sui coin type, Volo's liquid staking token). Search finds the coin by either; a name is
-# never evidence.
-ALSO_CALLED = {sui_caip19('0x549e8b69270defbfafd4f94e17ec44cdbdd99820b33bda2278dea3b9a32d3f55::cert::CERT'): ('voloSUI',)}
-
-
 def _text(value, maximum=120):
     return (isinstance(value, str) and 0 < len(value) <= maximum and value == value.strip()
             and not any(ord(char) < 32 or ord(char) == 127 for char in value))
@@ -93,13 +87,15 @@ def _reserve(item):
             and isinstance(item.get('isDeprecated'), bool) and isinstance(item.get('suiCoinType'), str)
             and all(isinstance(item.get(flag, False), bool) for flag, _tag in BRIDGES)):
         return None
-    # The SDK's own supply value: `totalSupplyAmount` is in units of 1e-9 of the coin, priced by the oracle.
-    supply, oracle = _amount(item.get('totalSupplyAmount')), item.get('oracle')
+    # TVL as DeFiLlama defines it for lending, supplied minus borrowed, in the SDK's own units: `totalSupplyAmount` and
+    # `borrowedAmount` are in 1e-9 of the coin, priced by the oracle. Without all three, no rank rather than a wrong one.
+    supply, borrowed = _amount(item.get('totalSupplyAmount')), _amount(item.get('borrowedAmount'))
+    oracle = item.get('oracle')
     price = _amount(oracle.get('price')) if isinstance(oracle, dict) else None
     tag = next((name for flag, name in BRIDGES if item.get(flag)), None)
     return {'pool': contract['pool'], 'market': item['market'], 'symbol': token['symbol'], 'tag': tag,
             'coin': item['suiCoinType'], 'key': sui_caip19(item['suiCoinType']), 'inactive': item['isDeprecated'],
-            'tvl': supply * price / 1e9 if supply is not None and price is not None else None}
+            'tvl': max(supply - borrowed, 0) * price / 1e9 if None not in (supply, borrowed, price) else None}
 
 
 def reserve_rows(data, wanted):
@@ -185,8 +181,7 @@ def _reserve_claims(row, emitted, labels, provenance):
     if key:
         if key not in emitted:
             tokens = [{'level': 'listing', 'identifiers': [{'scheme': 'caip19', 'value': key}],
-                       'attributes': {'asset_class': 'crypto', 'name': labels[key][:512],
-                                      **({'aliases': list(ALSO_CALLED[key])} if key in ALSO_CALLED else {})},
+                       'attributes': {'asset_class': 'crypto', 'name': labels[key][:512]},
                        'provenance': provenance}]
         relations.append({'type': 'market_asset', 'from_key': pool, 'to_key': {'scheme': 'caip19', 'value': key},
                           'provenance': provenance})

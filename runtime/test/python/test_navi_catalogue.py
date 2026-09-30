@@ -140,12 +140,11 @@ class Catalogue(unittest.TestCase):
     def test_aliases_carry_the_names_navi_is_also_called_by(self):
         protocol, = records(claims('protocols'))
         self.assertEqual(protocol.attributes.aliases, ('NAVI', 'NAVI Protocol'))
-        aliases = {claim.identifiers[0].value: claim.attributes.aliases for claim in records(claims('reserves'))
-                   if claim.level == 'listing'}
-        self.assertEqual(aliases[catalogue.sui_caip19(VSUI)], ('voloSUI',))
-        self.assertEqual({key for key, found in aliases.items() if found}, {catalogue.sui_caip19(VSUI)})
+        # Nothing else: a label NAVI's API does not state is not the plugin's to assert.
+        self.assertEqual([claim.attributes.aliases for claim in records(claims('reserves')) if claim.level != 'protocol'
+                          and claim.attributes.aliases], [])
 
-    def test_a_deprecated_reserve_is_inactive_and_supply_is_a_rank_signal_in_dollars(self):
+    def test_a_deprecated_reserve_is_inactive_and_tvl_is_supplied_minus_borrowed_in_dollars(self):
         found = records(claims('reserves'))
         status = {claim.native_ref.native_id: claim.attributes.status for claim in found if claim.level == 'market'}
         self.assertEqual({item['uniqueId'] for item in FIXTURE['data'] if status[item['contract']['pool']] == 'inactive'},
@@ -153,8 +152,13 @@ class Catalogue(unittest.TestCase):
         self.assertEqual(status[POOL_USDC], 'active')
         ranks = {claim.native_ref.native_id: claim.attributes.rank for claim in found if claim.level == 'market'}
         usdc = reserve('main-10')
-        self.assertAlmostEqual(ranks[POOL_USDC]['tvl_usd'],
-                               int(usdc['totalSupplyAmount']) / 1e9 * float(usdc['oracle']['price']))
+        self.assertAlmostEqual(ranks[POOL_USDC]['tvl_usd'], (int(usdc['totalSupplyAmount']) - int(usdc['borrowedAmount']))
+                               / 1e9 * float(usdc['oracle']['price']))
+        self.assertLess(ranks[POOL_USDC]['tvl_usd'], int(usdc['totalSupplyAmount']) / 1e9)  # not the amount supplied
+        # A record missing a value has no rank rather than a wrong one.
+        for damaged in ({'borrowedAmount': None}, {'totalSupplyAmount': 'n/a'}, {'oracle': {}}):
+            only = claims('reserves', markets='main', response=answer(reserve('main-10') | damaged))
+            self.assertEqual([claim.attributes.rank for claim in records(only) if claim.level == 'market'], [{}])
 
     def test_a_reserve_is_part_of_the_protocol_and_holds_its_coin(self):
         found = claims('reserves')
@@ -422,7 +426,6 @@ class Search(search_tests.DeviceSearch):
         token = lambda coin: search_tests.identity.subject_id('listing', {'caip19': catalogue.sui_caip19(coin)})
         found = lambda query: [group['id'] for group in self.search(query)['data']['groups']]
         self.assertEqual(found('vsui')[0], token(VSUI))
-        self.assertEqual(found('voloSUI'), [token(VSUI)])  # NAVI's documentation calls the coin this
         self.assertEqual(found('suiusdt')[:2], [token(SUI_BRIDGE_USDT), self.reserve_group('main-19')])
         bridged = set(found('sui bridge'))
         self.assertLessEqual({token(SUI_BRIDGE_USDT), self.reserve_group('main-19'), self.reserve_group('main-21')}, bridged)

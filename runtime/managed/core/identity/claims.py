@@ -72,6 +72,7 @@ class RecordAttributes:
 
     def __post_init__(self) -> None:
         _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
+        _require(isinstance(self.aliases, (list, tuple)), "record attributes: aliases are a list of names")
         object.__setattr__(self, "aliases", tuple(self.aliases))
         checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
                   (self.country, COUNTRY))
