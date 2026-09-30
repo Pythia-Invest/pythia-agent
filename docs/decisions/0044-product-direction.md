@@ -521,7 +521,7 @@ Keep every record, learn the vocabulary, and filter visibility later,
 downstream. Lines are for real public order books only. The plugin holds the
 vocabulary (`vocabulary.json`, [source record](../sources/openfigi.md)) and gives
 each code a kind: `exchange`, `second_book`, `us_unlisted_trading`,
-`trade_report`, `dark`, `composite` or `unknown`. Only `exchange` codes are in `venue_codes` and so become lines.
+`rfq`, `trade_report`, `dark`, `composite` or `unknown`. Only `exchange` codes are in `venue_codes` and so become lines.
 Every other line is still emitted as a claim carrying `provider_venue`, parked
 (`unmatched`) without an operating MIC, and a new claim attribute, `venue_note`,
 says why in words (a trade report, a second book, not in the vocabulary). AU is
@@ -530,7 +530,8 @@ and the rest) are not mapped: OpenFIGI gives a US security a line on every US
 venue under unlisted trading privileges, so mapping them would show a Nasdaq
 stock as listed on NYSE and Cboe. Their kind, `us_unlisted_trading`, keeps the
 MIC in the vocabulary; US listings come from SEC (manager ruling). PQ stays
-mapped to OTCM.
+mapped to OTCM. Request-for-quote MTFs (B2, B4, T2, WT) are not order books
+either: kind `rfq`, parked.
 
 **Rationale.** A line without an operating MIC is harmless and the reason is
 evidence; a dropped line is gone. The classification is the plugin's knowledge of
@@ -538,10 +539,13 @@ Bloomberg's codes, so it lives in the plugin, and core changed only by one
 optional attribute that every plugin may use. The reason sits in the claim as
 stored, readable by SQL, rather than in a new column every plugin would share.
 
-**Consequences.** The contract's `venue_codes` grows from 47 to 110 codes, all
+**Consequences.** The contract's `venue_codes` grows from 47 to 106 codes, all
 order books, and OpenFIGI adds venue lines it used to park, except the US
 exchange codes, which stay parked. A code the vocabulary lacks is kept and says
-so.
+so. `venue_note` is a new key of every wire record, so the first sync after the
+upgrade finds every plugin's stored claims different from the re-emitted ones and
+places each once more, then stores it again. That re-place is harmless (same
+placements, subjects and identifiers, no new question; tested).
 
 **Rejected alternatives.** Dropping trade-report and composite lines from the
 answer (loses data); mapping every resolved code to its operating MIC (several

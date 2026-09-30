@@ -65,6 +65,13 @@ reaches core as each venue line's composite FIGI. AU is Australia's composite
 code, not the ASX: other lines named an AU line as their composite in 1,042
 cached answers. The ASX's own line is AT (XASX).
 
+A composite line has no operating MIC, so core never places it on a venue, but it
+can still join a reference line by FIGI: the builder gives a US listing the US
+composite FIGI when it finds no venue line, and the composite claim then joins
+that listing, adds the ISIN as evidence, introduces no subject and opens no
+question (tested on a synthetic store). With no reference line carrying the FIGI
+it stays `unmatched`.
+
 ### Exchange codes
 
 `exchCode` is Bloomberg's code for the venue (or composite) a line belongs to.
@@ -79,8 +86,9 @@ later, downstream.
 
 | Kind | What it is | Maps to an operating MIC | Entries |
 | --- | --- | --- | --- |
-| `exchange` | A public order book: an exchange, a lit MTF book, an ATS, a systematic internaliser such as Lang & Schwarz (LU) | yes, and it is in the contract's `venue_codes` | 110 |
+| `exchange` | A public order book: an exchange, a lit MTF book, an ATS, a systematic internaliser such as Lang & Schwarz (LU) | yes, and it is in the contract's `venue_codes` | 106 |
 | `second_book` | A second code on an operating MIC that already has a main code (gettex GZ on XMUN, Quotrix QT on XDUS, Japannext's X and U markets JU and JW beside JE) | no: the line is the main code's; `of` names it | 47 |
+| `rfq` | A request-for-quote MTF (Bloomberg Trading Facility B2 and B4, Tradeweb T2 and WT): nearly all ETPs, with currency-suffixed tickers, quoted on request | no | 4 |
 | `us_unlisted_trading` | A US exchange line (UN, UA, UP, UW, UF and the other US exchanges and ATSs): OpenFIGI gives a US security a line on every US venue it trades on, not only where it lists | no: the listing comes from SEC, and OpenFIGI's US lines join it by FIGI | 22 |
 | `trade_report` | APA and off-exchange publication: the X-prefixed codes under the EO composite, E1, EU and XL on XLON, XE, XV, XX, X9, XZ, XO, XT, UV | no | 22 |
 | `dark` | A dark or block-crossing venue (B3 BlockMatch, L1 and L3 Liquidnet, PO Posit, MatchNow) | no | 13 |
@@ -125,11 +133,11 @@ directly). The runs were:
 23 are composites (a code is a composite when at least 90% of its lines name
 themselves as composite and other lines name it), 6 are descriptive strings on
 bond lines (`BSE`, `EURONEXT-AMSTER`, `EURONEXT-DUBLIN`, `EUWAX STUTTGART`,
-`LUXEMBOURG`, `TRACE`), and 41 stayed unresolved. The 215 became 110 `exchange`,
-47 `second_book`, 22 `us_unlisted_trading`, 22 `trade_report` and 13 `dark` entries. The contract held 47
+`LUXEMBOURG`, `TRACE`), and 41 stayed unresolved. The 215 became 106 `exchange`,
+47 `second_book`, 22 `us_unlisted_trading`, 22 `trade_report`, 13 `dark` and 4 `rfq` entries. The contract held 47
 codes before this change; OpenFIGI's own pairing agrees with 46, and they keep
 their MIC. The 47th, AU, is a composite and is out; the contract now holds the
-110 `exchange` codes. Raw responses stayed on the
+106 `exchange` codes. Raw responses stayed on the
 device and are not committed.
 
 **Unresolved (41), by lines in the cached answers:** ER (51,317), XW (40,619),
@@ -175,9 +183,13 @@ line counts), plus these choices, which are the founder's rulings where marked:
   exchange line (...) from unlisted trading: the listing comes from SEC". PQ
   (OTC Markets, under the US composite) stays `exchange` and mapped to OTCM, as
   before; UD and UV are trade reports.
-- *RFQ venues.* B2, B4, WT and T2 (Bloomberg's and Tradeweb's MTFs, nearly all
-  ETPs) are `exchange`: ISO lists them as trading venues, and they are not trade
-  reports. They are not lit order books either; a filter can separate them.
+- *RFQ venues* (review ruling): B2, B4, WT and T2 are request-for-quote MTFs,
+  not order books, so they are their own kind, `rfq`: kept, parked, and not in
+  `venue_codes`.
+- *Berlin.* BQ (Equiduct, segment XEQT) is the only code on the operating MIC
+  XBER, and Berlin's own code (GB) is unresolved, so a reference XBER line with
+  no FIGI would take Equiduct's. That follows the rule to key lines by operating
+  MIC.
 - *Order books by ruling.* LU (Lang & Schwarz) and PQ (OTC Link ATS) are
   `exchange`, as the ruling says.
 

@@ -117,8 +117,12 @@ def venue_note(code):
         return f"venue code {code} is a second book on {entry['mic']} ({name}); {entry['of']} is the line there"
     if kind == 'us_unlisted_trading':
         return f'venue code {code} is a US exchange line ({name}) from unlisted trading: the listing comes from SEC'
+    if kind == 'rfq':
+        return f'venue code {code} is a request-for-quote MTF ({name}), not an order book'
     if kind == 'composite':
         return f'venue code {code} is the {name}, not a venue'
+    if kind == 'exchange':  # the contract and the vocabulary disagree: a packaging defect, never a line to park
+        raise ValueError(f'venue code {code} is an exchange in the vocabulary but the contract maps no MIC')
     return f"venue code {code} is unknown: {entry['note']}"
 
 
