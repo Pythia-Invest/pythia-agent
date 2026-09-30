@@ -13,8 +13,10 @@
 - **Scope:** two keyless directory reads, `GET https://api.llama.fi/protocols`
   and `GET https://yields.llama.fi/pools`, served as the bulk catalogue scopes
   `protocols` and `pools` for the chains in the `defillama_chains` setting (Sui
-  when unset or empty; `all` for every chain). Protocol metrics, pool APY and TVL history, charts, stablecoin
-  data and every paid (`pro-api`) endpoint are out of scope.
+  when unset or empty; `all` for every chain), and, for the experiment branch
+  `exp-sui`, one protocol read of TVL, fees, revenue and volume (`metrics.py`;
+  `/protocols` again and `GET /summary/{fees,dexs}/{slug}`). Pool APY and TVL
+  history, charts, stablecoin data and every paid (`pro-api`) endpoint are out of scope.
 - **Measured on:** 2026-09-30, one machine, one read of each directory:
   `/pools` 11.6 MB in 0.38 s, 16,919 pools, 288 of them on Sui across 13
   projects; `/protocols` 9.0 MB in 0.38 s, 8,421 protocols, 126 listing Sui.
@@ -52,6 +54,8 @@ and "Yields" `/pools`, summarised in
 | pool `symbol`, `poolMeta` | Pool symbol; pool detail such as a fee tier | Label ("NAVI Lending USDC", "Cetus CLMM USDC-SUI (0.25%)") | 223 Sui pools carry `poolMeta` | Yes |
 | pool `underlyingTokens` | The pool's underlying token addresses | On Sui, the coin types the pool holds: `market_asset` links | 484 entries on Sui, 132 distinct types; SUI written both `0x2::sui::SUI` (33) and in long form (100); null on 2 non-Sui pools | Yes |
 | pool `tvlUsd` | Total value locked, USD | A search rank signal only (`rank.tvl_usd`) | — | Yes |
+| protocol `tvl`, `category` | Current TVL across chains (API); category label | `fundamentals.metrics` `tvl`, USD, instant, `standardized`; definition `net_of_borrowed` for category `Lending` (`borrowed` is a separate key of `chainTvls`), else `held_assets` (staking and pool2 are separate keys too) | 2026-09-30: NAVI Lending $192.6M with $78.5M borrowed, Suilend $178.4M with $77.3M, Cetus CLMM $31.0M (Sui $30.9M plus Aptos $42k), DeepBook V3 $13.3M. Cross-chain, unlike the Sui-only sources | Yes |
+| summary `total24h`, `total7d`, `total30d` | Rolling totals of the fees, revenue (`dataType=dailyRevenue`) and dexs dimensions (API summary) | `fees` (`user_paid`), `revenue` (`protocol_kept`), `volume` (`traded`), USD, each a trailing window ending at the read | Cetus CLMM fees $29.6k, revenue $5.9k and volume $22.2M in 24 hours. A protocol with no such dimension gets HTTP 400 (NAVI Lending has fees, no revenue row and no dexs volume): no row, never zero. The summary carries no time of its own, and its `id` equals the protocol's `/protocols` id | Yes |
 
 Relevant unread fields: `apy`, `apyBase`, `apyReward`, `rewardTokens`,
 `stablecoin`, `exposure`, `ilRisk` and the prediction fields. They are the
@@ -77,6 +81,12 @@ yield monitor's data, not identity, and wait for stage 1.
   not emitted, so it cannot make core refuse the batch.
 - [x] Network-free tests use synthetic fixtures shaped like the API
   documentation (`runtime/test/python/test_defillama_catalogue.py`).
+- [x] Metrics: each row passes core's metric vocabulary (`identity/defi_metrics.py`),
+  which refuses a TVL without a listed definition; a summary naming another
+  protocol id is left out (`identity_mismatch`); a negative or non-finite total
+  is an `invalid_response` for that dimension; a failing dimension leaves the
+  others with a warning. Tests use fixtures cut from DefiLlama's own answers
+  (`runtime/test/python/test_defi_sources.py`, `fixtures/defillama-metrics.json`).
 
 ## 3. Identifiers of introduced subjects
 
@@ -87,7 +97,11 @@ yield monitor's data, not identity, and wait for stage 1.
 | Sui token deployment | `listing:caip19:sui:mainnet/coin:<type>`, SUI as `…/slip44:784` | An on-chain coin type is portable: another plugin naming it reaches the same subject, and core's curated SUI and native USDC listings are reached this way |
 
 Two plugins describing one protocol still give it two IDs: there is no open
-protocol identifier, and the link stays unresolved.
+protocol identifier, and the link stays unresolved. On the experiment branch
+that is the open bridge question: DefiLlama states no `sui_package` for a
+protocol (its `address` field is the governance token's coin type, where
+present), so its metrics are read on DefiLlama's own protocol subject and do not
+join a chain-derived protocol's rows.
 
 ## 4. Data audit
 
@@ -116,3 +130,5 @@ Open items accepted for the first version:
 
 - Personal, non-commercial terms: opt-in and local only.
 - Token links on Sui only; pools elsewhere link to their protocol alone.
+- Metrics are whole-protocol (all chains) and `as_of` the read, not the time
+  DefiLlama computed them; `chainBreakdown` and history are not read.

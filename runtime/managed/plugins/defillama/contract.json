@@ -33,6 +33,22 @@
       "caip19"
     ]
   },
+  "concepts": {
+    "fundamentals": {
+      "level": "protocol",
+      "via": "protocol",
+      "operations": {
+        "metrics": "metrics"
+      },
+      "qualities": {
+        "metrics": {
+          "basis": [
+            "standardized"
+          ]
+        }
+      }
+    }
+  },
   "catalogue": {
     "mode": "bulk",
     "operation": "catalogue",

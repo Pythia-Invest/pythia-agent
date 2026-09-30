@@ -18,6 +18,7 @@ from .claims import (
 )
 from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
 from .declared import DECLARED_RULE, DeclaredRef
+from .defi_metrics import METRICS, MetricError, validate_metric, validate_metrics
 from .live_market import LiveMarketError, validate_live_market
 from .manifest import (
     CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,

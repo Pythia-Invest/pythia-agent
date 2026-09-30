@@ -143,7 +143,8 @@ LIVE = {"book": one_of("top", "snapshot"), "book_levels": whole(1, 100), "trades
         "line": one_of("last_trade", "mid", "mark")}
 # `on_chain`: figures read from the chain itself (a protocol's TVL or a reserve's supply), neither a company's report
 # nor a provider's standardisation.
-BASIS = {"basis": some_of("as_reported", "standardized", "on_chain")}
+BASIS_VALUES = ("as_reported", "standardized", "on_chain")
+BASIS = {"basis": some_of(*BASIS_VALUES)}
 
 
 @dataclass(frozen=True, slots=True)

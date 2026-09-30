@@ -90,6 +90,8 @@ gates a read today.
 | `yahoo_finance` | `pythia-yahoo-discovery` | Profile, valuation, dividends, analysts, statements, news | depth Yahoo publishes |
 | `coinmarketcap_coin_info` | `pythia-coinmarketcap` | A coin's project profile and links | crypto background |
 | `openfigi_identifiers` | `pythia-openfigi` | FIGIs for an ISIN or ticker | identifiers `pythia_find` lacks |
+| `defillama_protocol_metrics` | `pythia-defillama` | A protocol's TVL, fees, revenue and volume, each with its definition | protocol figures on the experimental `exp-sui` branch |
+| `navi_reserve_metrics` | `pythia-navi` | A NAVI reserve's supplied, borrowed, utilisation and rates | reserve figures on the experimental `exp-sui` branch |
 | `hyperliquid_live_market` | `pythia-hyperliquid` | A perp's live book, trades, mark, funding and open interest | perp depth; the plugin is installed disabled |
 
 A provider tool is available only while its plugin is enabled and its

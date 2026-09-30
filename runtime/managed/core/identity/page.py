@@ -47,7 +47,7 @@ class Section(StrEnum):
 # The concept operations that can fill each section, preferred first.
 SERVES = {Section.QUOTE: (Concept.MARKET_DATA, ("quote",)), Section.CHART: (Concept.MARKET_DATA, ("daily", "intraday")),
           Section.PROFILE: (Concept.PROFILE, ("fields",)), Section.FILINGS: (Concept.FILINGS, ("list",)),
-          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements",)), Section.NEWS: (Concept.NEWS, ("list",)),
+          Section.FINANCIALS: (Concept.FUNDAMENTALS, ("statements", "metrics")), Section.NEWS: (Concept.NEWS, ("list",)),
           Section.LIVE: (Concept.MARKET_DATA, ("live",))}
 SECTIONS = (Section.QUOTE, Section.CHART, Section.LIVE, Section.PROFILE, Section.FILINGS)
 PRICED = (Section.QUOTE, Section.CHART, Section.LIVE)  # the sections a source the investor pinned leads (`corrections`)
@@ -206,7 +206,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
     # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
     # no asset class (a currency pair, a yield, a commodity future) is covered wherever the plugin addresses it.
     curated = subject["level"] not in INSTRUMENT_KINDS
-    via = subject["level"] if curated else entry.via
+    via = entry.via if not curated or isinstance(entry.via, Kind) else subject["level"]  # a pool is not a protocol
     if coverage.asset_classes is not None and subject["asset_class"] not in coverage.asset_classes and not (
             curated and subject["asset_class"] is None):
         return {**answer, "status": "not_covering",

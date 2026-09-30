@@ -244,6 +244,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "README.md",
       "definition.py",
       "catalogue.py",
+      "metrics.py",
     ]),
   }),
   Object.freeze({
@@ -261,6 +262,7 @@ export const MANAGED_PLUGINS = Object.freeze([
       "README.md",
       "definition.py",
       "catalogue.py",
+      "metrics.py",
     ]),
   }),
   Object.freeze({
