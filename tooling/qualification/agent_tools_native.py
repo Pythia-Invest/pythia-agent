@@ -49,6 +49,10 @@ sys.path.insert(0, os.environ["HERMES_SOURCE"])
 from hermes_cli.plugins import discover_plugins, get_plugin_manager
 discover_plugins()
 manager = get_plugin_manager()
+broken = {key: plugin.error for key, plugin in manager._plugins.items()
+          if plugin.error and (key == "pythia" or key.startswith("pythia-"))}
+if broken:  # otherwise the first symptom is an operation that resolves to nothing
+    sys.exit("Pythia plugins failed to load: " + json.dumps(broken))
 from gateway.session_context import set_session_vars
 set_session_vars(platform="api_server")
 from hermes_cli.config import load_config_readonly
@@ -120,6 +124,17 @@ print(json.dumps({
 '''
 
 
+def without_context_probe(core: Path) -> None:
+    """Undo what the assembled run appends to the fixture's copy of core (assembled-fixture.mjs instrumentContextProbe).
+
+    That probe needs the lifecycle's environment to register and adds a tool that a platform with no toolset list
+    would deliver; this run audits core's own tools, so it reads core as committed."""
+    start, tool = "# BEGIN PYTHIA T08 DISPOSABLE CONTEXT PROBE", "pythia_qualification_context_probe"
+    init, manifest = core / "__init__.py", core / "plugin.yaml"
+    init.write_text(init.read_text().split(start)[0].rstrip("\n") + "\n")
+    manifest.write_text("".join(line for line in manifest.read_text().splitlines(keepends=True) if tool not in line))
+
+
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--hermes-source", required=True, type=Path)
@@ -136,6 +151,7 @@ def main() -> int:
         for path in (home / "plugins", config, skills):
             path.mkdir(parents=True, mode=0o700)
         shutil.copytree(managed / "core", home / "plugins/pythia")
+        without_context_probe(home / "plugins/pythia")
         names = ["pythia"]
         for package in sorted((managed / "plugins").iterdir()):
             name = next(line.split(":", 1)[1].strip() for line in (package / "plugin.yaml").read_text().splitlines()
