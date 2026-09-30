@@ -460,7 +460,8 @@ Core never asks who a plugin is or which files it holds.
 - **Disagreement is a conflict.** When different plugins or sources state
   different values of a single-valued identifier, both values are kept, neither
   applies, and a question is asked when the subject is touched. The user's
-  answer is a local override. One source's several values are no conflict.
+  answer is a local override. One source's several values are no conflict, and
+  neither are several sources stating the same values.
 - **Disabling a plugin** keeps what it stated on the device, shown with its
   source: its subjects keep their labels and identifiers and open by ID, and
   what it stated no longer proves, blocks or contests while it is off.

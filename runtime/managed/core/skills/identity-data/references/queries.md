@@ -130,17 +130,25 @@ ORDER BY 1, 2, 5;
 
 A contested fact is a single-valued scheme whose current values differ between
 sources; core applies none of them and asks the user. Only values inside their
-validity dates count, `ticker_mic` never contests, and one source's own several
-values (OpenFIGI's two composite FIGIs for some composites) are not a contest.
+validity dates count and `ticker_mic` never contests. Each source's set of values
+is compared: one source's own several values (OpenFIGI's two composite FIGIs for
+some composites) are not a contest, and neither are sources stating the same set.
 
 ```sql
 -- example: contested
-SELECT subject_id, scheme, group_concat(DISTINCT value) AS vals, group_concat(DISTINCT source) AS sources
-FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
-      UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
-WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
-  AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))
-GROUP BY subject_id, scheme HAVING COUNT(DISTINCT value) > 1 AND COUNT(DISTINCT source) > 1;
+WITH stated AS (
+  SELECT DISTINCT subject_id, scheme, value, source
+  FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
+        UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
+  WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
+    AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))),
+sets AS (  -- each source's values, in order
+  SELECT subject_id, scheme, source, group_concat(value) AS stated_values
+  FROM (SELECT * FROM stated ORDER BY value) GROUP BY subject_id, scheme, source)
+SELECT subject_id, scheme, (SELECT group_concat(DISTINCT value) FROM stated s
+                            WHERE s.subject_id = sets.subject_id AND s.scheme = sets.scheme) AS vals,
+       group_concat(source) AS sources
+FROM sets GROUP BY subject_id, scheme HAVING COUNT(DISTINCT stated_values) > 1;
 ```
 
 ## Why is this listing under that security, and that security under that issuer?
@@ -213,7 +221,9 @@ UNION ALL SELECT 'relations', type, authority, count(*) FROM ref.relations WHERE
 The user's resolved answers are the local overrides that every read applies until
 the user reopens the question; "none of these" is dismissed. The agent's answers
 are suggestions (`resolver = 'agent'`, `outcome = 'suggested'`). A binding the
-user made has `authority = 'user_attested'` and a `verdict_id`.
+user made has `authority = 'user_attested'` and a `verdict_id`. A receipt shows
+the issuer the user chose for its stated underlying share, marked `inherited_from`;
+that answer is the share's row here.
 
 ```sql
 -- example: user-answers

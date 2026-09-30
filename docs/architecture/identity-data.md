@@ -229,19 +229,29 @@ A contested fact is one single-valued scheme whose current values differ
 between sources. Core applies none of the values and asks the user once the
 subject is opened ([ADR 0044](../decisions/0044-product-direction.md), A2). The
 query applies the same tests: only values inside their validity dates count,
-two or more sources must disagree, and `ticker_mic` is an attribute that never
-contests. One source's own several values are not a contest: OpenFIGI states two
-composite FIGIs for some composites (10,288 in the 2026-09-28 build), and they
-stay separate rows that this query does not return.
+each source's set of values is compared, and `ticker_mic` is an attribute that
+never contests. One source's own several values are not a contest, and neither
+is several sources stating the identical set: OpenFIGI states two composite
+FIGIs for some composites (10,288 in the 2026-09-28 build), and a plugin that
+states the same two beside the package contests nothing. Sets that differ at
+all do contest, a subset included, because the model has one cardinality for
+every scheme but `ticker_mic`.
 
 ```sql
 -- example: contested
-SELECT subject_id, scheme, group_concat(DISTINCT value) AS vals, group_concat(DISTINCT source) AS sources
-FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
-      UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
-WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
-  AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))
-GROUP BY subject_id, scheme HAVING COUNT(DISTINCT value) > 1 AND COUNT(DISTINCT source) > 1;
+WITH stated AS (
+  SELECT DISTINCT subject_id, scheme, value, source
+  FROM (SELECT subject_id, scheme, value, source, valid_from, valid_to FROM ref.assertions
+        UNION ALL SELECT subject_id, scheme, value, plugin, NULL, NULL FROM device_assertions WHERE role = 'self')
+  WHERE subject_id IN (SELECT value FROM json_each(:family)) AND scheme <> 'ticker_mic'
+    AND (valid_from IS NULL OR valid_from <= date('now')) AND (valid_to IS NULL OR valid_to >= date('now'))),
+sets AS (  -- each source's values, in order
+  SELECT subject_id, scheme, source, group_concat(value) AS stated_values
+  FROM (SELECT * FROM stated ORDER BY value) GROUP BY subject_id, scheme, source)
+SELECT subject_id, scheme, (SELECT group_concat(DISTINCT value) FROM stated s
+                            WHERE s.subject_id = sets.subject_id AND s.scheme = sets.scheme) AS vals,
+       group_concat(source) AS sources
+FROM sets GROUP BY subject_id, scheme HAVING COUNT(DISTINCT stated_values) > 1;
 ```
 
 ### Why is this listing under that security, and that security under that issuer?
@@ -335,6 +345,16 @@ WHERE v.resolver = 'user' AND q.state IN ('resolved', 'dismissed')
               WHERE value IN (SELECT value FROM json_each(:family)))
 ORDER BY v.created_at;
 ```
+
+A receipt has the issuer the user chose for the share it represents
+(ESMA Q&A 1503: a receipt's issuer is its underlying's), unless the user
+answered the receipt's own issuer. The receipt's page shows it, and its
+`issuer` carries `inherited_from` (the share and the user's verdict). It applies
+only where a source states the underlying (`relations` with `authority =
+'source_asserted'`; not one the builder derived from the issuer) or the user
+answered it, and no enabled plugin contradicts it. The share's answer is the row
+above, so include the share in `:family` to see it; undoing it undoes the
+inheritance.
 
 The agent's answers are suggestions and stay in `verdicts` (`resolver = 'agent'`,
 `outcome = 'suggested'`) until the user confirms. A binding the user made

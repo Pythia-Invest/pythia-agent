@@ -6,7 +6,7 @@ The reference package and every enabled plugin are equal contributors. Their sta
 keeps its subjects' labels and identifiers, and never proves, blocks or contests while the plugin is off. Where
 different sources assert different values of a single-valued scheme, the fact is contested: every value is kept, none
 is applied, and the user's answer decides it on this device (`conflicts`). One source's several values (OpenFIGI's
-two German composite FIGIs) are not a contest.
+two German composite FIGIs) are not a contest, and neither is several sources stating the same values.
 """
 from __future__ import annotations
 
@@ -21,10 +21,14 @@ PACKAGE = "reference"  # the reference package as a contributor: its evidence's 
 
 
 def disagree(assertions: Iterable[IdentifierAssertion]) -> bool:
-    """Different sources assert different values. One source that asserts several contests nothing."""
-    items = list(assertions)
-    return len({item.value for item in items}) > 1 and len({(item.provenance.plugin, item.provenance.source)
-                                                            for item in items}) > 1
+    """Different sources state different values: each source's set of values is compared, so one source's several
+    values contest nothing and sources that state the identical set (two contributors naming both of a composite's
+    FIGIs) never contest. Sets that differ at all do: the scheme is single-valued, and without a per-scheme
+    cardinality a source that leaves out another's extra value cannot be told from one that denies it."""
+    stated: dict[tuple[str, str], set[str]] = {}
+    for item in assertions:
+        stated.setdefault((item.provenance.plugin, item.provenance.source), set()).add(item.value)
+    return len({frozenset(values) for values in stated.values()}) > 1
 
 
 def weigh(assertions: Iterable[IdentifierAssertion], as_of: str | None = None) -> dict[str, Any]:
@@ -37,9 +41,9 @@ def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, bool]], as_of: st
     removed plugin's do not), in the order they are stored.
 
     `evidence` holds the ones that count (they prove and block), `shown` the others. `values` gives each scheme the
-    value its current counting assertions agree on, else the one the shown ones agree on; where only one source asserts
-    several, its first. `contested` maps a single-valued scheme whose current counting sources disagree (`disagree`)
-    to those assertions: it has no value. Shown sources that disagree give none and contest nothing."""
+    value its current counting assertions agree on, else the one the shown ones agree on; where sources state the same
+    values, or only one asserts several, the first. `contested` maps a single-valued scheme whose current counting
+    sources disagree (`disagree`) to those assertions: it has no value. Shown sources that disagree give none and contest nothing."""
     items = list(assertions)
     evidence = [item for item, counts in items if counts]
     shown = [item for item, counts in items if not counts]

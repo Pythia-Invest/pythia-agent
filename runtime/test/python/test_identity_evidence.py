@@ -10,9 +10,9 @@ from test_identity_build_questions import (
     BuildQuestionFixture, issuer_question,
 )
 from test_identity_contracts import PROVENANCE, assertion_row, identity, insert
-from test_identity_page import ASML, plugin
+from test_identity_page import ASML, LEI, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer
-from pythia_identity_fixture import page  # noqa: E402
+from pythia_identity_fixture import evidence, page  # noqa: E402
 
 A, B = "NL0010273215", "NL0006034001"  # ASML's ISIN, and another company's
 USER = {"user_turn": "desk:identity-verdict:test"}
@@ -54,6 +54,30 @@ class ContestedTest(QueueFixture):
         self.assertEqual(page.load_subject(self.ref, ASML)["view"]["contested"], {"composite_figi": [
             {"value": "BBG000BDTBL9", "sources": ["vendor"]}, {"value": "BBG000C1HSN8", "sources": ["OpenFIGI"]},
             {"value": "BBG000K6MRN4", "sources": ["OpenFIGI"]}]})
+
+    def test_sources_stating_the_identical_values_never_contest_and_a_differing_set_does(self):
+        # Shape of the device's JP3633400001 composite: the package (openfigi) and a plugin both state both FIGIs.
+        composite = "composite:isin:NL0010273215:NL"
+        add(self.path, composite, "composite_figi", "BBG000K6MRN4", "openfigi")  # beside its BBG000C1HSN8
+        for value in ("BBG000C1HSN8", "BBG000K6MRN4"):
+            add(self.path, composite, "composite_figi", value, "pythia-openfigi")
+        subject = page.load_subject(self.ref, ASML)
+        self.assertNotIn("contested", subject["view"])
+        self.assertEqual((subject["contested"], subject["values"]["composite_figi"]), ({}, "BBG000C1HSN8"))
+        # One of them states only one of the two: the sets differ, so it is contested (no per-scheme cardinality says
+        # the second source merely knows less).
+        add(self.path, composite, "composite_figi", "BBG000C1HSN8", "third-source")
+        self.assertEqual(list(page.load_subject(self.ref, ASML)["view"]["contested"]), ["composite_figi"])
+
+    def test_a_package_and_an_enabled_plugin_stating_the_same_set_contest_nothing(self):
+        stated = [identity.IdentifierAssertion(subject_id="composite:isin:JP3633400001:DE", scheme="composite_figi",
+                                               value=value, authority="source_asserted",
+                                               provenance={**PROVENANCE, "plugin": plugin, "source": plugin})
+                  for plugin in ("openfigi", "pythia-openfigi") for value in ("BBG000BK4828", "BBG000THYRF7")]
+        weighed = evidence.weigh_each((item, True) for item in stated)
+        self.assertEqual((weighed["contested"], weighed["values"]["composite_figi"]), ({}, "BBG000BK4828"))
+        self.assertFalse(evidence.disagree(stated))
+        self.assertTrue(evidence.disagree([stated[0], stated[3]]))  # a different value from another source still does
 
     def test_a_user_answer_is_refused_only_under_unanimous_proof(self):
         item = self.ask(answer(("isin", B)))  # the record names another ISIN than every assertion
@@ -132,6 +156,79 @@ class AnswerTest(BuildQuestionFixture):
         self.page(ASML)  # the share's page shows the answer too, so touching it is relevant
         [conflict] = self.open()
         self.assertEqual((conflict["reason"], conflict["candidate_ids"]), ("binding", [SECURITY, NOTE]))
+
+    # A receipt's issuer is its underlying's (ESMA Q&A 1503). The shape of the Nestle ADR: its share's issuer is unknown
+    # and the user answered it, while FIRDS named a venue-filled issuer for the receipt, which states that share.
+    RECEIPT_ISSUER = {**issuer_question(RECEIPT), "candidate_ids": [ISSUER, OPERATOR_ISSUER]}
+    STATES = ("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
+              " retrieved_at) VALUES ('ev:receipt', 'depositary_receipt_of', ?, ?, ?, 'esma_firds', 'esma_firds', '1', ?)")
+
+    def adr(self, authority="source_asserted", extra=()):
+        """The share with no issuer, and the receipt whose issuer FIRDS gave as the venue operator (and, with an
+        `authority`, states the share as its underlying); both questions are in the package."""
+        sql = [("UPDATE securities SET issuer_id = NULL WHERE id = ?", (SECURITY,)),
+               ("UPDATE securities SET issuer_id = ? WHERE id = ?", (OPERATOR_ISSUER, RECEIPT))]
+        if authority:
+            sql.append((self.STATES, (RECEIPT, SECURITY, authority, NOW)))
+        self.install([issuer_question(SECURITY), self.RECEIPT_ISSUER, *extra], self.world(sql=sql))
+
+    def answer_share(self):
+        self.page(ASML)
+        [share] = [item for item in self.open() if item["subject_ids"] == [SECURITY]]
+        return self.answer(share["id"], "same_issuer", ISSUER)
+
+    def test_a_receipt_inherits_the_issuer_the_user_answered_for_its_stated_underlying(self):
+        self.adr()
+        verdict = self.answer_share()["verdict_id"]
+        view = self.page(NASDAQ)
+        self.assertEqual({key: view["issuer"][key] for key in ("id", "lei", "authority", "inherited_from")},
+                         {"id": ISSUER, "lei": LEI, "authority": "user_attested",
+                          "inherited_from": {"security": SECURITY, "verdict": verdict}})
+        self.assertEqual(self.open(), [], "asked neither about the receipt's issuer nor about the release's venue issuer")
+        self.assertNotIn("inherited_from", self.page(ASML)["issuer"], "the share's own answer is not inherited")
+
+    def test_an_open_receipt_question_is_withdrawn_and_returns_when_the_underlyings_answer_is_reopened(self):
+        self.adr()
+        self.page(NASDAQ)
+        [asked] = self.open()
+        self.assertEqual(asked["subject_ids"], [RECEIPT])
+        self.answer_share()
+        self.assertEqual(self.page(NASDAQ)["issuer"]["id"], ISSUER)
+        self.assertEqual((self.open(), self.ops.store.queue_item(asked["id"])["state"]), ([], "superseded"))
+        [share] = self.ops.store.queue_items(which="settled")
+        self.assertEqual(self.answer(share["id"], "reopen")["outcome"], "reopened")
+        self.assertEqual(self.page(NASDAQ)["issuer"]["id"], OPERATOR_ISSUER, "the release's issuer again")
+        self.assertEqual(sorted(item["subject_ids"][0] for item in self.open()), [RECEIPT, SECURITY])
+
+    def test_the_users_own_answer_about_the_receipt_wins_over_the_inherited_issuer(self):
+        self.adr()
+        self.page(ASML)
+        self.page(NASDAQ)
+        [receipt] = [item for item in self.open() if item["subject_ids"] == [RECEIPT]]
+        self.assertEqual(self.answer(receipt["id"], "same_issuer", OPERATOR_ISSUER)["state"], "resolved")
+        self.answer_share()
+        view = self.page(NASDAQ)
+        self.assertEqual((view["issuer"]["id"], "inherited_from" in view["issuer"]), (OPERATOR_ISSUER, False))
+
+    def unsettled(self, authority):
+        self.adr(authority)
+        self.answer_share()
+        self.assertEqual(self.page(NASDAQ)["issuer"]["id"], OPERATOR_ISSUER)
+        self.assertEqual([item["subject_ids"][0] for item in self.open()], [RECEIPT])
+
+    def test_a_receipt_with_no_stated_underlying_inherits_nothing(self):
+        self.unsettled(None)
+
+    def test_a_receipt_whose_underlying_the_builders_issuer_rule_derived_inherits_nothing(self):
+        self.unsettled("rule_confirmed")  # the rule takes the share from the receipt's issuer: circular
+
+    def test_the_users_receipt_answer_settles_the_underlying_that_the_release_does_not_state(self):
+        self.adr(None, extra=[RECEIPT_OF])
+        self.page(NASDAQ)
+        [item] = [item for item in self.open() if item["reason"] == "no_key"]
+        self.assertEqual(self.answer(item["id"], "depositary_receipt_of", SECURITY)["state"], "resolved")
+        self.answer_share()
+        self.assertEqual(self.page(NASDAQ)["issuer"]["inherited_from"]["security"], SECURITY)
 
     def test_a_later_release_contradicting_a_same_company_answer_asks_too(self):
         no_cik = [("DELETE FROM assertions WHERE subject_id = ? AND scheme = 'cik'", (ISSUER,))]
