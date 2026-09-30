@@ -1,5 +1,5 @@
 {
-  "provenance_note": "Hand-written fixture for the OpenFIGI-shaped ingest tests (test_identity_ingest.py, roadmap stage 0 S7). Toyota Motor Corporation's ISIN JP3633400001 is real; its venues follow the shape of an ESMA FIRDS build (German lines without a ticker, two Hanover lines) and of OpenFIGI's /v3/mapping answer for that ISIN (https://www.openfigi.com/api/documentation). Every FIGI here is synthetic (BBG000TY..., valid check digit): no provider response is recorded.",
+  "provenance_note": "Hand-written fixture for the OpenFIGI-shaped ingest tests (test_identity_ingest.py, roadmap stage 0 S7). Toyota Motor Corporation's ISIN JP3633400001 is real; its venues follow the shape of an ESMA FIRDS build (German lines without a ticker, two Hanover lines, a Stuttgart line with one) and of OpenFIGI's /v3/mapping answer for that ISIN (https://www.openfigi.com/api/documentation). Every FIGI here is synthetic (BBG000TY..., valid check digit): no provider response is recorded.",
   "securities": [
     {
       "id": "security:isin:JP3633400001",
@@ -59,6 +59,15 @@
       "operating_mic": "XMUN",
       "currency": "EUR",
       "trading_currency": "EUR"
+    },
+    {
+      "id": "listing:isin:JP3633400001:XSTU:EUR",
+      "security_id": "security:isin:JP3633400001",
+      "mic": "XSTU",
+      "operating_mic": "XSTU",
+      "currency": "EUR",
+      "trading_currency": "EUR",
+      "ticker": "TOM"
     }
   ],
   "assertions": [

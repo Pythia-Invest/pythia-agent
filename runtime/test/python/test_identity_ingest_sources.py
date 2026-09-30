@@ -170,6 +170,45 @@ class OpenFigiTest(IngestTest):
         self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "pythia-openfigi")
         self.assertNoQuestions()
 
+    def test_an_answer_with_two_lines_on_one_exchange_or_another_ticker_there_joins_no_line(self):
+        # Two Frankfurt lines in the answer (say USD and EUR) and one in the build: which one is it? Neither joins.
+        self.answer(("BBG000TYFRN2", "GF", "TOMUSD"), ("BBG000TYHNX8", "GF", "TOM"))
+        self.assertEqual((self.placed(self.openfigi, "BBG000TYFRN2"), self.placed(self.openfigi, "BBG000TYHNX8")),
+                         ((None, "unmatched"), (None, "unmatched")))
+        self.assertNotIn("figi", self.world.subject(self.line("XFRA"))["values"])
+        # Stuttgart's line states its ticker: a line under another ticker is not it; one under the same ticker is.
+        self.answer(("BBG000TYSWX6", "GS", "TYO"))
+        self.assertEqual(self.placed(self.openfigi, "BBG000TYSWX6"), (None, "unmatched"))
+        self.answer(("BBG000TYSWX6", "GS", "TOM"))
+        self.assertEqual(self.placed(self.openfigi, "BBG000TYSWX6"), (self.line("XSTU"), "joined"))
+
+    def test_a_display_plugins_line_on_the_exchange_never_blocks_the_join(self):
+        community = source("community", introduces={"listing": ["isin", "figi"]}, display=True)
+        self.world.plugins = [self.openfigi, community]
+        self.ingest(community, record(community, "TOM.F", ("isin", TOYOTA_ISIN), ("figi", "BBG000TYHNX8"),
+                                      operating_mic="XFRA", currency="USD"))
+        self.assertEqual(device.subject_row(self.world.identity, self.line("XFRA", "USD"))["parent_id"], TOYOTA)
+        self.answer(("BBG000TYFRN2", "GF", "TOM"))
+        self.assertEqual(self.placed(self.openfigi, "BBG000TYFRN2"), (self.line("XFRA"), "joined"))
+
+    def test_a_confirm_level_line_record_gives_the_parent_whoever_introduced_the_line(self):
+        # A display plugin's London line with no security, and OpenFIGI's, in either order: the line sits under Toyota.
+        london = "listing:figi:BBG000TYLND5"
+        community = source("community", introduces={"listing": ["figi"]}, display=True)
+        outcomes = []
+        for community_first in (True, False):
+            world = self.world = self.fresh(("toyota.json",))
+            world.plugins = [self.openfigi, community]
+            steps = [lambda: self.ingest(community, record(community, "L", ("figi", "BBG000TYLND5"),
+                                                           operating_mic="XLON", currency="GBP"), world=world),
+                     lambda: self.answer(("BBG000TYLND5", "LN", "TYT"))]
+            for step in steps if community_first else steps[::-1]:
+                step()
+            outcomes.append((device.subject_row(world.identity, london)["parent_id"], sorted(
+                tuple(row) for row in world.identity.select("SELECT subject_id, scheme, value FROM device_assertions"))))
+        self.assertEqual(outcomes[0], outcomes[1])
+        self.assertEqual(outcomes[0][0], TOYOTA)
+
     def test_a_line_on_an_exchange_the_build_lacks_sits_under_the_security_until_a_release_holds_it(self):
         london = "listing:figi:BBG000TYLND5"
         self.answer(("BBG000TYLND5", "LN", "TYT"))
@@ -195,9 +234,11 @@ class OpenFigiTest(IngestTest):
         lines = [line["id"] for line in search.Directory(self.world.ref).instrument_listings(TOYOTA)
                  if line["mic"] == "XLON"]
         self.assertEqual(lines, [held])  # one row
-        before = self.world.identity.db.total_changes  # the same answer again: placed on the held line, nothing new
-        again = self.answer(("BBG000TYLND5", "LN", "TYT"))
-        self.assertEqual((again["subjects"], self.world.identity.db.total_changes), ([held], before))
+        tables = ("subjects", "claims", "device_assertions", "bindings")
+        before = [self.world.identity.select(f"SELECT * FROM {table}") for table in tables]
+        again = self.answer(("BBG000TYLND5", "LN", "TYT"))  # the same answer again: placed on the held line
+        self.assertEqual(again["subjects"], [held])
+        self.assertEqual([self.world.identity.select(f"SELECT * FROM {table}") for table in tables], before)
 
     def test_a_differing_share_class_figi_stays_an_unresolved_conflict(self):
         other = "BBG000TYSCX0"
@@ -214,9 +255,8 @@ class OpenFigiTest(IngestTest):
                                                                                     [TOYOTA]))
 
 
-class OperationTest(unittest.TestCase):
-    """identity-sync and identity-lookup as the Desk invokes them: core dispatches the plugin's own operation and ingests
-    what it answers; a conflict it finds is asked about once the subject is read."""
+class OperationFixture(unittest.TestCase):
+    """Core loaded with an installed confirm-level package, fixture plugins and a stand-in for Hermes's tool registry."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -253,6 +293,11 @@ class OperationTest(unittest.TestCase):
     def batch(name, claims, scope=None, complete=False):
         return {"plugin": name, "provider": name, "adapter_version": PROVENANCE["adapter_version"],
                 "origin": "catalogue" if scope else "resolve", "scope": scope, "complete": complete, "claims": claims}
+
+
+class OperationTest(OperationFixture):
+    """identity-sync and identity-lookup as the Desk invokes them: core dispatches the plugin's own operation and ingests
+    what it answers; a conflict it finds is asked about once the subject is read."""
 
     def test_sync_reads_every_scope_in_the_contracts_order_page_by_page(self):
         llama = source("llama", level="market", scopes=("protocols", "pools"),
@@ -291,6 +336,42 @@ class OperationTest(unittest.TestCase):
         self.assertEqual((asked["reason"], asked["candidate_ids"]), ("identifier", [GSK_BEFORE, GSK]))
         refused = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "Glaxo"}))
         self.assertEqual(refused["issues"][0]["message"], "vendor cannot look up Glaxo.")
+
+
+class OperationFailureTest(OperationFixture):
+    """A source's failure is a failure: sync stops `partial` with the reason, lookup says it failed, never "no match";
+    and sync stops `partial` at its page and time bounds."""
+
+    ERROR = {"schema_version": 1, "outcome": "error", "data": None,
+             "issues": [{"code": "unavailable", "message": "The source failed."}]}
+
+    def lines(self):
+        contract = {**_contract(source("lines", introduces={"listing": ["figi"]})),
+                    "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": []}}
+        return self.plugin("lines", contract), source("lines", introduces={"listing": ["figi"]})
+
+    def page(self, fixture, index):
+        claims = [record(fixture, f"L{index}", ("figi", "BBG000BLNXT1"), operating_mic="XETR", currency="EUR")]
+        return {"data": self.batch("lines", claims, "all"), "next_cursor": str(index + 1)}
+
+    def test_a_failing_page_stops_sync_partial_and_a_failing_lookup_is_no_no_match(self):
+        info, fixture = self.lines()
+        self.answers["lines_catalogue"] = lambda arguments: self.page(fixture, 0) if "cursor" not in arguments \
+            else self.ERROR
+        body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": info.key}))
+        self.assertEqual((body["data"]["pages"], body["data"]["partial"], body["data"]["introduced"]), (1, True, 1))
+        self.assertEqual(body["issues"][0]["message"], "lines's catalogue stopped: the source reported an error")
+        self.answers["lines_resolve"] = lambda _arguments: self.ERROR
+        body = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "GB00BN7SWP63"}))
+        self.assertEqual(body["issues"][0]["message"], "lines lookup failed: the source reported an error")
+
+    def test_sync_stops_partial_at_its_page_and_time_bounds(self):
+        info, fixture = self.lines()
+        self.answers["lines_catalogue"] = lambda arguments: self.page(fixture, int(arguments.get("cursor") or 0))
+        for bound, value, pages in (("SYNC_PAGES", 3, 3), ("SYNC_SECONDS", 0.0, 0)):
+            with self.subTest(bound=bound), unittest.mock.patch.object(self.ingest_ops, bound, value):
+                body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": info.key}))
+                self.assertEqual((body["data"]["pages"], body["data"]["partial"]), (pages, True))
 
 
 def _contract(info):

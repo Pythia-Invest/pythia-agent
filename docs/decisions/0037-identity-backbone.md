@@ -1295,14 +1295,22 @@ through it.
   | market, protocol | the plugin's own native reference only (or the subject its contract addresses by it) |
 
   A line with no currency joins its security's one active line on its
-  exchange when that line has no FIGI or the record's, adding the FIGI and
-  ticker as evidence (a ticker-less FIRDS line gains them). Where the exchange
-  has several of the security's lines, or one with another FIGI, the record
-  stays `unmatched` and is never introduced: it would be a second line on one
-  exchange. It never joins by issuer, ticker, symbol or name, so a shared issuer
+  exchange when that line has no FIGI or the record's and no ticker or the
+  record's, adding the FIGI and ticker as evidence (a ticker-less FIRDS line
+  gains them). The record stays `unmatched`, and is never introduced as a
+  second line on one exchange, where the exchange has several of the
+  security's lines, or one with another FIGI or ticker, or where the answer
+  itself has more than one line for that ISIN on that exchange (OpenFIGI's USD
+  and EUR lines on one exchange: only one can be the build's, and the answer
+  does not say which). Only lines the reference holds, or that a confirm-level
+  plugin (or the ingesting one) introduced, count there. It never joins by issuer, ticker, symbol or name, so a shared issuer
   never makes two instruments one. An `underlying` or `unqualified` value never
   joins, and a value a resolve answer only echoes from its question is not
-  evidence. A record's parents are found the same way at their own scope.
+  evidence. A record's parents are found the same way at their own scope. An
+  identifier names a subject where the package asserts it, a confirm-level
+  plugin states it on the device, or the ingesting plugin itself does (a
+  display plugin's own statements join the subjects it introduced), or where
+  it keys a subject the device or the reference holds.
 - **Conflicts are kept, never resolved by ingest.** A second subject found, or
   a single-valued value that confirm-level evidence about the subject or its
   parent states otherwise (or that names another subject there), makes the
@@ -1311,6 +1319,13 @@ through it.
   security is contested (two named, or the one named contradicted at confirm
   level, as by another share-class FIGI) gets none. No queue row is written at
   ingest.
+- **A device subject's parent** is the one its records name at the highest
+  trust level among those naming one, never counting a level below the
+  subject's introducer's; where the records at that level disagree it has
+  none. A record placed on a device subject names its own parent (introducing
+  it where its contract lets it), so a confirm-level record gives the parent
+  of a line a display plugin introduced, and a display record never fills or
+  replaces a confirm-level one's. The outcome is the same in either order.
 - **Evidence.** A joined record's identifiers, and a listing's ticker at its
   operating MIC, become device evidence on the subject and its parents, counted
   at the plugin's trust level (amendment "evidence counts by kind and trust
@@ -1319,7 +1334,11 @@ through it.
   display-level one is shown with its source, and the page lists each plugin
   behind the subject with what it states (`contributors`). An identifier the
   page shows names the plugin that stated it. A record changed by its plugin
-  replaces its earlier statements; a conflicting one's are kept beside them.
+  replaces its earlier statements; a conflicting one's are kept beside them. A
+  parent's identifier goes onto the subject's parent where it names that
+  parent, or where the parent is the reference's (a differing value then
+  contests the package's), else onto the one subject it names: never onto a
+  device parent it does not name.
 - **A plugin conflict is asked when relevant.** Its contested fact is raised by
   `queue_ops.surface`, with the build's questions and the contested facts of
   the evidence amendment, once, when the subject is opened, watched or used.
@@ -1333,11 +1352,16 @@ through it.
   is otherwise `unmatched`, never introduced. Otherwise the claim stays
   `unmatched`. The plugin's record binds the subject it introduced
   (`introduced@1`), unless the user rejected that binding.
-- **Keys move up only, and only on confirm-level evidence.** A confirm-level
-  record that gives a device subject a better key, or names the existing
-  subject that the plugin's own provisional one is, writes a device alias and
-  re-points the rows (Lifecycle A, again). A display-level record never
-  re-points a saved ID. A confirm-level release that holds a device subject
+- **Keys move up only.** A confirm-level record that gives a device subject a
+  better key writes a device alias and re-points the rows (Lifecycle A,
+  again). A display-level record does so only for a subject that is its
+  plugin's alone (it introduced it and no other plugin's record is on it), and
+  never for a provisional one; it never re-points a subject others rely on. A
+  record that now names another existing subject than the one it was placed on
+  is a conflict, with the ID and binding unchanged, except that a
+  confirm-level plugin's own provisional subject (an uncurated coin whose
+  record now makes a canonical-issuance claim) is aliased to the subject it
+  names. Two open-keyed subjects are never merged. A confirm-level release that holds a device subject
   under another ID, asserting the identifier the device subject is keyed by
   (a London line OpenFIGI introduced by its FIGI, now in the build), aliases it
   there on the release's first use (`lifecycle.covered`): saved IDs and
@@ -1345,8 +1369,8 @@ through it.
 - **Crypto keys.** A `listing:caip19:` deployment key may come from any plugin.
   A `security:caip19:` asset key comes only from a canonical-issuance claim (a
   security record with one explicit `self` CAIP-19), and a provisional coin is
-  aliased to it only by a confirm-level claim or the user. A platform list
-  never keys an asset.
+  aliased to it only by a confirm-level claim (a user's alias has no path yet).
+  A platform list never keys an asset.
 - **Relations.** A plugin's relation is kept with its plugin. One that gives a
   subject another target of a one-target type (a receipt's share, a pool's
   protocol) than the package's contradicts it: a confirm-level plugin's makes
@@ -1358,7 +1382,9 @@ through it.
   record keeps its row. They join and introduce like any other and bind
   nothing.
 - **Unchanged and missing records.** A record that has not changed writes
-  nothing. The last page of a `complete` catalogue scope marks the scope's
+  nothing. One left `unmatched` or `conflict` is placed again once the
+  installed release, the plugin's trust level or its contract changed since
+  the plugin's last batch. The last page of a `complete` catalogue scope marks the scope's
   records that no page of it carried `not_seen`; their subjects and bindings
   stay.
 
@@ -1379,6 +1405,14 @@ saved ID means the absence of competing evidence never raises authority (A3).
   fact for every reader until the user answers or demotes a contributor.
 - A contested fact about a subject only the device holds is shown and flagged,
   not yet asked: questions are asked about reference subjects.
+- The identity store gains lookup indexes (a record's statements, relations by
+  end, children, the records on a subject) in its additive section, with no
+  schema bump. A re-sync of DeFiLlama's full catalogue (17,402 pools, 23
+  pages) takes about 1 second instead of 24.
+- Plugin authors: a record's currency is compared as stated, so a GBX record
+  never joins the GBP line by ISIN, exchange and currency (its FIGI still
+  joins), and a receipt's line names the share's ISIN as `underlying`, never
+  `self` ([plugin authoring](../architecture/plugins.md)).
 - The question about a registrant the user matched to a company, raised when a
   later release gives it identifiers of its own, offers the registrant alone and
   says why: those identifiers refuse the earlier answer and "none" alike

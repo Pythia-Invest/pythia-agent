@@ -105,7 +105,7 @@ def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
                 cursor = result.get("next_cursor")
                 if not cursor:
                     break
-    except (concurrent.futures.TimeoutError, ValueError, ClaimError, sqlite3.Error, OSError) as error:
+    except (concurrent.futures.TimeoutError, PluginFailed, ValueError, ClaimError, sqlite3.Error, OSError) as error:
         logger.warning("identity sync of %s stopped: %s", info.key, error)
         return _envelope("ok", {**totals, "partial": True}, issue=f"{info.label}'s catalogue stopped: {_why(error)}")
     return _envelope("ok", totals)
@@ -136,7 +136,7 @@ def lookup(identity: Identity, arguments: dict, **_context: Any) -> str:
         done = keep(identity, info, batch)
     except LookupError:
         return _envelope("empty", None, issue=f"{info.label} found no match.")
-    except (concurrent.futures.TimeoutError, ValueError, ClaimError, sqlite3.Error, OSError) as error:
+    except (concurrent.futures.TimeoutError, PluginFailed, ValueError, ClaimError, sqlite3.Error, OSError) as error:
         logger.warning("identity lookup in %s failed: %s", info.key, error)
         return _envelope("empty", None, issue=f"{info.label} lookup failed: {_why(error)}")
     return _envelope("ok", done)
@@ -153,18 +153,25 @@ def _usable(wanted: Any) -> tuple[Any, str | None]:
     return info, None
 
 
+class PluginFailed(Exception):
+    """The plugin's operation reported a failure (`outcome: error`, or an error answer): never "no records"."""
+
+
 def _call(identity: Identity, tool: str, arguments: dict, seconds: float) -> dict:
-    """Run one plugin operation for core, bounded in time; its answer's `data` is a claim batch. LookupError when it
-    answered nothing."""
+    """Run one plugin operation for core, bounded in time; its answer's `data` is a claim batch. PluginFailed when it
+    reports a failure, LookupError when it answered nothing."""
     from tools.registry import registry
     future = identity._pool.submit(contextvars.copy_context().run, registry.dispatch, tool, arguments)
     result = json.loads(future.result(timeout=max(0.1, seconds)))
-    if not isinstance(result, dict) or "error" in result:
-        raise ValueError("the plugin answered an error")
+    if not isinstance(result, dict):
+        raise ValueError("an answer that is not an object")
+    if "error" in result or result.get("outcome") == "error":
+        raise PluginFailed("the plugin reported an error")
     if not result.get("data"):
         raise LookupError("no records")
     return result
 
 
 def _why(error: BaseException) -> str:
-    return "no answer in time" if isinstance(error, concurrent.futures.TimeoutError) else "an unusable answer"
+    return "no answer in time" if isinstance(error, concurrent.futures.TimeoutError) else \
+        "the source reported an error" if isinstance(error, PluginFailed) else "an unusable answer"

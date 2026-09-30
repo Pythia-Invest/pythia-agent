@@ -370,8 +370,9 @@ one ingest ([ADR 0037](0037-identity-backbone.md), amendment "ingest").
   page) and answers `{"data": <ClaimBatch>, "next_cursor"}`: a page of that
   scope, whose last page sets `complete` and no cursor. The adapter maps it
   like any other operation.
-- **`identity-sync {plugin}`** reads one plugin's catalogue when asked, with no
-  scheduler: each declared scope in the order the contract lists them, page by
+- **`identity-sync {plugin}`** reads one plugin's catalogue, a Desk operation
+  with no scheduler (its Desk control lands with W3-lifecycle): each declared
+  scope in the order the contract lists them, page by
   page, within a page and time bound (then `partial`). A scope may name what an
   earlier one introduced (a DeFi source's pools name the protocols its
   `protocols` scope lists first), so the order is the plugin's to declare. It
