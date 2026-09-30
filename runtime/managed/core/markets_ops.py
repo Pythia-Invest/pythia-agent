@@ -43,7 +43,7 @@ ROW = {"rank": int, "symbol": str, "ticker": (str, type(None)), "mic": (str, typ
 UNRESOLVED = {"no_venue": "Pythia does not know this row's venue",
               "not_in_reference": "Not in Pythia's reference data",
               "ambiguous": "Several instruments use this ticker on this venue",
-              "no_reference_data": "Pythia's reference data is not installed",
+              "no_reference_data": "Pythia has no reference data it can read",
               "reference_failed": "Pythia's reference data could not be read"}
 
 OVERVIEW_SCHEMA = {

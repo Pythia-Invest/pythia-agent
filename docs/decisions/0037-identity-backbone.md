@@ -1197,10 +1197,18 @@ saved rows.
 **Ruling.**
 
 - **The package writes kinds only** (reference format 6, builder rules version
-  4). A value read from a source is `source_asserted`. A relation a builder
-  rule derives is `rule_confirmed`, its rule ID in `source_record`
-  (`receipt_issuer_share@1`); one a source states (FIRDS field 26) is
-  `source_asserted`. Core's curated crypto rows are Pythia's own list:
+  4). A value read from a source is `source_asserted`. A value a builder
+  rule derives is `rule_confirmed`, its rule in `source_record`:
+  - a relation the receipt rule derives (`receipt_issuer_share@1`); one a
+    source states (FIRDS field 26) is `source_asserted`;
+  - a CIK the build joins to a LEI issuer across sources' identifiers
+    (`isin_exch_us`, `share_class_figi`), versioned by the builder's rules
+    version. GLEIF's EDGAR registration states the CIK itself, and a CIK-only
+    issuer's CIK is SEC's own: both `source_asserted`. `source` and
+    `source_record` are unchanged, so each assertion keeps its evidence ID and
+    saved SEC bindings keep citing it.
+
+  Core's curated crypto rows are Pythia's own list:
   `source_asserted` from source `pythia`, rule `canonical_assets@1` in
   `source_record` (ADR 0044, A7). `reference.sql` admits only kinds on
   assertions and relations.
@@ -1227,18 +1235,20 @@ store.
 **Consequences.**
 
 - Every device rebuilds its package. On the 2026-09-28 downloads the format-6
-  build differs from the format-5 one only in its authority values (each equal
-  to what core read before: 321,697 assertions `source_asserted`; relations
-  2,756 `source_asserted` and 198 `rule_confirmed`), its version fields, the two
-  provider tables (68 and 16 rows) and the 68 coin aliases. Questions (1,698)
-  and the truth set (3,034 of 3,115) are unchanged.
+  build differs from the format-5 one only in its authority values, its
+  version fields, the two provider tables (68 and 16 rows) and the 68 coin
+  aliases. Assertions: 317,545 `source_asserted` and 4,152 `rule_confirmed`
+  joined CIKs (2,704 `isin_exch_us`, 1,448 `share_class_figi`); relations:
+  2,756 `source_asserted` and 198 `rule_confirmed`. Every evidence ID is
+  unchanged. Questions (1,698) and the truth set (3,034 of 3,115) are
+  unchanged.
+- A joined CIK no longer proves or blocks a match (only T0 identifier evidence
+  does): a derived link stops vetoing a source's statement. On the same build
+  this changes no truth-set check, no issuer question and no binding: the 13
+  links that GLEIF records with an EDGAR CIK all agree with it.
 - A saved provisional coin ID whose plugin is not confirm-level when a release
-  is first read keeps its row on that ID; reads still resolve it once the
-  plugin is.
-- A CIK the builder attaches to a LEI issuer by identifier agreement stays
-  `source_asserted`, as core read it before. Writing it as a rule's output
-  would change what proves and blocks a match; it stays open in the
-  [SEC record](../sources/sec.md) with its owner.
+  is first read keeps its row on that ID. The subject resolves on reads once
+  the plugin is; its saved rows move on the next release's first read.
 
 Superseded in the evidence amendment: "Core reads an older package's values as
 kinds (`vocabulary.stored_authority`)", "the package format do not change for

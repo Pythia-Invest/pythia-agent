@@ -4,8 +4,9 @@ The file is core's reference store (`runtime/managed/core/identity/sql/reference
 with subject IDs from core's `subject_id()`, so core reads it without a mapping.
 The assembled snapshot keeps its own working IDs; this module translates them.
 Every assertion and relation carries the kind of evidence it is, never where it came
-from (ADR 0044, A2): a value read from a source is `source_asserted`, and a relation a
-builder rule derives is `rule_confirmed`, its rule ID in `source_record`. Core's curated
+from (ADR 0044, A2): a value read from a source is `source_asserted`, and one a builder
+rule derives (a relation, or a CIK the build joins to a LEI issuer) is `rule_confirmed`,
+its rule in `source_record`. Core's curated
 crypto table is Pythia's own list: `source_asserted` from source `pythia`, its rule ID
 in `source_record`.
 """
@@ -21,7 +22,7 @@ from pathlib import Path
 
 from . import rules
 from .config import BUILDER_VERSION
-from .model import Snapshot
+from .model import JOINED_LINKS, Snapshot
 
 CORE = Path(__file__).resolve().parents[3] / "runtime" / "managed" / "core" / "identity"
 
@@ -181,10 +182,11 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         "chains", "id_aliases")}
     candidates: dict[str, set[str]] = defaultdict(set)  # alias -> the subjects it could name
 
-    def assert_(subject, scheme, value, source, *, record=None, start=None, end=None):
-        try:  # every identifier is read from a source: `source_asserted`
+    def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, derived=False):
+        try:  # an identifier read from a source is `source_asserted`; one a builder rule attaches, `rule_confirmed`
             item = identity.IdentifierAssertion(
-                subject_id=subject, scheme=scheme, value=value, authority=identity.Authority.SOURCE_ASSERTED,
+                subject_id=subject, scheme=scheme, value=value,
+                authority=identity.Authority.RULE_CONFIRMED if derived else identity.Authority.SOURCE_ASSERTED,
                 provenance={"plugin": source, "source": source, "adapter_version": BUILDER_VERSION, "retrieved_at": at,
                             "source_record": record},
                 validity={"valid_from": start, "valid_to": end})
@@ -220,8 +222,8 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
         tables["issuers"].append({"id": subject, "name": shown[:512], "country": country, "status": status})
         if issuer.lei:
             assert_(subject, "lei", issuer.lei, issuer.source)  # GLEIF's record, else the FIRDS field 5 it came from
-        if issuer.cik:
-            assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule)
+        if issuer.cik:  # SEC's CIK; on a LEI issuer a link the build joined is the rule's output, named in the record
+            assert_(subject, "cik", issuer.cik, "sec", record=issuer.cik_rule, derived=issuer.cik_rule in JOINED_LINKS)
         for text, _kind, _language, source in issuer.names:
             if text != issuer.name:
                 name(subject, text, source)

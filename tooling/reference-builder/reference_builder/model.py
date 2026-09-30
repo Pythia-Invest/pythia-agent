@@ -105,6 +105,12 @@ class SecFund:
 
 # ---- assembled snapshot ------------------------------------------------------
 
+# How a CIK links a LEI issuer (`Issuer.cik_rule`). The builder derives a join across sources' identifiers (a FIRDS US
+# ISIN mapped to the SEC ticker, a shared share-class FIGI): `rule_confirmed`. GLEIF's entity record states its EDGAR
+# registration itself: `source_asserted`.
+JOINED_LINKS = ("isin_exch_us", "share_class_figi")
+STATED_LINKS = ("gleif_edgar_registration",)
+
 
 @dataclass
 class Issuer:

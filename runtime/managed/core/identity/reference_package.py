@@ -196,7 +196,7 @@ def mismatch(manifest: dict) -> str | None:
                 f"this Pythia reads. Update Pythia to read it.")
     return (f"Reference package {manifest['build_id']} is format {version}, too old for this Pythia, which reads format "
             f"{FORMAT_VERSION}. Rebuild it with this checkout's builder (`just reference-snapshot`) and install the new "
-            f"build (`just reference-install`).")
+            f"build (`just reference-install <package>`).")
 
 
 def _compatible(manifest: dict) -> None:

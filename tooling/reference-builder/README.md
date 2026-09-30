@@ -65,9 +65,11 @@ listings by FIGI. `id_aliases` maps every other key a subject could have had
 (ISIN-, FIGI-, LEI- or CIK-based) to its ID; an alias that is itself a subject,
 or names two subjects, is dropped and counted. Every assertion and relation
 states the kind of evidence it is, never where it came from (ADR 0044, A2;
-package format 6): a value read from a source is `source_asserted`, and a
-relation a builder rule derives is `rule_confirmed` with the rule's ID in
-`source_record`. Venues carry their ISO 10383 market category (`RMKT`,
+package format 6): a value read from a source is `source_asserted`, and one a
+builder rule derives is `rule_confirmed` with the rule in `source_record`: a
+receipt edge of `receipt_issuer_share@1`, and a CIK the build joins to a LEI
+issuer (`isin_exch_us`, `share_class_figi`; GLEIF's EDGAR registration states
+it, so that one is `source_asserted`). Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
 trading (outside the EEA, an exchange ISO leaves unspecified, `NSPD`, counts as
 one). It also carries core's curated canonical crypto assets
@@ -289,10 +291,11 @@ assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
 - **4** (2026-09-30, roadmap stage 0; package format 6): rows state the kind of
-  evidence they are, never where they came from: an identifier is
-  `source_asserted`, a relation a source states (FIRDS field 26) too, and a
-  relation a builder rule derives is `rule_confirmed` with the rule's ID in
-  `source_record` (`receipt_issuer_share@1`); core's curated crypto rows are
+  evidence they are, never where they came from: an identifier a source
+  states is `source_asserted`, a relation a source states (FIRDS field 26)
+  too, and what a builder rule derives is `rule_confirmed` with the rule in
+  `source_record`: a `receipt_issuer_share@1` edge, and a CIK joined to a LEI
+  issuer (`isin_exch_us`, `share_class_figi`); core's curated crypto rows are
   `source_asserted` from source `pythia` (`canonical_assets@1`). The package
   carries no provider coin ids, chain ids or provisional-coin aliases: each
   coin plugin's contract declares its own.
@@ -513,7 +516,9 @@ row counts, audit counts, canary results, the FIRDS report and SHA-256
 checksums) and `package.json` (`package.py`). With `package.json`, the directory
 is a [reference package](../../docs/architecture/reference-package.md). Core
 reads only a package installed with `just reference-install`; development
-startup installs this one automatically.
+startup installs this one automatically. `just reference-install` runs the
+stack's copy of core, so after a format change build to this folder and run
+`just dev-refresh`: it copies the checkout's core, then installs the build.
 `.local/reference-builder/downloads/` (override with `--cache`) caches source
 files and API answers: OpenFIGI answers (in `openfigi-answers.sqlite3`) for 30
 days, GLEIF records and the SEC and MIC files for one day; `--offline` uses

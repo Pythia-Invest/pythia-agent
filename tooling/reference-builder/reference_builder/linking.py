@@ -14,14 +14,14 @@ from collections import Counter, defaultdict
 
 from . import gleif, rules
 from .assemble import FigiMap, Inputs, operating
-from .model import Evidence, GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
+from .model import JOINED_LINKS, STATED_LINKS, Evidence, GleifEntity, Issuer, Listing, Security, SecTicker, Snapshot
 from .sec import EXCHANGE_MIC, LISTED_MICS
 
 SEC_EDGAR_RA = "RA000665"
 # Name words too common to show two names belong to one company.
 GENERIC_WORDS = frozenset("THE AND OF GROUP HOLDING HOLDINGS INTERNATIONAL INDUSTRIES BANK FINANCIAL CAPITAL TRUST FUND "
                           "PARTNERS TECHNOLOGIES TECHNOLOGY SYSTEMS RESOURCES ENERGY AMERICA AMERICAN GLOBAL NEW".split())
-IDENTIFIER_RULES = ("isin_exch_us", "share_class_figi", "gleif_edgar_registration")
+IDENTIFIER_RULES = (*JOINED_LINKS, *STATED_LINKS)
 
 
 def _pick(rows: list[dict]) -> dict | None:
