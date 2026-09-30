@@ -225,8 +225,9 @@ and each question type has its development check recorded.
 
 ### Sign-off
 
-Sign-off is a reviewed pull request that sets the record's status to `trusted`.
-It is approved by the project maintainer and cites:
+Sign-off is a reviewed pull request that sets the record's status to "signed
+off" (the [template](../sources/template.md)). It is approved by the project
+maintainer and cites:
 
 - the evidence for each stage;
 - the measured builds and sample;
@@ -234,8 +235,8 @@ It is approved by the project maintainer and cites:
 
 Every open item is closed, or accepted with a limit and an owner.
 
-Any of these reopens the affected stage and suspends trust in the affected
-fields until it passes again:
+Any of these reopens the affected stage and withdraws the sign-off for the
+affected fields until it passes again:
 
 - a drift alarm;
 - a change to the specification;

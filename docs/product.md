@@ -64,13 +64,22 @@ investor's one source order; pinned series and retained research preserve their 
 The backend foundation is available first; concrete shared connectors and reusable
 Desk widgets are separate increments. See [market data](architecture/market-data.md).
 
-Investment search reads a local directory built on the device from open
-reference sources and the investor's connected providers, and it calls no
-provider while the investor types. No paid provider is required. Pythia is
+Investment search reads a local directory: the installed open reference
+package, built on the device from open sources, and the subjects the investor's
+enabled plugins have added. It calls no provider, and delisted lines stay
+findable, marked as delisted. No paid provider is required. Pythia is
 personal software: each installation serves one investor, who uses provider data
 under their own agreement with the provider. Each plugin carries its provider's
 terms, and Pythia itself never publishes, pools or redistributes provider data;
 see [ADR 0039](decisions/0039-local-first-reference-data-and-rights.md).
+
+Any enabled plugin can add subjects and evidence through core's identity
+ingest, and installing a plugin means trusting it: there are no trust levels
+([ADR 0044](decisions/0044-product-direction.md)). The investor can pause a
+source at once in Settings → Data, correct a catalogue fact from an instrument's
+page, and answer the identity questions Pythia raises for instruments they open,
+watch or use (Settings → Data → Repairs). [Identity data](architecture/identity-data.md)
+shows where each fact comes from.
 
 Responsiveness and predictable resource use take priority over feature breadth.
 Pythia must remain productive as ordinary research files and chat history grow,

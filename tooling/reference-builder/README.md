@@ -519,18 +519,21 @@ lists every truth entry's subject ID that changed since the previous baseline
 and writes nothing unless `--accept-id-changes` is given; the accepted changes
 are kept in the baseline under `accepted_id_changes`.
 
-The same command then checks 16 whole-build invariants (`invariants.py`): rules
+The same command then checks 19 whole-build invariants (`invariants.py`): rules
 every row must satisfy, so a systematic error shows up as a count rather than as one
-truth entry. Twelve are errors: a line on a German exchange or Vienna not in euros,
+truth entry. Fifteen are errors: a line on a German exchange or Vienna not in euros,
 a withdrawn currency code (BGN since 2026, XXX), a share or receipt in its ISIN
 country's currency instead of its venue's (RFQ platforms, internalisers and ETFs,
 which list in several currencies, excepted), a ticker whose currency suffix
 disagrees with its line, one ticker on one venue naming two securities, a listing
-segment where most lines have no ticker, more than one or an inactive primary, an
-open-market primary beside a NYSE/Nasdaq line, name casing and encoding, and a
-trading venue recorded as issuer. Four are warnings to review: a US share with no US
-line (usually delisted), an old ISIN left active beside its successor, a financing
-vehicle as issuer, and a Munich primary beside a Xetra line.
+segment where most lines have no ticker, more than one or an inactive primary, a
+live security with lines and no primary (`primary_missing`, a coverage count: the
+primary is a choice, ADR 0044 A5), a live share with neither a primary nor a
+most-liquid line, a question the build left open, an open-market primary beside a
+NYSE/Nasdaq line, name casing and encoding, and a trading venue recorded as issuer.
+Four are warnings to review: a US share with no US line (usually delisted), an old
+ISIN left active beside its successor, a financing vehicle as issuer, and a Munich
+primary beside a Xetra line.
 
 An error above its limit fails the command; a warning never does. Limits are the
 exact counts on the default-scope build of the FIRDS week of 2026-09-26. Rules with

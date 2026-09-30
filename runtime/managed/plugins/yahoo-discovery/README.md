@@ -67,8 +67,7 @@ in two narrow ways only:
 - `resolve_isin` accepts a checksum-valid ISIN and returns listing rows
   (symbol, exchange, quote type). Yahoo keys an ISIN to its primary listing
   only, so a row never proves the other listings of a security. No tool exposes
-  it yet; the plugin addressing contract adopts it as this connector's
-  `resolve`.
+  it yet, and the contract declares no `resolve`, so core never calls it.
 - research `news` reads an issuer's news. It takes validated Yahoo symbols
   (the listing asked for plus the issuer's other Yahoo lines, at most eight),
   and for a crypto pair also the asset's name, and returns only the items

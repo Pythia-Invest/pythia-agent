@@ -76,7 +76,7 @@ credential-free and use synthetic provider fixtures. Use `just test-fast` for
 the deterministic behavior suite and `just test-system` for the small
 real-process lifecycle smoke.
 
-CI ([ADR 0037](decisions/0037-one-required-ci-gate.md)) runs the same recipes
+CI ([ADR 0046](decisions/0046-one-required-ci-gate.md)) runs the same recipes
 as parallel jobs behind one required `CI gate` check. Merge only when it is
 green. The nightly workflow runs broad qualification and a full dependency
 audit on every push to `main`, daily, and by dispatch. It is intentionally not

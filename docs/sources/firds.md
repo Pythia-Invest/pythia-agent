@@ -3,8 +3,8 @@
 - **Status:** issuer and the primary of shares decided by FIRDS claims
   (field 8) signed off (PR #74, below); receipt underlying and ETF primaries
   stay in onboarding. FIRDS feeds
-  the reference builder and has no plugin `contract.json`, so the #62 gate
-  records nothing in code for it: this record is its sign-off.
+  the reference builder and has no plugin `contract.json`, so no contract
+  `signoff` field records its audit: this record is its sign-off.
   - Stage 1: the field table below is complete for the fields the builder
     reads.
   - Stage 2: the adapter emits typed claims, counts unexpected input and
@@ -270,7 +270,7 @@ Questions: 25 of 30 were right to ask (83%). Only 9 of the 30 carry the true
 answer among their candidates: most answers lie outside the build (TSX
 Venture, Cboe NL, Tel Aviv, an LEI GLEIF does not hold). The ISIN-country line
 suggests an answer for General Dynamics and PepsiCo (their US line) and
-TotalEnergies (Euronext Paris); they stay questions until a curator approves.
+TotalEnergies (Euronext Paris); they stayed questions, for the user to answer.
 BCE and RELX now get their home line as the suggestion (Toronto, London), since
 home lines take their venue country's currency. Rules version 2 removed the
 suggestion and the home-market question (ADR 0044, A5).

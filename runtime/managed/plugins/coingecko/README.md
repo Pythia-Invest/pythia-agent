@@ -73,6 +73,11 @@ with its CoinGecko platform `network`. Symbols, contracts and ranks never prove
 equivalence between coins or providers; the identity owner decides joins and
 derives CAIP-19.
 
+These rows are in the older catalogue format (`provider_ref`), not the claim
+batch core's ingest reads, so Settings → Data → Data sources cannot sync this
+catalogue yet; the operation answers direct calls only
+([ADR 0044](../../../../docs/decisions/0044-product-direction.md), "Today").
+
 Native coins such as Bitcoin, Ether and Solana carry no contract. Joining
 coins across providers is core's: its curated canonical-asset table
 (`canonical_assets@1`) lists the assets, and this plugin's `contract.json`

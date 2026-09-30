@@ -207,15 +207,6 @@ mutation lock, asks the lifecycle owner to restart Hermes, and reports success
 only after the authenticated native API shows the requested state. It does not
 infer mismatches or modify another platform.
 
-Settings › Updates shows the version and update status: Check now, Update
-now for an available installed-device build, progress through the restart,
-and **Reload Desk** once the selected build is active. Desk checks once a day
-while open; an entry in the navigation footer appears only when an update is
-ready, installing or needs a reload, and opens the same controls. Dirty source
-is preserved and refused; development cannot apply installed updates. See
-[ADR 0017](../../docs/decisions/0017-updates-from-desk.md) for the update,
-reconnection and host recovery boundaries.
-
 Provider setup belongs to the respective connector. Core no longer exposes
 the original SEC identity and EODHD token controls or their write routes.
 Previously saved values remain untouched. Stored secrets, the Hermes bearer
@@ -310,7 +301,22 @@ saves, Escape cancels, an empty value removes the identifier) and sends
 `identity-correction`; a price section's "Always use" beside "Back" pins the
 source picked for this view. A corrected item says "Corrected by you" with an
 Undo. Core refuses a value that is malformed for its scheme and Desk shows its
-reason in place.
+reason in place. Where an open question holds a fact back (the company of a
+share whose issuer the data does not settle, a contested identifier), the page
+shows "open data conflict" with a link to its repair, never a blank.
+
+Settings → Data → Data sources lists each data plugin that Hermes has enabled
+and that ships a contract. A switch beside each pauses it at once, with no
+restart: a paused source counts as disabled for data, and its subjects and saved
+references keep resolving, labelled as paused. Beside the switch, before it is
+turned off, a line says how many subjects only that source supplies and which
+saved watchlist and card entries name them. A source with a bulk catalogue has
+"Sync now", and one that can resolve an identifier has a form that looks one up
+(`identity-sync`, `identity-lookup`); nothing else calls a plugin for the
+directory, and search never does. Settings → Data → Reference data shows the
+installed reference package, its sources and notices, and why a package was
+refused or is too old. Enabling a plugin Hermes does not run stays
+`hermes plugins enable` and a Hermes restart.
 
 `/instrument/[subject]` is one instrument's page (URL-encoded subject id,
 normally the instrument's security); `?listing=` names the listing whose quote

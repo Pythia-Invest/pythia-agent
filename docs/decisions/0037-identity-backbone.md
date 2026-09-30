@@ -1,5 +1,11 @@
 # 0037: Identity backbone
 
+*Reading this record.* The ruling below is the first version, and many amendments
+follow it. Where a later amendment changes an earlier passage, the earlier one
+carries a dated note, and the original wording stays as history. The current
+state is in [identity data](../architecture/identity-data.md) (what the stores
+hold) and in the "Today" list of [ADR 0044](0044-product-direction.md).
+
 ## Context
 
 Each provider names investments its own way: `ASML.AS`, `ASML.US`, a conId, a
@@ -22,6 +28,11 @@ reference sources (FIRDS, GLEIF, SEC, OpenFIGI, ISO MIC), provider connectors
 (Yahoo, EODHD, CoinMarketCap, CoinGecko, IBKR) and optional resolvers. Disabling
 a plugin removes its coverage and nothing else. No provider is required; a
 Yahoo-only install works.
+
+*Amended 2026-09-30: the reference sources are still read by the reference
+builder, which writes the reference package, not run as plugins; every plugin
+contributes through core's ingest (amendments "device subjects" and "ingest"
+below), and no plugin is ranked by trust (amendment "no trust levels").*
 
 **Four levels.** An *issuer* is identified by LEI or CIK. A *security* by ISIN
 or share-class FIGI; a crypto asset is a security identified by CAIP-19. A
@@ -123,14 +134,19 @@ as a conflict. A record has at most one `self` value per single-valued scheme
 
 **Crypto.** Provider coin ids are bindings; symbols and names never join.
 A crypto security's key comes only from core's curated canonical-asset table
-(rule `canonical_assets@1`, see the crypto-keys amendment); a token deployment
+(rule `canonical_assets@1`, see the crypto-keys amendment; *superseded on
+2026-09-29: an asset key comes from any plugin's canonical-issuance claim, and
+the table is the maintained default supplier*); a token deployment
 (a listing) joins on CAIP-2 chain plus contract. A chain's fee coin is not
 identity, and wrapped tokens are separate assets linked by `wraps`.
 
 **Authorities.** Plugins never choose a tier; core derives it from the
 authority. An authority names the kind of evidence, never where it came from;
 how much the evidence counts also depends on its contributor's trust level (see
-the amendment "evidence counts by kind and trust level").
+the amendment "evidence counts by kind and trust level"). *Superseded on
+2026-09-30: there are no trust levels. Wherever this ruling says "confirm
+level", read "enabled plugin", and "display-level evidence never blocks" no
+longer applies (amendment "no trust levels" below).*
 
 | Tier | Authorities | Confirms? |
 | --- | --- | --- |
@@ -270,7 +286,9 @@ call per page open (provider traffic), fuzzy name matching (never decisive),
 refusing or queueing on a reference field that is not signed off (it refused
 correct quotes on German venues and Amsterdam USD ETF lines, and a "not a
 match" answer left a refused source with no way back), and keeping checks as
-binding rows (a derived address is recomputed, never stored).
+binding rows (a derived address is recomputed, never stored). *Amended on
+2026-09-30: a read is never labelled "source not audited", and no source is
+"marked unaudited" (amendment "no trust levels" below).*
 
 **Search is a local read** of the directory: no provider call, no identity
 write, no reconciliation. Core's `identity-search` builds the directory in
@@ -318,7 +336,9 @@ instrument's page on the row's listing: a receipt's row opens the share it
 folds into. Core declares the key
 in its `configuration.json`. "Look up in X"
 explicitly calls one provider's `resolve`, and the result joins like any other
-claim.
+claim. *Amended on 2026-09-30: search offers no lookup at all. The lookup is a
+form on the plugin's own row in Settings → Data → Data sources (ADR 0044,
+amendment "search is local data only, and delisted lines stay findable").*
 
 ## Rationale
 
@@ -438,6 +458,8 @@ rule replaces grouping cases per asset class.
   would need a table rebuild on every device.
 
 ## Amendment (2026-09-28): crypto keys do not depend on the installed provider
+
+*Partly superseded on 2026-09-29: core's curated table is no longer the only source of an asset key; any plugin's canonical-issuance claim is one too (amendment "crypto keys come from a claim type" below).*
 
 The key `security:caip19:<home deployment>` left the home undefined. The
 obvious source, CoinGecko's `asset_platform_id`, makes a multi-chain token's
@@ -665,6 +687,8 @@ user overrides it). The agent's answer would change what the investor sees
 before anyone reviewed it, which ADR 0044 rules out for identity.
 
 ## Amendment (2026-09-29): crypto keys come from a claim type; the Sui profile is minted
+
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
 
 [ADR 0044](0044-product-direction.md) A3 rules that identifiers come from
 identifiers, not sources: any enabled plugin that supplies the same identifier
@@ -960,6 +984,8 @@ non-portable ID".
 
 ## Amendment (2026-09-30): evidence counts by kind and trust level
 
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
+
 **Context.** [ADR 0044](0044-product-direction.md) A1, A2 and A4 say evidence
 counts by its kind and its contributor's trust level, never by its origin, and
 that a prebuilt package has no more authority than the same plugin run
@@ -1070,6 +1096,10 @@ and stores working without a schema bump.
 
 ## Amendment (2026-09-30): coin ids live in the coin plugins' contracts
 
+*The package's provider tables and coin aliases that this amendment says the builder still fills ended in package format 6 (amendment "package format 6 states kinds and names no provider" below).*
+
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
+
 [ADR 0038](0038-plugin-addressing-contract.md), amendment "contract version
 2", ends provider columns in core's tables. The crypto-keys amendment put each
 provider's coin id and chain ids in `canonical_assets.json`, and core read the
@@ -1111,6 +1141,8 @@ the coin ids and chain ids the contracts declare. The default price source for
 Bitcoin is unchanged: CoinGecko, then CoinMarketCap once its key is set.
 
 ## Amendment (2026-09-30): device subjects
+
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
 
 **Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin
 introduce subjects that no reference build holds. The identity store had an
@@ -1309,6 +1341,8 @@ provisional-coin aliases until its next format". In [ADR 0042](0042-source-onboa
 
 ## Amendment (2026-09-30): ingest
 
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
+
 **Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let every plugin
 introduce subjects and contribute evidence through one contract. Device
 subjects had a store and reads (amendment above), but nothing wrote them:
@@ -1484,6 +1518,8 @@ saved ID means the absence of competing evidence never raises authority (A3).
 
 ## Amendment (2026-09-30): search over reference and device
 
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
+
 **Context.** [ADR 0044](0044-product-direction.md) A1 and A3 let any plugin
 introduce subjects, and roadmap stage 0 asks that they appear in search. Search
 read the reference file alone: with no package it found nothing, a subject a
@@ -1618,6 +1654,8 @@ touches no device state.
   for nothing, since the next install replaces them anyway.
 
 ## Amendment (2026-09-30): saved references through a plugin's lifecycle
+
+*Partly superseded on 2026-09-30 by the amendment "no trust levels" below: where this text weighs evidence or acts by a "trust level", "confirm level" or "display level", read "enabled plugin" instead.*
 
 **Context.** Roadmap stage 0 asks that an ordinary plugin's subjects keep
 working through disabling, re-enabling and updates, shown with an overlapping

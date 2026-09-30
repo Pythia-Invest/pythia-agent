@@ -212,7 +212,7 @@ export const settingsSections: readonly SettingsSection[] = [
         title: "Data sources",
         icon: Database,
         view: { kind: "data-sources" },
-        keywords: "plugin catalogue sync identifiers trust disable",
+        keywords: "plugin catalogue sync identifiers pause disable",
       },
       {
         id: "data/reference",

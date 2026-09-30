@@ -1,5 +1,11 @@
 # 0044: Product direction: mandate-driven agents, a decision ledger, and extensible data
 
+*Reading this record.* The rulings below are the first version. Amendments
+follow, and a later one can supersede part of an earlier one; the superseded
+passage carries a dated note and stays as history. What is built now is the
+"Today" list of the amendment "data any plugin can extend", which each later
+amendment keeps true.
+
 ## Context
 
 Pythia began as a local research companion. Much of the recent work built the
@@ -91,6 +97,9 @@ following:
      centrally and delivered as signed downloads. Pythia's services do not
      receive users' queries.
    - Licensed provider data is never redistributed.
+
+   *Superseded on 2026-09-29 by A1 below: any plugin can extend the data, and
+   central curation is a maintained default, not the path.*
 8. **Conflict handling.**
    - World identity conflicts are resolved centrally at build time, by rules,
      typed claims and AI-assisted review, with maintainer approval.
@@ -102,6 +111,9 @@ following:
      identifiers and reasoning only.
    - When a user's own vendor disagrees with the reference, the reference is
      the default and the user may override it locally.
+
+   *The first and last bullets are superseded by A2 below (2026-09-29), and the
+   reference is one source among the enabled plugins (2026-09-30).*
 9. **Identity scope.**
    - **Kept:** the four-level backbone and its relations, today's coverage,
      permanent identifiers (aliases, successors, and no identifier ever
@@ -110,10 +122,15 @@ following:
    - **Added only when a strategy needs them:** new kinds of subject.
    - **Paused until a strategy universe reaches a gap or a second user
      arrives:** new reference sources and further source audits.
+
+   *Superseded by A3 below (2026-09-29).*
 10. **Plugin trust levels.** Display, suggest identity, and confirm identity.
     Only confirming identity requires the full onboarding audit and sign-off.
     A display-only plugin, including a user's own licensed vendor, needs
     declared coverage and terms only.
+
+    *Superseded by A4 (2026-09-29), which the amendment of 2026-09-30 "installing
+    a plugin means trusting it" replaced in turn: there are no trust levels.*
 11. **Extension model.** Builders customise through files and plugins, and the
     core stays upstream and updatable.
     - **Files:** strategies, mandates, skills, prompts and agent roles.
@@ -182,7 +199,8 @@ It amends the following rulings:
   device".**
   - Reviewed curated answers over open data may ship in the reference package.
   - Gold labels on licensed data and raw model exchanges stay on the device.
-  - The trust levels in ruling 10 define what requires sign-off.
+  - The trust levels in ruling 10 define what requires sign-off. *(Superseded
+    on 2026-09-30: sign-off is Pythia's own audit record and no code reads it.)*
 - **The deferral of agent sandboxing** ends before the first live trading
   credential is connected.
 - **Hermes-native permissions** continue to govern reads. Approval of orders is
@@ -251,6 +269,10 @@ and 10, and the first and last bullets of ruling 8; the other rulings stand. It
 also narrows the rationale "Resolve shared facts once" and the rejected
 alternative "Fully local data resolution" to raising every world-level
 question on every installation.
+
+*Amended on 2026-09-30: A4 is superseded, and A2 and A3 weigh evidence by kind
+alone, with no trust levels (amendment "installing a plugin means trusting it"
+below).*
 
 **A1.** **Extensible data with maintained defaults** (replaces ruling 7).
    - Research, strategies, credentials, portfolios and ledgers stay on the
@@ -468,13 +490,15 @@ stage 0 work below.
 
 ### Consequences
 
-- **Rulings in other ADRs change as stage 0 lands:**
+- **Rulings in other ADRs changed when stage 0 landed:**
   - [ADR 0037](0037-identity-backbone.md): crypto keys only from the curated
     table; `snapshot` outranking `source_asserted`; `curated` at the top tier.
   - [ADR 0038](0038-plugin-addressing-contract.md): "Reference sources do not
-    emit".
+    emit" (plugins emit through core's ingest; the reference sources are still
+    builder adapters).
   - [ADR 0039](0039-local-first-reference-data-and-rights.md): a published
-    package, as a maintained default without extra authority.
+    package would be a maintained default without extra authority. None is
+    published.
   - [ADR 0042](0042-source-onboarding-standard.md): "The builder's reference
     sources are not plugins", and no subjects before sign-off, for plugins
     that introduce subjects.

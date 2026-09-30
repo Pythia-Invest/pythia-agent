@@ -49,7 +49,7 @@ and shared editor settings remove formatting churn from review.
 `apps/desk` depends on `@tanstack/react-query` and, for development, on
 `@playwright/test`; the Chromium browser is installed explicitly because the
 workspace disables install scripts. CI runs the suite against a hermetic
-production Desk build ([ADR 0037](0037-one-required-ci-gate.md)); specs that
+production Desk build ([ADR 0046](0046-one-required-ci-gate.md)); specs that
 need a real profile live in `e2e/live` and run with `just test-e2e <desk url>`. `useSortedClasses` is a Biome nursery rule and may change
 ordering between Biome releases; the safe fix handles that mechanically.
 
@@ -160,6 +160,15 @@ still belongs to the installed lifecycle owner.
 Rejected: the previous grouped pages with an Overview, generic "Configured"
 labels, credential dialogs, a pop-up over the page, a scroll-spy list, and a
 watermark version in the navigation.
+
+**Amendment (2026-09-30): a Data section.** The Settings text above was edited
+in place when the identity backbone added a Data section (Data sources,
+Reference data, Repairs). It first said Settings has "no data-source page of
+its own", because provider connections belong to their connectors
+([ADR 0034](0034-core-and-optional-features.md)); that still holds for
+credentials, and Data sources holds none. It is the place to pause a plugin,
+read its catalogue now or look one identifier up
+([ADR 0044](0044-product-direction.md), amendments of 2026-09-30).
 
 ## Phone layout (2026-09)
 

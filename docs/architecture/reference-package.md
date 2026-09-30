@@ -155,12 +155,11 @@ and the installer stay the same. Hosting, signing and update cadence are open
 questions for a later ADR. Until then Pythia publishes no package, and the
 builder keeps running on the device.
 
-## Known limits at the finish line
+## Known limits
 
-The identity backbone reached its finish line
-([ADR 0044](../decisions/0044-product-direction.md) ruling 9, roadmap stage 0)
-with these limits accepted. Each has an owner or a trigger; none is a silent
-gap.
+The identity backbone ([ADR 0044](../decisions/0044-product-direction.md),
+roadmap stage 0) accepts these limits. Each has an owner or a trigger; none is a
+silent gap.
 
 **Reference data** (counts from the offline default-scope build of
 2026-09-29, FIRDS week of 2026-09-26; the ratchets in
