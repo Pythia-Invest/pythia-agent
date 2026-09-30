@@ -205,6 +205,12 @@ export function fixture(rootValue) {
 const CONTEXT_PROBE_SOURCE = `
 
 # BEGIN PYTHIA T08 DISPOSABLE CONTEXT PROBE
+# Self-contained: core's own module imports only what core needs.
+import json
+import os
+from pathlib import Path
+from typing import Any
+
 _pythia_t08_base_register = register
 
 def _pythia_t08_context_probe(_args, **_kwargs):
