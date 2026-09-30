@@ -1,0 +1,8 @@
+name: pythia-defillama
+version: 0.1.0
+description: DeFi protocols and yield pools from DefiLlama as subjects, with the Sui coin types pools hold; keyless, personal use
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_defillama_catalogue
