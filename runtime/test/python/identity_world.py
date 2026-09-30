@@ -142,6 +142,6 @@ class World:
         return release(self.path, directory, name, **changes)
 
     def rekey(self, path: Path) -> dict | None:
-        """Lifecycle A: the device's rows follow the release at `path`."""
-        with closing(store.open_reference(path)) as ref:
+        """Lifecycle A: the device's rows follow the release at `path`, a build the user trusts to confirm."""
+        with closing(store.open_reference(path, "confirm")) as ref:
             return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem))

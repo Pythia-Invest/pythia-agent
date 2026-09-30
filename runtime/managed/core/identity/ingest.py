@@ -4,9 +4,11 @@ A plugin returns claim batches from the operations core dispatches (a catalogue 
 `ingest` places every record and relation of one batch in identity.sqlite3:
 
 - **Joins by identifier agreement at the record's own scope** (`self` values only, never an echo of a resolve's
-  question): a listing by ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment; a security by
-  ISIN, then share-class FIGI, then canonical CAIP-19; an issuer by LEI, then CIK; a market or protocol by the plugin's
-  own native reference. Never by issuer, ticker, symbol or name; an `underlying` or `unqualified` value never joins.
+  question; `joins`): a listing by ISIN with its operating MIC and currency, then FIGI, then CAIP-19 deployment, and a
+  line that states no currency, failing those, by its security's one line on its exchange (none there with another
+  FIGI, else it stays `unmatched`); a security by ISIN, then share-class FIGI, then canonical CAIP-19; an issuer by
+  LEI, then CIK; a market or protocol by the plugin's own native reference. Never by issuer, ticker, symbol or name;
+  an `underlying` or `unqualified` value never joins.
 - **Conflicts.** A second subject found, or a single-valued value confirm-level evidence about the subject or its parent
   states otherwise (or that names another subject), makes the claim a `conflict`: the record stays with the first
   subject, its values beside the others' (at confirm level they contest the fact, which `queue_ops.surface` asks about
@@ -29,6 +31,7 @@ from dataclasses import asdict
 from typing import Any, Iterable, Mapping
 
 from . import device, lifecycle, relations
+from .joins import Joins
 from .claims import BatchOrigin, ClaimBatch, IdentifierValue, RecordAttributes, RecordClaim, RelationClaim, batch_to_json, check_batch
 from .declared import NATIVE
 from .model import ProviderRef
@@ -41,9 +44,6 @@ from .vocabulary import IdentifierRole
 
 COUNTS = ("joined", "introduced", "conflicts", "unmatched", "rejected", "not_seen")
 PLACED = ("joined", "introduced", "conflict", "unmatched")  # the states a record keeps until it changes
-JOINS = {Level.LISTING: (Scheme.ISIN, Scheme.FIGI, Scheme.CAIP19),
-         Level.SECURITY: (Scheme.ISIN, Scheme.SHARE_CLASS_FIGI, Scheme.CAIP19),
-         Level.COMPOSITE: (Scheme.COMPOSITE_FIGI,), Level.ISSUER: (Scheme.LEI, Scheme.CIK)}
 DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 RANK = ("isin", "lei", "figi", "cik", "caip19", "cgs_isin", "pythia", "provisional")  # key schemes, best first
 RECORD = "#record"  # the scope of a record kept by digest: no contract can declare it (a native scope is a namespace)
@@ -78,6 +78,7 @@ class _Ingest:
         self.store, self.ref, self.manifest, self.batch, self.now = store, ref, info.manifest, batch, now
         self.plugin, self.plugins = info.manifest.plugin, [*plugins, info]
         self.granted = device.levels(self.plugins)
+        self.joins = Joins(ref, store, self.granted)
         self.confirm = self.granted[self.plugin] == CONFIRM
         resolve = info.manifest.resolve
         self.echoes = set(resolve.echoes) if batch.origin is BatchOrigin.RESOLVE and resolve else set()
@@ -114,9 +115,15 @@ class _Ingest:
         level, own = claim.level, self._own(claim)
         if level not in INSTRUMENT_KINDS:
             return self._native(claim)
-        found = self._candidates(level, own, claim.attributes)
+        found = self.joins.candidates(level, own, claim.attributes)
         prior = previous and device.current_id(self.ref, self.store, previous)
-        prior = prior if prior and self._held(prior) else None
+        prior = prior if prior and self.joins.held(prior) else None
+        attributes = claim.attributes
+        if not (found or prior) and level is Level.LISTING and Scheme.ISIN in own and attributes.operating_mic \
+                and not attributes.currency:  # a line with no currency joins its security's one line on its exchange
+            found = self.joins.venue_line(own[Scheme.ISIN], own.get(Scheme.FIGI), attributes.operating_mic)
+            if found is None:  # several there, or one with another FIGI: never a second line on that exchange
+                return "unmatched", None
         if prior and found and prior not in found:  # the record now names another subject than its own
             row = device.subject_row(self.store, prior)
             if not (self.confirm and len(found) == 1 and row is not None and row["introduced_by"] == self.plugin):
@@ -177,9 +184,9 @@ class _Ingest:
         own = {scheme: value for scheme, value in self._own(claim).items() if SCHEME_LEVEL[scheme] is up}
         if not own:
             return None, False
-        found = self._candidates(up, own, claim.attributes)
-        if found:
-            return (found[0], False) if len(found) == 1 else (None, True)
+        found = self.joins.candidates(up, own, claim.attributes)
+        if found:  # one parent whose confirm-level evidence agrees; two, or a disagreement, are a contest
+            return (found[0], False) if len(found) == 1 and not self._disagrees(found[0], own) else (None, True)
         key = self._key(up, own, claim.attributes)
         if key is None or _tag(key) not in self.manifest.introduces.get(up, ()):
             return None, False
@@ -212,40 +219,12 @@ class _Ingest:
         return {item.scheme: item.value for item in claim.identifiers if item.role is IdentifierRole.SELF
                 and item.scheme not in self.echoes and item.scheme is not Scheme.TICKER_MIC}
 
-    def _candidates(self, level: Level, own: Mapping[Scheme, str], attributes: RecordAttributes) -> list[str]:
-        """The subjects at `level` the record's own identifiers name, in join order."""
-        found: list[str] = []
-        for scheme in JOINS[level]:
-            if scheme in own:
-                found += self._lines(own[scheme], attributes) if (level, scheme) == (Level.LISTING, Scheme.ISIN) \
-                    else self._holders(scheme, own[scheme], level)
-        return list(dict.fromkeys(found))
-
-    def _holders(self, scheme: Scheme, value: str, level: Level) -> list[str]:
-        """The subjects at `level` an identifier names: the package's, confirm-level plugins', and the one it keys."""
-        found = [row[0] for row in self.ref.execute("SELECT subject_id FROM assertions WHERE scheme = ? AND value = ?"
-                                                    " ORDER BY subject_id", (str(scheme), value))] if self.ref else []
-        found += [row[0] for row in self.store.select(
-            "SELECT subject_id, plugin FROM device_assertions WHERE scheme = ? AND value = ? AND role = 'self'"
-            " ORDER BY subject_id", (str(scheme), value)) if self.granted.get(row[1]) == CONFIRM]
-        key = subject_id(level, {scheme: value})
-        found += [key] if key and self._held(key) else []
-        current = (device.current_id(self.ref, self.store, item) for item in found)
-        return list(dict.fromkeys(item for item in current if subject_kind(item) == level))
-
-    def _lines(self, isin: str, attributes: RecordAttributes) -> list[str]:
-        """The lines an ISIN names at the record's operating MIC and currency."""
-        venue, currency = attributes.operating_mic, attributes.currency
-        if not (venue and currency):
-            return []
-        key = subject_id(Level.LISTING, {Scheme.ISIN: isin}, operating_mic=venue, currency=currency)
-        found = [key] if key and self._held(key) else []
-        if self.ref is not None:  # a line keyed otherwise (a US line by its FIGI)
-            found += [row[0] for row in self.ref.execute(
-                "SELECT l.id FROM listings l JOIN assertions a ON a.subject_id = l.security_id AND a.scheme = 'isin'"
-                " WHERE a.value = ? AND coalesce(l.operating_mic, l.mic) = ? AND l.trading_currency = ? ORDER BY l.id",
-                (isin, venue, currency))]
-        return [device.current_id(self.ref, self.store, item) for item in found]
+    def _disagrees(self, subject: str, own: Mapping[Scheme, str]) -> bool:
+        """Whether confirm-level evidence about a subject states another value of one of these identifiers."""
+        evidence = (device.load_subject(self.ref, self.store, subject, self.plugins) or {"evidence": []})["evidence"]
+        return any(item.subject_id == subject and item.scheme in own and item.value != own[item.scheme]
+                   and own[item.scheme] not in {other.value for other in evidence if other.scheme == item.scheme
+                                                and other.subject_id == subject} for item in evidence)
 
     def _contradicts(self, claim: RecordClaim, subject: dict | None) -> bool:
         """Whether a single-valued value the record states is one that confirm-level evidence about the subject, or its
@@ -256,7 +235,7 @@ class _Ingest:
                 continue
             stated = {found.value for found in subject["evidence"]
                       if found.scheme == item.scheme and found.subject_id == owner}
-            named = self._holders(item.scheme, item.value, SCHEME_LEVEL[item.scheme])
+            named = self.joins.holders(item.scheme, item.value, SCHEME_LEVEL[item.scheme])
             if (stated and item.value not in stated) or (named and owner not in named):
                 return True
         return False
@@ -311,10 +290,6 @@ class _Ingest:
     def _ids(self, subject: str) -> dict:
         return (device.load_subject(self.ref, self.store, subject, self.plugins) or {"ids": {}})["ids"]
 
-    def _held(self, subject: str) -> bool:
-        return bool(self.ref is not None and device.in_reference(self.ref, subject)) or \
-            device.subject_row(self.store, subject) is not None
-
     def _key(self, level: Level | Kind, own: Mapping[Scheme, str], attributes: RecordAttributes) -> str | None:
         return subject_id(level, own, operating_mic=attributes.operating_mic, currency=attributes.currency,
                           country=attributes.country) if level in INSTRUMENT_KINDS else None
@@ -346,7 +321,7 @@ class _Ingest:
                                      " AND state IN ('joined', 'introduced')", (self.plugin, key.native_scope, key.native_id))
             found = rows[0][0] if rows else self._declared(key)
             return device.current_id(self.ref, self.store, found) if found else None
-        named = self._holders(key.scheme, key.value, key.level)
+        named = self.joins.holders(key.scheme, key.value, key.level)
         return named[0] if len(named) == 1 else None
 
     def not_seen(self, seen: set[tuple[str, str]]) -> None:

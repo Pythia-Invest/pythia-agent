@@ -4,7 +4,9 @@ A release never rewrites a saved ID: it records each re-key in `id_aliases`, and
 `device_aliases` row (`device`). On first use of a release, `rekey` re-points every row of identity.sqlite3 that
 names a subject (bindings, queue items, verdicts, resolve misses, read checks, and the device subjects with their
 parents, assertions, relations and placed claims) through those chains, once, in one transaction recorded against
-the release ID; after writing device aliases, core runs it `again`. An assertion a row cites moved with its subject,
+the release ID; after writing device aliases, core runs it `again` (with no release installed, for device aliases
+alone). A new release that holds a device subject under another ID (a line a plugin introduced, now in the build)
+aliases it there first (`covered`). An assertion a row cites moved with its subject,
 so the row cites it by the evidence ID the release or the device gives it. A subject neither the release nor the
 device holds, nor either aliases, is flagged; its rows are kept.
 """
@@ -16,11 +18,13 @@ from collections import defaultdict
 from dataclasses import replace
 
 from . import device
+from . import evidence as weighing
 from .model import ProviderRef
 from .subject import _assertion, load_subject
 from .resolution import question_key
 from .schemes import Level, subject_kind
 from .store import IdentityStore
+from .trust import CONFIRM
 
 REKEYED = "rekeyed_release"     # identity.sqlite3 metadata: the release local rows were last re-pointed through
 VANISHED = "vanished_subjects"  # JSON list: reference subjects local rows name that the release neither holds nor aliases
@@ -37,13 +41,16 @@ def vanished(store: IdentityStore) -> list[str]:
     return json.loads(store.metadata(VANISHED) or "[]")
 
 
-def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again: bool = False) -> dict | None:
+def rekey(store: IdentityStore, ref: sqlite3.Connection | None, release: str, *, again: bool = False) -> dict | None:
     """Re-point local rows to the IDs this release and the device's aliases give their subjects; None when it was
     already applied, unless `again` (rows written meanwhile under an older release's IDs, or new device aliases)."""
     db = store.db
     with store.transaction():
         if store.metadata(REKEYED) == release and not again:
             return None
+        if store.metadata(REKEYED) != release:  # a release that now holds a device subject: its saved IDs follow
+            for old, new in covered(ref, store).items():
+                device.put_alias(store, old, new)
         bindings = [dict(row, evidence_ids=json.loads(row["evidence_ids"]))
                     for row in db.execute("SELECT id, subject_id, evidence_ids FROM bindings")]
         queue = [dict(row, **{name: json.loads(row[name]) for name in ("subject_ids", "candidate_ids", "evidence_ids")})
@@ -60,7 +67,7 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
 
         evidence = _moved_evidence(ref, [(row["subject_id"], row["evidence_ids"]) for row in bindings] + [
             (subject, item["evidence_ids"]) for item in queue for subject in item["subject_ids"] + item["candidate_ids"]],
-            moved)
+            moved) if ref is not None else {}
         evidence.update(device.repoint(store, moved))
         retag = lambda ids: [evidence.get(value, value) for value in ids]  # noqa: E731
         changed = 0
@@ -95,9 +102,35 @@ def rekey(store: IdentityStore, ref: sqlite3.Connection, release: str, *, again:
     return {"release": release, "moved": len(moved), "rows": changed, "vanished": len(gone)}
 
 
-def _held(ref: sqlite3.Connection, store: IdentityStore, subject_id: str) -> bool:
-    """Whether the release (it holds instruments only) or the device store holds this subject."""
-    return subject_kind(subject_id) not in TABLES or device.subject_row(store, subject_id) is not None \
+# A device subject's key scheme -> the identifier scheme it is keyed by (a compound or provisional key has none).
+KEYED_BY = {("listing", "figi"): "figi", ("listing", "caip19"): "caip19", ("security", "isin"): "isin",
+            ("security", "cgs_isin"): "isin", ("security", "figi"): "share_class_figi", ("issuer", "lei"): "lei",
+            ("issuer", "cik"): "cik"}
+
+
+def covered(ref: sqlite3.Connection | None, store: IdentityStore) -> dict[str, str]:
+    """Device subjects a confirm-level release now holds under another ID: the one reference subject of the kind that
+    asserts the identifier a device subject is keyed by (a line a plugin introduced by its FIGI, now in the build),
+    by device subject (ADR 0037, amendment "ingest"). A display-level release re-points no saved ID."""
+    if ref is None or weighing.level(ref) != CONFIRM:
+        return {}
+    found = {}
+    for (subject,) in store.select("SELECT id FROM subjects WHERE kind IN ('listing', 'security', 'issuer')"):
+        kind, tag, value = subject.split(":", 2)
+        scheme = KEYED_BY.get((kind, tag))
+        if scheme is None or device.alias(store, subject) or device.in_reference(ref, subject):
+            continue
+        held = {row[0] for row in ref.execute("SELECT subject_id FROM assertions WHERE scheme = ? AND value = ?",
+                                              (scheme, value)) if subject_kind(row[0]) == kind}
+        if len(held) == 1:
+            found[subject] = held.pop()
+    return found
+
+
+def _held(ref: sqlite3.Connection | None, store: IdentityStore, subject_id: str) -> bool:
+    """Whether the release (it holds instruments only) or the device store holds this subject; without a release,
+    whether it could."""
+    return subject_kind(subject_id) not in TABLES or ref is None or device.subject_row(store, subject_id) is not None \
         or device.in_reference(ref, subject_id)
 
 
