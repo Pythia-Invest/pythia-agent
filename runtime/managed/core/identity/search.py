@@ -1,6 +1,7 @@
 """Local search (ADR 0037): the directory of the reference file and the device's subjects, and its search groups.
 
-Search is one local read: no provider call, no identity write, no reconciliation.
+Search is one local read: no provider call, no new identity data, no reconciliation. The one write is not
+search's own: the first read of a newly installed reference re-keys the device's saved IDs to it (`lifecycle.rekey`, once).
 The directory is an in-memory FTS5 index of the reference's lines, built once per
 reference file, with the device's part (`search_device`) laid over it in place
 whenever the device's state changes (`renew`); `ranking` scores every line alike,

@@ -11,6 +11,7 @@ function question(id: string, extra: Record<string, unknown> = {}) {
     id,
     kind: "residual",
     reason: "no_key",
+    title: "Record not matched",
     state: "open",
     label: "Synthetic Provider",
     question: "Synthetic Provider's record SYN.AS has no identifier.",

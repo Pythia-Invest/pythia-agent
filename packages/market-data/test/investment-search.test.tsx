@@ -2,7 +2,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type {
   SearchGroup,
   SearchRequest,
@@ -132,6 +140,21 @@ async function press(key: string) {
     field().dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
   });
 }
+
+// The first mount of jsdom, React and Base UI pays a one-time cold start: about
+// 0.2 s on an idle machine, over 5 s on a loaded one. Paying it here keeps every
+// test on the default limit, so none depends on which one runs first. The hook's
+// limit is explicit because it absorbs that whole cold start.
+beforeAll(async () => {
+  const warm = document.body.appendChild(document.createElement("div"));
+  const warmRoot = createRoot(warm);
+  await act(async () =>
+    warmRoot.render(<Harness search={() => Promise.resolve({ groups: [] })} />),
+  );
+  await type("a");
+  await act(async () => warmRoot.unmount());
+  document.body.replaceChildren();
+}, 30_000);
 
 beforeEach(async () => {
   selected.length = 0;

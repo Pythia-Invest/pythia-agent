@@ -52,6 +52,7 @@ Read additional guidance by the surface being changed:
 | Tests | [Test allocation](.agents/testing.md) and the `test-audit` skill's authoring gate |
 | CI workflows, `justfile` checks, turbo tasks or merging | [ADR 0046](docs/decisions/0046-one-required-ci-gate.md) and [keeping CI clean](.agents/change-validation.md#keeping-ci-clean) |
 | Financial connector capabilities or execution, or onboarding a data source | [Financial connector rule](.agents/rules/financial-connectors.md) and [source onboarding](docs/architecture/source-onboarding.md) |
+| Add or fix a data source, including a wrong fact a source states | [Plugin authoring](docs/architecture/plugins.md), its [source-correction section](docs/architecture/plugins.md#correcting-your-own-source), the [plugin rule](.agents/rules/plugin-authoring.md) and [source onboarding](docs/architecture/source-onboarding.md) |
 | Feature plugin packaging or operation exports | [Plugin authoring](docs/architecture/plugins.md) and [plugin rule](.agents/rules/plugin-authoring.md) |
 | Identity, subjects, reference data, or what a plugin may add or change | [Identity data](docs/architecture/identity-data.md), [reference packages](docs/architecture/reference-package.md), [ADR 0037](docs/decisions/0037-identity-backbone.md) and the "Today" list in [ADR 0044](docs/decisions/0044-product-direction.md) |
 

@@ -39,8 +39,25 @@ QUESTIONS = {
 }
 
 
+# What Desk titles a question, by its kind (a provider record's) or by its reason (a build question: core owns what each
+# reason code means, and Desk shows the title as it is).
+KIND_TITLES = {"residual": "Record not matched", "conflict": "Record conflicts with reference"}
+REASON_TITLES = {"ambiguous": "Same company?", "no_key": "Receipt's share unknown", "relation": "Share or receipt?",
+                 "binding": "Answer and reference disagree"}
+
+
 class Refused(ValueError):
     """The verdict cannot be taken: the item is not open, or the answer does not fit it."""
+
+
+def title(item: dict) -> str:
+    """The question's short title."""
+    if not build_questions.is_build(item):
+        return KIND_TITLES.get(item["kind"], "Identity question")
+    if item["reason"] != "identifier":
+        return REASON_TITLES.get(item["reason"], "Identity question")
+    scheme = (item.get("scheme") or "").upper().replace("_", " ")
+    return f"Which {scheme}?" if build_questions.own_identifier(item) else "Issuer unclear"
 
 
 def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict, labels: Mapping[str, str] = {}) -> dict:
@@ -62,6 +79,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict, labels: M
         answers = [{"relation": str(built[1]), "chosen_id": candidate} for candidate in item["candidate_ids"]]
     return {key: item[key] for key in ("id", "kind", "reason", "state", "plugins", "provider_ref", "subject_ids",
                                        "candidate_ids", "opened_at", "updated_at")} | {
+        "title": title(item),
         # On an open question: the agent's suggestion, which waits for the user.
         "agent_answer": _suggestion(store, item) if item["state"] == "open" else None,
         "label": label, "question": question, "record": _record(record) if record else None,

@@ -99,6 +99,7 @@ class IdentifierTest(CorrectionFixture):
         self.correct(kind="identifier", subject_id=BY_FIGI, scheme="figi", value=FIGI_A)  # a correction settles it too
         view = self.page(BY_FIGI)
         self.assertEqual((view["identifiers"]["figi"], "contested" in view), (FIGI_A, False))
+        self.assertEqual(view["withheld"], [])  # the corrected fact is on the page, so no open conflict is named for it
 
 
 class ProposalTest(CorrectionFixture):

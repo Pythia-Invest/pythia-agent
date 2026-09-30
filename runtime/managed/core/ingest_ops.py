@@ -4,7 +4,8 @@
 them, within a page and time bound. `identity-lookup {plugin, query}` sends one identifier the query names to the
 plugin's resolve (the lookup form on the plugin's row in Settings → Data sources; search offers none). Both run only when asked, on one plugin at a time, with no scheduler,
 and store every record through `identity.ingest`, answering its counts. `identity-resolve` stores its answer the same
-way (`keep`). They are Desk operations: the agent's tool list has no room for them (test_agent_surface.py's budget).
+way (`keep`). They are Desk operations: the agent's tool list has no room for them (test_agent_surface.py's budget), and a call
+that is not the Desk's own is refused.
 """
 from __future__ import annotations
 
@@ -66,10 +67,22 @@ def keep(identity: Identity, info, batch, seen: Iterable[tuple[str, str]] = ()) 
             ref.close()
 
 
+def _model_call(identity_ops) -> str | None:
+    """A refusal when the call is not the Desk's own (trusted transport scope, never a model tool call): both
+    operations reach provider APIs, and only the investor starts that."""
+    from .platform.request_context import usage
+    if usage.get() != "dashboard":
+        return identity_ops._envelope("empty", None, issue="Only the investor reads a source into the device, in Desk.")
+    return None
+
+
 def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-sync: every declared catalogue scope, in the contract's order (a DeFi source's protocols before the
     pools that name them), page by page, until the scope ends or the bound is reached (`partial`)."""
+    from . import identity_ops
     from .identity_ops import _envelope
+    if refused := _model_call(identity_ops):
+        return refused
     info, issue = _usable(arguments.get("plugin"))
     manifest = info and info.manifest
     tool = manifest and manifest.catalogue is CatalogueMode.BULK and info.operations.get(manifest.catalogue_operation)
@@ -108,7 +121,10 @@ def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
 def lookup(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-lookup: the query's identifier in a scheme the plugin's resolve accepts (`search_device.identifier`),
     sent to it once; every record it answers is stored, joined or introduced like a catalogue's."""
+    from . import identity_ops
     from .identity_ops import _envelope
+    if refused := _model_call(identity_ops):
+        return refused
     info, issue = _usable(arguments.get("plugin"))
     if info is None:
         return _envelope("empty", None, issue=issue)

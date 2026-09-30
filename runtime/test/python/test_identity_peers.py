@@ -8,6 +8,7 @@ stand on equal terms whatever sign-off their contracts declare: the financial so
 DeFi source (Tidepool) unsigned (ADR 0044, amendment of 2026-09-30). An update is what a plugin emits on its next sync,
 from a new plugin version or new provider data alike.
 """
+import contextvars
 import json
 import os
 import sys
@@ -151,9 +152,16 @@ class PeersFixture(unittest.TestCase):
                                     "adapter_version": "1", "origin": "catalogue", "scope": arguments["scope"],
                                     "complete": True, "claims": claims} if claims else None, "next_cursor": None})
 
+    def desk_sync(self, key):
+        """`identity-sync` as the Desk invokes it: a call that is not the Desk's own is refused."""
+        from pythia_core_queue_fixture.platform import request_context
+        context = contextvars.copy_context()
+        context.run(request_context.usage.set, "dashboard")
+        return json.loads(context.run(self.ingest_ops.sync, self.ops, {"plugin": key}))
+
     def sync(self, key):
         self.syncs += 1
-        body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": key}))
+        body = self.desk_sync(key)
         self.assertEqual(body.get("issues", []), [])
         return body["data"]
 

@@ -147,7 +147,10 @@ class Downloader:
         version: str | None = None,
         user_agent: str | None = None,
     ) -> Retrieved:
-        """Return a cached copy when fresh; `max_age=None` means the URL is immutable."""
+        """Return a cached copy when fresh; `max_age=None` means the URL is immutable. The URL and the cache file
+        name can come from a publisher's index, so only https and a plain file name are accepted."""
+        if not url.startswith("https://") or name in ("", ".", "..") or Path(name).name != name or "\\" in name:
+            raise SystemExit(f"refusing {source}: {url.split('?')[0]} is not an https URL or {name!r} is not a plain file name")
         path = self.cache_dir / name
         meta_path = path.with_name(path.name + ".meta.json")
         meta = _read_meta(meta_path)

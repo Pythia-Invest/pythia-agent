@@ -81,6 +81,7 @@ class DeviceQuestionTest(Questions):
         self.assertEqual((item["kind"], item["reason"], item["subject_ids"], item["candidate_ids"], item["label"]),
                          ("conflict", "identifier", [BY_FIGI], [BY_FIGI, f"listing:figi:{FIGI_B}"], "atlas and meridian"))
         self.assertEqual(item["plugins"], ["reference", "atlas", "meridian"])
+        self.assertEqual(item["title"], "Which FIGI?")  # core titles it; it is not "Issuer unclear"
         self.assertEqual({(entry["value"], entry["source"]) for entry in item["evidence"]},
                          {(FIGI_A, "atlas"), (FIGI_B, "meridian")})  # which plugin said which value
         self.assertEqual([entry["id"] for entry in self.asked(plugin="atlas")], [item["id"]])  # filtered by its plugins

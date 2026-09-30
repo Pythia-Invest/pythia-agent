@@ -106,7 +106,7 @@ derived value carries its own:
   authority, write it as an unconfirmed attribute or leave it out;
 - a judge answer is `model_*`.
 
-A derived value must never gain T0 authority over a provider's identifier.
+A derived value must never gain T0 authority (the top evidence tier: a source-asserted identifier) over a provider's identifier.
 
 **Unexpected input** is counted, never coerced:
 
@@ -192,8 +192,8 @@ For a live connector, the maintainer probes the sample periodically.
 
 Some cases need judgement that no field settles. For example: is this LEI the
 issuer, a subsidiary, or unrelated? Each such case becomes a question type,
-answered by a resolver plugin such as Jev
-([ADR 0037](../decisions/0037-identity-backbone.md)).
+answered by the device agent, one question type at a time
+([ADR 0044](../decisions/0044-product-direction.md) J2).
 
 Code handles the other hard cases:
 
@@ -282,7 +282,7 @@ and moves the errors elsewhere.
 **Public source:**
 
 - **Question sets.** Each is versioned as `<question>@<n>` and has one owner:
-  the resolver plugin that asks it at runtime, or
+  the core skill or module that asks it at runtime, or
   `tooling/reference-builder/judge/` for a question asked only at build time.
   The builder imports a shared question from its owner instead of copying it.
   The version enters every verdict's input digest.

@@ -895,7 +895,9 @@ answers it (amendment of 2026-09-30). A confirm-level plugin's evidence counts
 there as the release's does (amendment "ingest").
 
 **Repairs.** A build question is titled by what it asks ("Issuer unclear",
-"Same company?", "Receipt's share unknown", "Share or receipt?"), shows its
+"Same company?", "Receipt's share unknown", "Share or receipt?", "Which FIGI?" for a
+contested identifier). Core owns the title and sends it with the question
+(`title`); Desk shows it as it is, so a reason code has one meaning. It shows its
 subject with its identifiers and its candidates, and no provider-record rows.
 A question about a CIK-only SEC registrant's LEI names the CIK and the LEIs,
 and says whether several LEIs claim the CIK or several registrants claim the
