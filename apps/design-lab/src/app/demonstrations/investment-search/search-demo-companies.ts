@@ -250,6 +250,22 @@ export const demoCompanies: readonly Company[] = [
     "Solana",
     "SOL",
   ),
+  // A lending pool a DeFi plugin introduced: its own group, no ticker, and
+  // the plugin's label on its row.
+  {
+    id: "market:provisional:defillama:pool:demo-navi-usdc",
+    name: "NAVI Lending USDC",
+    kind: "market",
+    rows: [
+      line(
+        "market:provisional:defillama:pool:demo-navi-usdc",
+        "",
+        "NAVI Lending USDC",
+        null,
+        { ticker: null, kind: "market", source: "DefiLlama" },
+      ),
+    ],
+  },
   {
     id: "index:demo:AEX",
     name: "AEX Index",
