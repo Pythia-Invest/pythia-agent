@@ -92,8 +92,10 @@ Only a plugin that ships a `contract.json` and that Hermes has enabled can be
 paused: core and the feature backends never are, and a plugin Hermes disabled
 stays disabled whatever the list says. Every such plugin has a switch, a price
 or filings source as much as a catalogue. `identity-plugin-effect` states,
-before the switch is turned off, how many subjects only that source supplies and
-how many saved items name them, and which concepts it serves (prices, filings,
+before the switch is turned off, how many subjects only that source supplies,
+how many identifiers it states on subjects that stay (a FIGI it added to the
+package's own line) that no other source or the package states too, and how many
+saved items name them, and which concepts it serves (prices, filings,
 news), which other sources take over where configured
 ([ADR 0037](../decisions/0037-identity-backbone.md), amendment "pausing a
 plugin").

@@ -305,6 +305,35 @@ it("sends the typed identifier to that plugin alone and shows how its records we
   await act(async () => root.unmount());
 });
 
+it("counts the identifiers a source states on subjects that stay beside the subjects only it supplies", () => {
+  // Pausing OpenFIGI hid Toyota's London line (introduced) and took back the FIGI and ticker it stated on Frankfurt's.
+  const figi = dataSourceSchema.parse({
+    ...lookup,
+    sole: { count: 1, sample: [] },
+    stated: { count: 2, subjects: 1 },
+  });
+  expect(effectLine(figi)).toBe(
+    "Turning this off hides 1 subject and the 2 identifiers it states on 1 other subject; no saved item will show as paused.",
+  );
+  expect(effectLine({ ...figi, paused: true })).toBe(
+    "1 subject only it supplies is hidden, as are the 2 identifiers it states on 1 other subject, and no saved item is affected.",
+  );
+  const onlyStated = { ...figi, sole: { count: 0, sample: [] } };
+  expect(effectLine(onlyStated)).toBe(
+    "Turning this off hides the 2 identifiers it states on 1 other subject; no subject on this device comes only from it.",
+  );
+  expect(effectLine({ ...onlyStated, paused: true })).toBe(
+    "The 2 identifiers it states on 1 other subject are hidden; no subject on this device comes only from it.",
+  );
+  // A row from a core that does not report `stated` reads as none.
+  expect(
+    dataSourceSchema.parse({ ...lookup, stated: undefined }).stated,
+  ).toEqual({
+    count: 0,
+    subjects: 0,
+  });
+});
+
 it("lists the saved entries it names, and says when there are more", () => {
   const source = dataSourceSchema.parse({
     ...defi,

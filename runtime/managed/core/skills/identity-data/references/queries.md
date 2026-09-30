@@ -35,8 +35,9 @@ db.execute(f"ATTACH '{database.as_uri()}?mode=ro' AS ref")
 package built before those comments were added has none.
 
 The queries take named parameters (`:subject`, ...): `db.execute(sql, {"subject": "..."})`.
-Subject IDs are `<kind>:<key scheme>:<key>` and come from `pythia_find`. A plugin
-is named as in its `contract.json` (`yahoo`), not by its Hermes key (`pythia-yahoo`).
+Subject IDs are `<kind>:<key scheme>:<key>` and come from `pythia_find`. A device
+plugin is named as in the `plugin` of its `contract.json` (`pythia-openfigi`); the
+package names its sources by the contract's `provider` (`openfigi`).
 
 ## The subject's family
 
@@ -243,6 +244,49 @@ its subject and bindings stay. The same question about a reference source
 SELECT 'assertions' AS what, scheme AS kind, authority, count(*) AS rows
 FROM ref.assertions WHERE source = :source GROUP BY scheme, authority
 UNION ALL SELECT 'relations', type, authority, count(*) FROM ref.relations WHERE source = :source GROUP BY type, authority;
+```
+
+## Which facts about this subject come from one plugin?
+
+Asked about a subject and a source ("which facts about Toyota come from
+OpenFIGI?"), always read both stores: the reference package holds what the
+build's source stated, and the device store holds what the plugin stated
+since, including the lines it introduced and the identifiers it states on
+the package's own subjects. One store alone misses half the answer. The two
+stores name the source differently: `:plugin` is the `plugin` of its
+`contract.json` (`pythia-openfigi`), which every device row holds, and
+`:source` is the contract's `provider` (`openfigi`), which the package's rows
+hold. `:family` is the subject's family (above); the query widens it to
+everything below it (an issuer's securities, a security's listings, a
+device subject's children), since a plugin often introduced a line. A plugin
+that states every listing of a large issuer returns many rows: pass a
+listing's family to narrow it.
+
+```sql
+-- example: plugin-facts
+WITH RECURSIVE tree(id) AS (
+  SELECT value FROM json_each(:family)
+  UNION SELECT s.id FROM ref.securities s, tree WHERE s.issuer_id = tree.id
+  UNION SELECT l.id FROM ref.listings l, tree WHERE l.security_id = tree.id
+  UNION SELECT c.id FROM subjects c, tree WHERE c.parent_id = tree.id)
+SELECT 'reference' AS store, 'identifier' AS what, subject_id AS subject, scheme || ' ' || value AS fact,
+       source_record, retrieved_at AS at
+FROM ref.assertions WHERE source = :source AND subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'reference', 'relation ' || type, from_id, to_id, source_record, retrieved_at
+FROM ref.relations WHERE source = :source AND (from_id IN (SELECT id FROM tree) OR to_id IN (SELECT id FROM tree))
+UNION ALL SELECT 'device', 'subject introduced', id, name, NULL, first_seen
+FROM subjects WHERE introduced_by = :plugin AND id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'identifier', d.subject_id, d.scheme || ' ' || d.value,
+       json_extract(c.claim, '$.provenance.source_record'), d.retrieved_at
+FROM device_assertions d
+LEFT JOIN claims c ON c.plugin = d.plugin AND c.native_scope = d.native_scope AND c.native_id = d.native_id
+WHERE d.plugin = :plugin AND d.subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'record ' || coalesce(state, 'unplaced'), subject_id, native_scope || ':' || native_id,
+       json_extract(claim, '$.provenance.source_record'), last_seen
+FROM claims WHERE plugin = :plugin AND subject_id IN (SELECT id FROM tree)
+UNION ALL SELECT 'device', 'relation ' || type, from_id, to_id, source_record, retrieved_at
+FROM relations WHERE plugin = :plugin AND (from_id IN (SELECT id FROM tree) OR to_id IN (SELECT id FROM tree))
+ORDER BY 1, 3, 2, 4;
 ```
 
 ## Which answers and overrides apply?

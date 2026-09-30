@@ -439,6 +439,7 @@ class PluginEffectTest(PeersFixture):
         [lines] = self.effect("pythia-meridian")  # the ASML line is the package's: disabling keeps it
         self.assertEqual({item["id"] for item in lines["sole"]["sample"]}, {SAP_BY_FIGI, APPLE_LINE, APPLE})
         self.assertEqual([item["id"] for item in lines["saved"]["sample"]], [SAP_BY_FIGI])
+        self.assertEqual(lines["stated"], {"count": 0, "subjects": 0})  # the package states what it states on ASML
         # Another enabled plugin that also states the SAP line keeps it; disabled, it does not.
         self.install("atlas", {**MERIDIAN, "plugin": "atlas", "provider": "atlas", "concepts": {},
                                "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["lines"]}})
@@ -460,6 +461,24 @@ class PluginEffectTest(PeersFixture):
         self.sync("tidepool-community")
         self.assertEqual(self.effect("tidepool-community")[0]["sole"]["count"], 3)
         self.assertNotIn(POOL, self.found("Example Lend USDC"))
+
+    def test_it_counts_the_identifiers_the_plugin_states_on_subjects_that_stay(self):
+        # Pausing a plugin hides the lines it introduced and also takes back what it stated on the package's own
+        # subjects: a FIGI the package lacks. A value the package or another enabled plugin states too is not lost.
+        self.sync(self.meridian())
+        self.install("atlas", {**MERIDIAN, "plugin": "atlas", "provider": "atlas", "concepts": {},
+                               "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["lines"]}})
+        self.pages[("atlas", "lines")] = [record("atlas", "line", "ASML", "listing", ("isin", "NL0010273215"),
+                                                 ("figi", OTHER_FIGI), operating_mic="XAMS", currency="EUR")]
+        self.sync("atlas")
+        [atlas] = self.effect("atlas")
+        self.assertEqual((atlas["sole"]["count"], atlas["stated"]), (0, {"count": 1, "subjects": 1}))
+        self.install("beacon", {**MERIDIAN, "plugin": "beacon", "provider": "beacon", "concepts": {},
+                                "catalogue": {"mode": "bulk", "operation": "catalogue", "scopes": ["lines"]}})
+        self.pages[("beacon", "lines")] = [record("beacon", "line", "ASML", "listing", ("isin", "NL0010273215"),
+                                                  ("figi", OTHER_FIGI), operating_mic="XAMS", currency="EUR")]
+        self.sync("beacon")  # another enabled plugin states the same FIGI: pausing atlas alone does not take it back
+        self.assertEqual(self.effect("atlas")[0]["stated"], {"count": 0, "subjects": 0})
 
     def test_without_a_plugin_it_lists_every_enabled_plugin_that_ships_a_contract_and_what_it_serves(self):
         self.meridian()

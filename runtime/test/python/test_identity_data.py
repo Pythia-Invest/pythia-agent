@@ -58,13 +58,15 @@ class DocFixture(unittest.TestCase):
         (self.tmp / "world").mkdir()
         self.world = World(self.tmp / "world", ("toyota.json", "asml.json", "failures.json"))
         self.addCleanup(self.world.close)
-        pricing, other = vendor("isin", name="vendor", mic_table={"XJPX": ".T"}), vendor("isin", name="other")
+        pricing, other = vendor("isin", name="vendor", mic_table={"XJPX": ".T"}), vendor(
+            "isin", name="pythia-other", provider="other")  # the contract's plugin and provider differ, as OpenFIGI's do
         underlying = [vendor("isin", name=name) for name in ("first", "second")]
         self.tidepool = page.PluginInfo(key="tidepool", manifest=identity.validate_manifest(POOLS))
         with contextlib.closing(sqlite3.connect(self.world.path)) as db, db:  # what the contested query must not return
             for subject, level, scheme, value, source, ended in (
                     ("security:isin:JP3633400001", "security", "share_class_figi", "BBG000TYSCG9", "fixture", None),
-                    (TOYOTA, "listing", "figi", "BBG000TYTKX1", "legacy", "2020-01-01")):
+                    (TOYOTA, "listing", "figi", "BBG000TYTKX1", "legacy", "2020-01-01"),
+                    (TOYOTA, "listing", "ticker_mic", "7203@XJPX", "other", None)):  # the package row of the plugin's provider
                 db.execute("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, valid_to, authority,"
                            " source, plugin, adapter_version, retrieved_at) VALUES (?, ?, ?, ?, ?, ?,"
                            " 'source_asserted', ?, ?, '1', ?)", (f"ev:{value}", subject, level, scheme, value, ended,
@@ -147,7 +149,7 @@ class ExampleTest(DocFixture):
             values = {"family": self.family(db, TOYOTA), "subject": TOYOTA, "scheme": "isin", "value": TOYOTA_ISIN,
                       "plugin": "vendor", "source": db.execute("SELECT source FROM ref.assertions LIMIT 1").fetchone()[0]}
             for name in examples("sql", AGENT):
-                given = {**values, "plugin": "tidepool"} if name == "waiting-relations" else {**values, "subject": OLD_ID} if name == "alias" else (
+                given = {**values, "plugin": "tidepool"} if name == "waiting-relations" else {**values, "plugin": "pythia-other", "source": "other"} if name == "plugin-facts" else {**values, "subject": OLD_ID} if name == "alias" else (
                     {**values, "subject": POOL, "family": self.family(db, POOL)} if name == "relations" else values)
                 results[name] = self.query(db, name, **given)
             results["plugin-added:tidepool"] = self.query(db, "plugin-added", **{**values, "plugin": "tidepool"})
@@ -183,7 +185,7 @@ class ExampleTest(DocFixture):
         # source's line FIGI whose validity ended are stored but not returned.
         [row] = self.run_examples()["contested"]
         self.assertEqual((row["subject_id"], row["scheme"], set(row["vals"].split(",")), set(row["sources"].split(","))),
-                         ("security:isin:JP3633400001", "isin", {TOYOTA_ISIN, "US0378331005"}, {"fixture", "other"}))
+                         ("security:isin:JP3633400001", "isin", {TOYOTA_ISIN, "US0378331005"}, {"fixture", "pythia-other"}))
         stored = {row["value"] for row in self.run_examples()["family-identifiers"]}
         self.assertLessEqual({"BBG000TYSCG9", "BBG000TYTKX1"}, stored)
 
@@ -219,7 +221,7 @@ class ExampleTest(DocFixture):
         rows = self.run_examples()["source-corrections"]
         self.assertEqual({(row["store"], row["who"], row["subject_id"], row["field"], row["original"], row["value"])
                           for row in rows},
-                         {("device", "other", TOYOTA, "name", "TOYOTA MOTOR CORP (TEST)", "Toyota Motor Corp."),
+                         {("device", "pythia-other", TOYOTA, "name", "TOYOTA MOTOR CORP (TEST)", "Toyota Motor Corp."),
                           ("reference", "esma_firds", "security:isin:JP3633400001", "Issr", "5493000ORIGINALISSUER",
                            "5493000CORRECTEDISSUR")})
         self.assertEqual({row["reason"] for row in rows}, {FIX_REASON})
@@ -239,6 +241,29 @@ class ExampleTest(DocFixture):
         self.assertEqual(added, {"subject introduced", "record introduced", "relation part_of", "binding confirmed"})
         # The record that placed the pool carries its own provenance in the claim as emitted.
         self.assertEqual({row["source_record"] for row in found["placing-records:pool"]}, {"https://example.test/pools"})
+
+    def test_the_facts_one_plugin_stated_about_a_subject_come_from_both_stores(self):
+        # "Which facts about Toyota come from `pythia-other`?": the package names its source by the contract's provider
+        # (`other`) and the device by its plugin, so the query takes both. It returns the build's ticker on the line and
+        # what the plugin stated on the device (an identifier on the line, one on the security above it, its conflicting
+        # record). Asking about the security reaches the line below it; a plugin that stated nothing answers nothing.
+        with self.connection() as db:
+            db.row_factory = sqlite3.Row
+            sql = examples("sql", AGENT)["plugin-facts"]
+            facts = lambda subject, plugin, source: {(row["store"], row["what"], row["subject"], row["fact"])  # noqa: E731
+                                                     for row in db.execute(sql, {"family": self.family(db, subject),
+                                                                                 "plugin": plugin, "source": source})}
+            security = "security:isin:JP3633400001"
+            expected = {("reference", "identifier", TOYOTA, "ticker_mic 7203@XJPX"),
+                        ("device", "identifier", TOYOTA, "figi BBG000TYTKY0"),
+                        ("device", "identifier", security, "isin US0378331005"),
+                        ("device", "record conflict", TOYOTA, "symbol:TM")}
+            self.assertEqual(facts(TOYOTA, "pythia-other", "other"), expected)
+            self.assertEqual(facts(security, "pythia-other", "other"), expected)  # the line is below the security
+            self.assertEqual({row[0] for row in facts(TOYOTA, "other", "pythia-other")}, set())  # the names are not swapped
+            self.assertEqual(facts(TOYOTA, "tidepool", "tidepool"), set())
+            pool = {row[1] for row in facts(POOL, "tidepool", "tidepool")}
+            self.assertEqual(pool, {"subject introduced", "record introduced", "relation part_of"})
 
     def test_the_connection_the_doc_opens_cannot_write(self):
         with self.connection() as db:
