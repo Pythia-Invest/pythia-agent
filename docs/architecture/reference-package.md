@@ -21,7 +21,10 @@ questions open:
   layout is core's `identity/sql/reference.sql`, and its `release` table
   records `schema_version` and the build ID (`release`). Each table and column
   is explained by a comment in its `CREATE` statement, and
-  [identity data](identity-data.md) shows how to read the file.
+  [identity data](identity-data.md) shows how to read the file. Its additive
+  `source_corrections` table lists each value the build states instead of what its
+  source states, with the original and the reason; a package built before it has
+  none, and core reads it only when it exists.
 - `package.json` is the manifest that describes the database.
 - `questions-<YYYYMMDD>.json`, named by `claims`, lists what the build could
   not decide from its sources.

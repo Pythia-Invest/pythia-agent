@@ -14,7 +14,7 @@ from pathlib import Path
 from .claims import (
     BatchOrigin, Claim, ClaimBatch, ClaimError, Deployment, EmitReceipt, IdentifierValue,
     RecordAttributes,
-    RecordClaim, RelationClaim, batch_from_json, batch_to_json, check_batch,
+    RecordClaim, RelationClaim, SourceCorrection, batch_from_json, batch_to_json, check_batch,
 )
 from .concepts import REGISTRY, Combine, Concept, ConceptSpec, FilingAuthority, Licence
 from .declared import DECLARED_RULE, DeclaredRef

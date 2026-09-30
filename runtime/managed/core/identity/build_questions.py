@@ -31,7 +31,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import corrections, device, device_parents, receipt_issuer, reference_package
+from . import corrections, device, device_parents, receipt_issuer, reference_package, source_corrections
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
@@ -246,6 +246,7 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
     if ref is not None and not explicit and (inherited := receipt_issuer.answer(ref, store, subject)):
         _issuer(ref, subject, inherited)
     corrections.apply(store, subject)  # the investor's own corrections have the last word (`corrections`)
+    subject["view"]["source_corrected"] = source_corrections.for_family(ref, store, ids)  # the sources' own fixes
     weighing.show(subject)
     return subject
 

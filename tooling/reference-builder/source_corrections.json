@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "source": "esma_firds",
+      "key": "isin:US2062772049",
+      "field": "Issr",
+      "original": "529900Z57DVJXUBLHX66",
+      "value": null,
+      "reason": "Retraction. The record is Concord Medical Services' ADR (its name says so; field 26 repeats its own ISIN; issuer did not request admission) but field 5 names China Medical System Holdings Limited, which GLEIF registers under that LEI. GLEIF has no LEI for Concord Medical Services Holdings (checked 2026-09-30), so there is no right LEI to state. Found by receipt_name_disagrees."
+    }
+  ]
+}

@@ -476,6 +476,41 @@ Core never asks who a plugin is or which files it holds.
   disabling it or answering the conflicts it raises. The user trusts what they
   install. Isolating plugin code stays required before an open marketplace.
 
+### Correcting your own source
+
+A plugin that knows its own source is wrong in a record states the corrected
+value and keeps what the source said ([ADR 0044](../decisions/0044-product-direction.md),
+amendment "a source adapter corrects its own source"). The record carries it in
+`attributes.source_corrections`, a list of `SourceCorrection` with three fields: the
+`field` (an identifier scheme the record states as `self`, or a descriptive
+attribute it states), the `original` (the source's own text, exactly, so it can be
+reported) and the `reason` (what is wrong and the evidence, at most 400
+characters). The record's own identifier or attribute holds the corrected value.
+Core refuses a correction of a field the record does not state, an original equal
+to the stated value, a second correction of one field, or more than eight.
+
+- **Only your own source's data.** A correction states that your provider's record
+  is wrong. It never changes another plugin's or the reference's statement; if their
+  value is wrong, report it to their owner. A misread of your source is a bug to fix
+  in the plugin, not a correction.
+- **Only while the source still states the original.** Compare the raw value with
+  the original before applying the fix, and pass the raw value through once the
+  source has fixed it; the entry is then stale and is deleted. The plugin does this
+  in its own code; core cannot see the source, so it cannot check. The reference
+  builder does it with its own `source_corrections.Table`, which counts applied,
+  stale and absent entries in the build report.
+- **It stays the source's statement.** The authority is unchanged (`source_asserted`);
+  a correction earns no extra weight, and a conflict with another source is raised as
+  before. Keep a list of what you corrected, and report each to the source, in the
+  plugin's documentation (`docs/sources/<source>.md` for Pythia's own).
+- **Nothing to register.** Core stores the record as emitted. The instrument page
+  lists each correction with its original (`source_corrected`), and
+  [identity data](identity-data.md) gives the query that lists them all.
+
+The investor's own fix of a value is a different thing, a catalogue correction on
+their device ([ADR 0044](../decisions/0044-product-direction.md), amendment "user
+catalogue corrections"): it overrides every source, and it is not a plugin's statement.
+
 ## Skills and contracts
 
 Put feature guidance and supporting files inside the plugin. Register it with

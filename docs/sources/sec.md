@@ -278,6 +278,22 @@ raises an alarm.
 | A fund trust's CIK | 1 on the 2026-09-28 build | ProShares Trust II: one CIK, a LEI per series (Ultra VIX, Crude Oil) | A trust's CIK covers every series it runs | A CIK whose LEIs each issue only funds links to none and is asked nothing (`fund_trust`) | Handled in the builder |
 | A name-only link to another entity | 1 of 7 `name_unique` links in the XAMS and XETR build; the rule made 162 of 4,338 links in the offline default-scope build of 2026-09-28 (FIRDS of 2026-09-26) | Biofrontera Inc. (CIK 1858685, Delaware) linked to Biofrontera AG | A unique normalised name is not identity (the standard's "bad code"; R2: unknown plus a question, never a stored guess) | No name links any more. A CIK no identifier links stays a CIK-only issuer, and a unique name match becomes an open issuer-identity question carrying the LEI as its candidate (`issuer_identity_name_candidate`): 169 questions in that build, the 162 former links and 7 CIKs whose identifier evidence conflicts. The truth set is unchanged apart from two ETFs now keyed by CIK as it expects (Bitcoin Mini Trust, iShares Bitcoin Trust). The questions are flags until the builder's question queue (PR #74) lands | Fixed |
 
+### Known quirks awaiting a source correction
+
+The builder's SEC adapter reads only the ticker files, which carry no incorporation
+field, so it cannot yet state a labelled source correction
+([ADR 0044](../decisions/0044-product-direction.md), amendment "a source adapter corrects its
+own source"). The SEC plugin reads the EDGAR state code as `incorporation.edgar_code` in a
+resolve record. Two registrants' codes disagree with their own filing address and with
+GLEIF, found when the 166 CIK-only issuers with a candidate LEI of the 2026-09-28 build were
+compared with GLEIF's records (SEC record against LEI record, field by field). Each becomes a correction of the `country` field when an emitter states
+incorporation, and is then reported to the SEC (reported upstream: not yet).
+
+| Registrant | SEC states | Evidence it is a mis-key | Status |
+| --- | --- | --- | --- |
+| Theravance Biopharma (CIK 1583107) | State code `CA` (California) | Its own filing address is George Town, Grand Cayman KY1-1104, identical to GLEIF's Cayman record | Awaiting an emitter of incorporation |
+| ioneer Ltd (an Australian company) | State code `NV` (Nevada) | Its address is North Sydney, New South Wales, identical to GLEIF's record | Awaiting an emitter of incorporation |
+
 ## 4. Judgement cases
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |

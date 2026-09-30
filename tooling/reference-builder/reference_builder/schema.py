@@ -179,7 +179,7 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
     ids, audit = _Ids(snap), Counter()
     tables: dict[str, list[dict]] = {name: [] for name in (
         "release", "venues", "issuers", "securities", "composites", "listings", "assertions", "relations", "names",
-        "chains", "id_aliases")}
+        "chains", "id_aliases", "source_corrections")}
     candidates: dict[str, set[str]] = defaultdict(set)  # alias -> the subjects it could name
 
     def assert_(subject, scheme, value, source, *, record=None, start=None, end=None, derived=False):
@@ -310,6 +310,13 @@ def rows(snap: Snapshot, meta: dict[str, str], sources: list[dict]) -> dict[str,
             "authority": str(item.authority), "source": relation.source, "source_record": relation.rule_id,
             "plugin": relation.source, "adapter_version": BUILDER_VERSION, "retrieved_at": at})
     _canonical_assets(tables, assert_, at)
+    for key, source, path, original, value, reason in snap.source_corrections:  # the adapters' fixes of their own source
+        subject = ids.securities.get(key)  # a record keyed by one security's ISIN; an admission's fix has no row yet
+        if subject is None:
+            audit["source_corrections_unplaced"] += 1
+            continue
+        tables["source_corrections"].append({"subject_id": subject, "source": source, "field": path, "original": original,
+                                             "value": value, "reason": reason})
     subjects = {row["id"] for table in ("issuers", "securities", "composites", "listings") for row in tables[table]}
     for alias, named in sorted(candidates.items()):
         if alias in subjects or len(named) > 1:  # a real subject, or ambiguous: never an alias
