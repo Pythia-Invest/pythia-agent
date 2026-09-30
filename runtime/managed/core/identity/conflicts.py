@@ -81,7 +81,7 @@ def restated(ref: sqlite3.Connection | None, store, subject: dict) -> list[Queue
     """A catalogue record kept as a conflict because its plugin now states another value of an identifier than it did
     (a line whose ID spells an ISIN, its record now naming another). One plugin contradicting itself contests no fact
     (`evidence.disagree`), so the question is about the record's subject, here a device one, with the subjects the
-    two values name as candidates: its own identifier's value, or its parent's (`build_questions.parent_identifier`)."""
+    two values name as candidates: its own identifier's value, or its parent's (`device_parents`)."""
     family, items = [value for value in subject["ids"].values() if value], []
     for plugin, scope, native, text, at in store.select(
             "SELECT plugin, native_scope, native_id, claim, subject_id FROM claims WHERE state = 'conflict' AND scope IS"

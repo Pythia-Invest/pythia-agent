@@ -1732,7 +1732,11 @@ rows, is what lets Reopen undo it.
 
 **Consequences.**
 
-- The queue reads the installed package, as for every question: with none installed, nothing is queued or listed.
+- With no package installed the queue still asks, lists and answers about the device's subjects, against an empty
+  stand-in for the package, as search does; the build's own questions need one.
+- Its evidence lists each device statement with the plugin that made it.
+- After the user picks a new value, the line's page re-parents, but search and the old parent's page still group it
+  under the stored parent until the catalogue-correction slice applies the answer there.
 - Only catalogue records are examined for self-contradiction: a resolve answer states the question's own
   identifiers back.
 - An answer that names a parent is not compared with what the source states later: it stays until reopened.

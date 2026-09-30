@@ -19,7 +19,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from .identity import queue as questions
-from .identity import build_questions, conflicts, location, reference_package, schemes, store
+from .identity import build_questions, conflicts, location, reference_package, schemes, search_device, store
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -81,15 +81,15 @@ def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> 
         return 0
     try:
         path, ref = identity.reference()
-        if ref is None:
-            return 0
+        ref = ref or search_device.empty_reference()  # with no package, the device's subjects alone
         try:
             wanted = [value for subject in subject_ids for value in questions.family(identity.store, ref, subject)] \
                 if family else list(subject_ids)
             raised = conflicts.raised(ref, identity.store, subject_ids, installed())  # plugins' conflicts too
         finally:
             ref.close()
-        return build_questions.import_build(identity.store, [*build_questions.about(path, wanted), *raised], store.now())
+        built = build_questions.about(path, wanted) if path else []
+        return build_questions.import_build(identity.store, [*built, *raised], store.now())
     except (sqlite3.Error, OSError):
         logger.warning("reference build questions could not be queued", exc_info=True)
         return 0
@@ -117,9 +117,7 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
         surface(identity, [str(arguments["subject_id"])])
     try:
         _path, ref = identity.reference()
-        if ref is None:  # an earlier store left beside this one is still worth saying (Repairs shows the notice)
-            earlier = location.both_present(identity.data_dir)
-            return _envelope("empty", {"notice": earlier} if earlier else None, issue=no_reference(identity.data_dir))
+        packaged, ref = ref is not None, ref or search_device.empty_reference()
         try:
             if arguments.get("item_id"):
                 view = questions.inspect(identity.store, ref, str(arguments["item_id"]), questions.names(installed()))
@@ -127,7 +125,7 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
             plugin = arguments.get("plugin")
             data = questions.listing(identity.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
                                  plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
-                                 if plugin else None, limit=limit, notice=not identity.reset_told,
+                                 if plugin else None, limit=limit, notice=packaged and not identity.reset_told,
                                  settled=arguments.get("settled") is True, labels=questions.names(installed()))
             identity.reset_told = identity.reset_told or "notice" in data
             if "notice" not in data and (earlier := location.both_present(identity.data_dir)):
@@ -137,6 +135,9 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
     except (sqlite3.Error, OSError):
         logger.warning("identity queue unavailable", exc_info=True)
         return _envelope("empty", None, issue="The identity store could not be read.")
+    if not packaged and not (data["items"] or data.get("settled")):  # the reason, and an earlier store worth saying
+        earlier = location.both_present(identity.data_dir)
+        return _envelope("empty", {"notice": earlier} if earlier else None, issue=no_reference(identity.data_dir))
     found = any(data.get(name) for name in ("items", "settled", "notice"))
     return _envelope("ok" if found else "empty", data)
 
@@ -152,9 +153,8 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
         return _envelope("ok", {"outcome": "reopened" if done else "refused", "message": "Reopened: your answer no "
                                 "longer applies." if done else "Only your answer to a reference question reopens."})
     settle(identity, [])
-    path, ref = identity.reference()
-    if ref is None:
-        return _envelope("empty", None, issue=no_reference(identity.data_dir))
+    _path, ref = identity.reference()
+    ref = ref or search_device.empty_reference()  # with no package, a question about the device's subjects
     try:
         result = questions.submit(
             identity.store, ref, item_id=str(arguments.get("item_id") or ""), relation=arguments.get("relation"),

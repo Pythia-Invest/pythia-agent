@@ -29,7 +29,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import device, reference_package
+from . import device, device_parents, reference_package
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
@@ -78,7 +78,7 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     values = ", ".join(f"{scheme} {value}".strip() for value in item.get("values") or ())
     own, candidates = own_identifier(item), item.get("candidate_ids") or ()
     registrant = item["subject_ids"][0].startswith("issuer:cik:") and scheme == "LEI"  # asked which LEI it holds
-    named = own or (Level.SECURITY if parent_identifier(item) is Level.SECURITY else None)  # a line's ISIN: its security
+    named = own or (Level.SECURITY if device_parents.level(item) is Level.SECURITY else None)  # a line's ISIN: its security
     if named:
         relation = SAME[named]
     elif item["reason"] == "binding" and candidates and subject_kind(candidates[0]) == "issuer":
@@ -180,15 +180,6 @@ def own_identifier(item: dict) -> Level | None:
     return level if level is not None and subject_kind(subject) == level else None
 
 
-def parent_identifier(item: dict) -> Level | None:
-    """The level of a question about which value of its subject's parent's identifier holds (a line whose plugin now
-    states another ISIN than it did: which security it belongs to), whose candidates are the subjects those values
-    name (`conflicts.restated`), else None."""
-    scheme, kind = item.get("scheme"), subject_kind(item["subject_ids"][0])
-    level = SCHEME_LEVEL.get(scheme) if item["reason"] == "identifier" and scheme else None
-    return level if level is not None and kind in device.PARENT and device.PARENT[Level(kind)] is level else None
-
-
 def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
     """What identifies the question's own subject where an answer joins it: a company's own identifiers for the
     question which company it is, which a chosen issuer's must not contradict; only the confirm-level values its
@@ -217,14 +208,7 @@ def load_device(ref: sqlite3.Connection | None, store, subject_id: str, plugins:
     """A subject only the device holds (`device.load`, through its device aliases) with the user's answers about it
     applied, the same local override as a reference subject's, read under the parent the user chose for it."""
     subject_id = device.current_id(ref, store, subject_id)
-    rows = store.select(  # which value of its parent's identifier holds: the user's answer is the parent's ID
-        "SELECT q.reason, q.scheme, v.chosen_id FROM queue q JOIN verdicts v ON v.id = q.resolved_by WHERE"
-        " json_extract(q.plugins, '$[0]') = ? AND q.provider_ref IS NULL AND q.state = 'resolved' AND"
-        " v.resolver = 'user' AND v.chosen_id IS NOT NULL AND json_extract(q.subject_ids, '$[0]') = ?",
-        (BUILD, subject_id))
-    parents = {subject_id: chosen for reason, scheme, chosen in rows
-               if parent_identifier({"reason": reason, "scheme": scheme, "subject_ids": [subject_id]})}
-    subject = device.load(ref, store, subject_id, plugins, parents)
+    subject = device.load(ref, store, subject_id, plugins, device_parents.chosen(store, subject_id, BUILD))
     return answered(ref, store, subject, held=True) if subject else None
 
 
@@ -253,8 +237,8 @@ def answered(ref: sqlite3.Connection | None, store, subject: dict[str, Any], *, 
         shape = {"reason": reason, "scheme": scheme, "subject_ids": [question]}
         if own_identifier(shape):
             _value(subject, answer, json.loads(values))
-        elif held and parent_identifier(shape):
-            _parent(subject, answer, json.loads(values))
+        elif held and device_parents.level(shape):
+            device_parents.apply(subject, answer, json.loads(values))
     weighing.show(subject)
     return subject
 
@@ -376,16 +360,6 @@ def _value(subject: dict, answer: dict, values: list[str]) -> None:
     subject["values"][scheme] = value
     subject["contested"].pop(scheme, None)
     subject.setdefault("attested", set()).add(scheme)  # the user decided it (`evidence.show`'s provenance)
-
-
-def _parent(subject: dict, answer: dict, values: list[str]) -> None:
-    """An answer to which value of its parent's identifier holds: the subject was read under the parent that value
-    names (`load_device`), so the chosen value shows as the parent's, and as the user's, where the parent holds none."""
-    scheme = answer["scheme"]
-    value = next((value for value in values if subject_id(SCHEME_LEVEL[scheme], {scheme: value}) == answer["chosen"]), None)
-    if value is not None and answer["question"] in subject["ids"].values():
-        subject["values"].setdefault(scheme, value)
-        subject.setdefault("attested", set()).add(scheme)
 
 
 def _receipt(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:

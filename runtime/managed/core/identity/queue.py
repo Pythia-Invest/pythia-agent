@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Any, Iterable, Mapping
 
-from . import build_questions, device
+from . import build_questions, device, device_parents
 from .build_questions import BUILD
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -71,7 +71,7 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict, labels: M
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
         "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
         if item["state"] != "open" and item["settled"] else None,
-        "evidence": _evidence(ref, item["evidence_ids"]),
+        "evidence": _evidence(store, ref, item["evidence_ids"]),
         "answers": answers + [{"relation": relation, "chosen_id": None} for relation in ("none", "ambiguous")
                               if relation != "none" or not (built and build_questions.itself(item))]}
 
@@ -157,7 +157,7 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     record = _claim(raw) if raw else None
     subject = device.load_subject(ref, store, chosen_id, plugins) if chosen_id else None
     if chosen_id and subject is None and not (built and (build_questions.own_identifier(row)
-                                                         or build_questions.parent_identifier(row))):
+                                                         or device_parents.level(row))):
         raise Refused("The chosen subject is not known on this device.")  # a contested value need not name one
     # Against "none", every candidate's evidence counts, each candidate's on its own (`pools`).
     subjects = [subject] if subject else [] if chosen_id else [
@@ -304,12 +304,15 @@ _BUILT = {  # answers to a reference build question
 }
 
 
-def _evidence(ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
-    """The reference assertions an item cites, each with its source and the kind of evidence it is."""
-    rows = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({','.join('?' * len(cited))})", cited).fetchall() \
-        if cited else []
+def _evidence(store: IdentityStore, ref: sqlite3.Connection, cited: list[str]) -> list[dict]:
+    """The assertions an item cites, each with its source and the kind of evidence it is: the reference's, and what a
+    plugin stated on the device, whose source is that plugin."""
+    marks = ",".join("?" * len(cited))
+    found = ref.execute(f"SELECT * FROM assertions WHERE evidence_id IN ({marks})", cited).fetchall() if cited else []
+    stated = store.select(f"SELECT * FROM device_assertions WHERE evidence_id IN ({marks})", cited) if cited else []
     return [{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "source", "retrieved_at", "authority")}
-            for row in rows]
+            for row in found] + [{**{key: row[key] for key in ("evidence_id", "subject_id", "scheme", "value", "retrieved_at")},
+                                  "source": row["plugin"], "authority": str(Authority.SOURCE_ASSERTED)} for row in stated]
 
 
 def _raw(store: IdentityStore, item: dict) -> dict | None:

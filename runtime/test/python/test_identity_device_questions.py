@@ -19,7 +19,7 @@ from identity_world import AS_OF, NOW, World
 from test_identity_ingest import ERIC_B_LINE, record as record_of, source
 from test_identity_peers import (
     APPLE_LINE, MERIDIAN, OTHER_FIGI, SAP, SAP_BY_FIGI, SAP_BY_ISIN, SAP_FIGI, SAP_ISIN, PeersFixture, line, record)
-from pythia_identity_fixture import build_questions, conflicts, device, store  # noqa: E402
+from pythia_identity_fixture import build_questions, conflicts, device, reference_package, store  # noqa: E402
 
 ATLAS = {**MERIDIAN, "plugin": "atlas", "provider": "atlas"}
 MSFT_ISIN, MSFT_LINE = "US5949181045", "listing:cgs_isin:US5949181045:XNAS:USD"
@@ -43,31 +43,38 @@ class Questions(PeersFixture):
         return json.loads(desk.run(self.queue_ops.submit_verdict, self.ops, arguments))["data"]
 
     def asked(self, **arguments):
-        return json.loads(self.queue_ops.read_queue(self.ops, arguments))["data"]["items"]
+        return (json.loads(self.queue_ops.read_queue(self.ops, arguments))["data"] or {}).get("items", [])
 
-
-class DeviceQuestionTest(Questions):
-    """Apple and Microsoft's lines, introduced by Meridian and moved up by Atlas's FIGIs, which Meridian's record then
-    contradicts: each line's FIGI is contested between the two plugins. Only Apple's is opened."""
-
-    def setUp(self):
-        super().setUp()
+    def contest(self, *, microsoft=True):
+        """Apple's (and Microsoft's) line, introduced by Meridian and moved up by Atlas's FIGI, which Meridian's record
+        then contradicts: the line's FIGI is contested between the two plugins."""
         key = self.meridian()
         self.install("atlas", ATLAS)
         self.ship(key, "atlas")
         lines = self.pages[("meridian", "lines")]
-        lines.append(line("MSFT.OQ", ("isin", MSFT_ISIN), mic="XNAS", currency="USD", ticker="MSFT", name="Microsoft"))
+        if microsoft:
+            lines.append(line("MSFT.OQ", ("isin", MSFT_ISIN), mic="XNAS", currency="USD", ticker="MSFT", name="Microsoft"))
         self.sync(key)
         self.pages[("atlas", "lines")] = [
             atlas_line("AAPL", ("isin", "US0378331005"), ("figi", FIGI_A), ticker="AAPL", name="Apple Inc."),
-            atlas_line("MSFT", ("isin", MSFT_ISIN), ("figi", FIGI_C), ticker="MSFT", name="Microsoft")]
+            *([atlas_line("MSFT", ("isin", MSFT_ISIN), ("figi", FIGI_C), ticker="MSFT", name="Microsoft")]
+              if microsoft else [])]
         self.sync("atlas")
         lines[2] = line("AAPL.OQ", ("isin", "US0378331005"), ("figi", FIGI_B), mic="XNAS", currency="USD", ticker="AAPL",
                         name="Apple Inc.")
-        lines[3] = line("MSFT.OQ", ("isin", MSFT_ISIN), ("figi", FIGI_D), mic="XNAS", currency="USD", ticker="MSFT",
-                        name="Microsoft")
-        self.assertEqual(self.sync(key)["conflicts"], 2)
+        if microsoft:
+            lines[3] = line("MSFT.OQ", ("isin", MSFT_ISIN), ("figi", FIGI_D), mic="XNAS", currency="USD", ticker="MSFT",
+                            name="Microsoft")
+        self.assertEqual(self.sync(key)["conflicts"], 1 + microsoft)
         self.assertEqual(self.ops.store.queue_items(), [], "ingest queues nothing")
+
+
+class DeviceQuestionTest(Questions):
+    """Apple and Microsoft's lines, each contested between two plugins. Only Apple's is opened."""
+
+    def setUp(self):
+        super().setUp()
+        self.contest()
 
     def test_the_contest_is_asked_once_when_the_subject_is_opened_and_names_its_plugins(self):
         self.assertEqual(self.page(APPLE_LINE)["contested"]["figi"][0]["sources"], ["atlas"])  # a saved, re-keyed ID
@@ -75,6 +82,8 @@ class DeviceQuestionTest(Questions):
         self.assertEqual((item["kind"], item["reason"], item["subject_ids"], item["candidate_ids"], item["label"]),
                          ("conflict", "identifier", [BY_FIGI], [BY_FIGI, f"listing:figi:{FIGI_B}"], "atlas and meridian"))
         self.assertEqual(item["plugins"], ["reference", "atlas", "meridian"])
+        self.assertEqual({(entry["value"], entry["source"]) for entry in item["evidence"]},
+                         {(FIGI_A, "atlas"), (FIGI_B, "meridian")})  # which plugin said which value
         self.assertEqual([entry["id"] for entry in self.asked(plugin="atlas")], [item["id"]])  # filtered by its plugins
         self.assertEqual({entry["relation"] for entry in item["answers"] if entry["chosen_id"]}, {"same_listing"})
         for _ in range(2):  # opening it again, or the agent reading it, asks nothing more
@@ -108,6 +117,25 @@ class DeviceQuestionTest(Questions):
         [again] = self.asked()
         self.assertEqual((again["id"] != item["id"], again["label"]), (True, "atlas and meridian"))
         self.assertEqual(self.ops.store.queue_item(item["id"])["state"], "superseded")  # the answer kept as history
+
+
+class NoPackageTest(Questions):
+    """With no reference package installed, a device subject's plugin conflict is asked, answered and reopened too."""
+
+    def test_a_plugin_conflict_is_asked_answered_and_reopened_with_no_package(self):
+        reference_package.remove(self.ops.data_dir)
+        self.contest(microsoft=False)
+        body = json.loads(self.queue_ops.read_queue(self.ops, {}))
+        self.assertEqual((body["outcome"], body["issues"][0]["message"]), ("empty", self.queue_ops.REMOVED))
+        self.assertEqual(self.page(APPLE_LINE)["contested"]["figi"][0]["sources"], ["atlas"])
+        [item] = self.asked()
+        second = f"listing:figi:{FIGI_B}"
+        self.assertEqual((item["label"], item["candidate_ids"]), ("atlas and meridian", [BY_FIGI, second]))
+        self.assertEqual(self.answer(item["id"], "same_listing", second, user=False)["outcome"], "suggested")
+        self.assertEqual(self.answer(item["id"], "same_listing", second)["state"], "resolved")
+        self.assertEqual((self.page(BY_FIGI)["identifiers"]["figi"], self.asked()), (FIGI_B, []))
+        self.assertEqual(self.answer(item["id"], "reopen")["outcome"], "reopened")
+        self.assertEqual(("figi" in self.page(BY_FIGI)["identifiers"], len(self.asked())), (False, 1))
 
 
 class SelfContradictionTest(Questions):
