@@ -1,6 +1,6 @@
 {
   "rule_id": "native_markets@1",
-  "note": "Curated, Pythia-authored (ADR 0043). Subjects no open identifier names, each with a Pythia-curated key: venue markets (a perp; a continuous front-month future, keyed by operating MIC and contract root, whose contract month is read-time data, never identity), index levels, currency pairs and yields. `derivative_on` names and links a market's underlying as a related subject, never folded (ADR 0037). `refs` are the native references of the plugins that serve it. `group` and `description` are display text for the markets overview. Yahoo symbols verified on 2026-09-28.",
+  "note": "Curated, Pythia-authored (ADR 0043). Subjects no open identifier names, each with a Pythia-curated key: venue markets (a perp; a continuous front-month future, keyed by operating MIC and contract root, whose contract month is read-time data, never identity), index levels, currency pairs and yields. `derivative_on` names and links a market's underlying as a related subject, never folded (ADR 0037). Each plugin that serves a subject declares its own reference for it in its contract (`addressing.subjects`). `group` and `description` are display text for the markets overview.",
   "markets": [
     {
       "id": "market:pythia:hyperliquid-btc-perp",
@@ -10,13 +10,6 @@
         "id": "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0",
         "name": "Bitcoin"
       },
-      "refs": [
-        {
-          "provider": "hyperliquid",
-          "native_scope": "perp",
-          "native_id": "BTC"
-        }
-      ],
       "group": "Crypto",
       "description": "Perpetual futures, Hyperliquid"
     },
@@ -25,70 +18,35 @@
       "name": "S&P 500",
       "description": "US large caps",
       "group": "US",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^GSPC"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:nasdaq100",
       "name": "Nasdaq 100",
       "description": "US, largest Nasdaq shares",
       "group": "US",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^NDX"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:nasdaq-composite",
       "name": "Nasdaq Composite",
       "description": "US, all Nasdaq shares",
       "group": "US",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^IXIC"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:dow-jones",
       "name": "Dow Jones",
       "description": "US, 30 blue chips",
       "group": "US",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^DJI"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:russell2000",
       "name": "Russell 2000",
       "description": "US small caps",
       "group": "US",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^RUT"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "market:pythia:cme-es-front-month",
@@ -99,14 +57,7 @@
       "derivative_on": {
         "id": "index:pythia:sp500",
         "name": "S&P 500"
-      },
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "ES=F"
-        }
-      ]
+      }
     },
     {
       "id": "market:pythia:cme-nq-front-month",
@@ -117,217 +68,105 @@
       "derivative_on": {
         "id": "index:pythia:nasdaq100",
         "name": "Nasdaq 100"
-      },
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "NQ=F"
-        }
-      ]
+      }
     },
     {
       "id": "index:pythia:euro-stoxx-50",
       "name": "Euro Stoxx 50",
       "description": "Euro area large caps",
       "group": "Europe",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^STOXX50E"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:ftse100",
       "name": "FTSE 100",
       "description": "United Kingdom",
       "group": "Europe",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^FTSE"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:dax",
       "name": "DAX",
       "description": "Germany",
       "group": "Europe",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^GDAXI"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:cac40",
       "name": "CAC 40",
       "description": "France",
       "group": "Europe",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^FCHI"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:aex",
       "name": "AEX",
       "description": "Netherlands",
       "group": "Europe",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^AEX"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:nikkei225",
       "name": "Nikkei 225",
       "description": "Japan",
       "group": "Asia",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^N225"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:hang-seng",
       "name": "Hang Seng",
       "description": "Hong Kong",
       "group": "Asia",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^HSI"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "index:pythia:sse-composite",
       "name": "SSE Composite",
       "description": "Shanghai",
       "group": "Asia",
-      "asset_class": "equity",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "000001.SS"
-        }
-      ]
+      "asset_class": "equity"
     },
     {
       "id": "series:pythia:us-treasury-10y-yield",
       "name": "US 10-year yield",
       "description": "Treasury note, percent",
-      "group": "Rates & FX",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "^TNX"
-        }
-      ]
+      "group": "Rates & FX"
     },
     {
       "id": "fx:pythia:EURUSD",
       "name": "EUR/USD",
       "description": "US dollars per euro",
-      "group": "Rates & FX",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "EURUSD=X"
-        }
-      ]
+      "group": "Rates & FX"
     },
     {
       "id": "fx:pythia:USDJPY",
       "name": "USD/JPY",
       "description": "Yen per US dollar",
-      "group": "Rates & FX",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "JPY=X"
-        }
-      ]
+      "group": "Rates & FX"
     },
     {
       "id": "fx:pythia:GBPUSD",
       "name": "GBP/USD",
       "description": "US dollars per pound",
-      "group": "Rates & FX",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "GBPUSD=X"
-        }
-      ]
+      "group": "Rates & FX"
     },
     {
       "id": "market:pythia:comex-gc-front-month",
       "name": "Gold",
       "description": "Front month (COMEX)",
-      "group": "Commodities",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "GC=F"
-        }
-      ]
+      "group": "Commodities"
     },
     {
       "id": "market:pythia:nymex-cl-front-month",
       "name": "WTI crude",
       "description": "Front month (NYMEX)",
-      "group": "Commodities",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "CL=F"
-        }
-      ]
+      "group": "Commodities"
     },
     {
       "id": "market:pythia:nymex-bz-front-month",
       "name": "Brent crude",
       "description": "Front month (NYMEX)",
-      "group": "Commodities",
-      "refs": [
-        {
-          "provider": "yahoo",
-          "native_scope": "symbol",
-          "native_id": "BZ=F"
-        }
-      ]
+      "group": "Commodities"
     }
   ]
 }

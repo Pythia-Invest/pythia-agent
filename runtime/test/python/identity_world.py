@@ -97,8 +97,7 @@ class World:
         """The store lookups page composition reads for a subject, at each of its levels."""
         ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row for row in self.identity.bindings(ids, ("confirmed", "conflicting"))}
-        return {"stored": lambda target, provider: stored.get((target, provider)), "coins": lambda *_: None,
-                "queue": self.identity.open_queue(ids)}
+        return {"stored": lambda target, provider: stored.get((target, provider)), "queue": self.identity.open_queue(ids)}
 
     def compose(self, subject_id: str, plugins: list[page.PluginInfo]) -> dict[str, dict]:
         """The page's sections by name."""

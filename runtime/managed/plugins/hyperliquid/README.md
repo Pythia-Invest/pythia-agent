@@ -27,9 +27,10 @@ locally to the investor only; nothing is stored or published
 | --- | --- | --- |
 | `live_market` | `subject_id` (a `market:` subject) and `native_ref` (`hyperliquid`/`perp`, the coin, such as `BTC`) | One `live_market` snapshot. Under the Desk's update channel it pushes snapshots at most four times a second until the page leaves |
 
-Core addresses the plugin through its curated market table
-(`runtime/managed/core/identity/markets.json`); the section request carries both
-arguments, so the agent replays it for a one-shot read (it waits up to 10 s).
+Core's market table (`runtime/managed/core/identity/markets.json`) lists the
+perp; this plugin's `contract.json` declares its coin for it
+(`addressing.subjects`). The section request carries both arguments, so the
+agent replays it for a one-shot read (it waits up to 10 s).
 
 ## Behaviour
 

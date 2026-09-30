@@ -27,7 +27,7 @@ from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT
 from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
-from .identity import device, trust
+from .identity import declared, device, trust
 
 logger = logging.getLogger(__name__)
 RESOLVE_TIMEOUT = 8.0
@@ -240,33 +240,33 @@ class Identity:
         return {**subject["view"], "sections": sections, "queue": lookups["queue"]}, None
 
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
-        """The reference path and the subject, with the store lookups page composition reads: a curated market (no
-        reference file needed), a reference subject with the user's answers applied, else a device subject (`device`)."""
-        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), subject_id)
+        """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
+        reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
+        aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
+        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(
+            markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
         try:
-            subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id)
+            subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)
             subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store)
             default = subject and not curated and self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
                 subject = build_questions.load_subject(ref, subject_id, default, self.store)
             subject = subject or device.load(ref, self.store, subject_id, installed())
-            coins = {(row[0], row[1]): row[2] for row in ref.execute("SELECT provider, caip19, native_id FROM canonical_assets")} if ref else {}
         finally:
             if ref is not None:
                 ref.close()
         if subject is None:  # an instrument with no reference installed may yet be in one
             return path, None, {}, NO_REFERENCE if path is None and subject_kind(subject_id) in INSTRUMENT_KINDS else UNKNOWN_SUBJECT
-        return path, subject, self._lookups(subject, coins), None
+        return path, subject, self._lookups(subject), None
 
-    def _lookups(self, subject: dict, coins: dict) -> dict:
+    def _lookups(self, subject: dict) -> dict:
         """The store lookups page composition reads for a subject: bindings, queue items and misses at each level."""
         identity_store = self.store
         subject_ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row
                   for row in identity_store.bindings(subject_ids, ("confirmed", "conflicting"))}
         return {"stored": lambda target, provider: stored.get((target, provider)),
-                "coins": lambda provider, caip19: coins.get((provider, caip19)),
                 "queue": identity_store.open_queue(subject_ids),
                 "misses": {(target, plugin): reason for target in subject_ids
                            for plugin, reason in identity_store.misses(target).items()},

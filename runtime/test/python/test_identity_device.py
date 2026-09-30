@@ -24,11 +24,14 @@ SAP_ISIN, GSK_ISIN = "DE0007164600", "GB00BN7SWP63"  # SAP is in no reference he
 SAP, SAP_XETRA = f"security:isin:{SAP_ISIN}", f"listing:isin:{SAP_ISIN}:XETR:EUR"
 ERIC_B, ERIC_B_LINE = "security:isin:SE0000108656", "listing:isin:SE0000108656:XSTO:SEK"
 ERICSSON = "issuer:lei:549300W9JLPW15XIFM52"
-POOL, TOKEN = "market:provisional:poolsource:pool:usdc-navi", "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+POOL, PROTOCOL = "market:provisional:poolsource:pool:usdc-navi", "protocol:provisional:poolsource:protocol:navi"
+TOKEN = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 USDC = f"listing:caip19:{TOKEN}"
-POOL_SOURCE = {  # a DeFi source core never names: display level, introducing its pools
-    "contract_version": 1, "plugin": "pool-source", "provider": "poolsource",
-    "addressing": {"native": [{"native_scope": "pool", "level": "market"}]},
+POOL_SOURCE = {  # a DeFi source core never names: display level, introducing its pools, protocols and tokens
+    "contract_version": 2, "plugin": "pool-source", "provider": "poolsource",
+    "addressing": {"native": [{"native_scope": "pool", "level": "market"},
+                              {"native_scope": "protocol", "level": "protocol"}]},
+    "introduces": {"market": ["native"], "protocol": ["native"], "listing": ["caip19"]},
     "concepts": {"market_data": {"level": "market", "via": "market", "operations": {"quote": "latest"}}},
     "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "unsigned"}}
 
@@ -240,9 +243,13 @@ class NoReferenceTest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.core = load_core()
         from pythia_core_queue_fixture import identity_ops, queue_ops
-        from pythia_core_queue_fixture.identity import ProviderRef, device as core_device, page, validate_manifest
+        from pythia_core_queue_fixture.identity import (
+            Kind, ProviderRef, Relation, device as core_device, page, provisional_id, validate_manifest)
         self.queue_ops = queue_ops
         self.source = page.PluginInfo(key="pool-source", manifest=validate_manifest(POOL_SOURCE))
+        # The IDs its contract's `introduces` gives: its own native reference for a pool or protocol, CAIP-19 for a token.
+        self.assertEqual((provisional_id(Kind.MARKET, "poolsource", "pool", "usdc-navi"),
+                          provisional_id(Kind.PROTOCOL, "poolsource", "protocol", "navi")), (POOL, PROTOCOL))
         self.plugins = [self.source]
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
         self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=Path(tmp.name) / "core")
@@ -255,6 +262,13 @@ class NoReferenceTest(unittest.TestCase):
                                 attributes={"asset_class": "crypto"})
         core_device.put_assertion(at, USDC, "caip19", TOKEN, plugin="pool-source",
                                   ref=ProviderRef("poolsource", "usdc", "token"))
+        core_device.put_subject(at, PROTOCOL, plugin="pool-source", name="Navi")
+        part_of = Relation(type="part_of", from_id=POOL, to_id=PROTOCOL, authority="source_asserted",
+                           provenance={"plugin": "pool-source", "source": "poolsource", "adapter_version": "1",
+                                       "retrieved_at": "2026-09-30T00:00:00Z"})
+        at.db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, retrieved_at)"
+                      " VALUES (?,?,?,?,?,?,?,?)", (part_of.evidence_id, "part_of", POOL, PROTOCOL, "source_asserted",
+                                                     "poolsource", "pool-source", "2026-09-30T00:00:00Z"))
         self.assertTrue(core_device.bind_introduced(at, "pool-source", self.pool, POOL))
 
     def page(self, subject_id):
@@ -269,6 +283,11 @@ class NoReferenceTest(unittest.TestCase):
         self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"], quote["unaudited"]),
                          ("pool-source", "ready", "confirmed", self.pool.wire(), True))  # labelled not yet audited
         self.assertEqual(view["sources"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled"}])
+        self.assertEqual(view["related"], [{"id": PROTOCOL, "type": "part_of", "direction": "to", "kind": "protocol",
+                                            "name": "Navi"}])
+        protocol = self.page(PROTOCOL)["data"]  # a protocol's page: its label and its pools, no data section
+        self.assertEqual((protocol["subject"]["name"], protocol["related"][0]["id"], protocol["sections"]),
+                         ("Navi", POOL, []))
         self.assertEqual(self.ops.price_sources(POOL)["refs"], [self.pool.wire()])
         # With no package, an instrument no plugin introduced still says why; an unknown market is unknown.
         self.assertEqual(self.page("listing:figi:BBG000BB13V0")["issues"][0]["message"], "No reference data on this device yet.")

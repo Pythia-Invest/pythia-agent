@@ -74,8 +74,10 @@ equivalence between coins or providers; the identity owner decides joins and
 derives CAIP-19.
 
 Native coins such as Bitcoin, Ether and Solana carry no contract. Joining
-coins across providers, and mapping platform names to CAIP-2 chains, is core's
-curated canonical-asset table (`canonical_assets@1`); the connector emits
+coins across providers is core's: its curated canonical-asset table
+(`canonical_assets@1`) lists the assets, and this plugin's `contract.json`
+declares its own coin id for each (`addressing.subjects`) and maps its platform
+names to CAIP-2 chains (`addressing.chain_codes`). The connector's rows emit
 neither.
 
 ## CoinGecko plans and terms

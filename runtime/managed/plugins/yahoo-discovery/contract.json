@@ -1,5 +1,5 @@
 {
-  "contract_version": 1,
+  "contract_version": 2,
   "plugin": "pythia-yahoo-discovery",
   "provider": "yahoo",
   "addressing": {
@@ -114,6 +114,96 @@
       "ATH": "ASEX",
       "BUD": "XBUD",
       "PRA": "XPRA"
+    },
+    "subjects": {
+      "index:pythia:sp500": {
+        "native_scope": "symbol",
+        "native_id": "^GSPC"
+      },
+      "index:pythia:nasdaq100": {
+        "native_scope": "symbol",
+        "native_id": "^NDX"
+      },
+      "index:pythia:nasdaq-composite": {
+        "native_scope": "symbol",
+        "native_id": "^IXIC"
+      },
+      "index:pythia:dow-jones": {
+        "native_scope": "symbol",
+        "native_id": "^DJI"
+      },
+      "index:pythia:russell2000": {
+        "native_scope": "symbol",
+        "native_id": "^RUT"
+      },
+      "market:pythia:cme-es-front-month": {
+        "native_scope": "symbol",
+        "native_id": "ES=F"
+      },
+      "market:pythia:cme-nq-front-month": {
+        "native_scope": "symbol",
+        "native_id": "NQ=F"
+      },
+      "index:pythia:euro-stoxx-50": {
+        "native_scope": "symbol",
+        "native_id": "^STOXX50E"
+      },
+      "index:pythia:ftse100": {
+        "native_scope": "symbol",
+        "native_id": "^FTSE"
+      },
+      "index:pythia:dax": {
+        "native_scope": "symbol",
+        "native_id": "^GDAXI"
+      },
+      "index:pythia:cac40": {
+        "native_scope": "symbol",
+        "native_id": "^FCHI"
+      },
+      "index:pythia:aex": {
+        "native_scope": "symbol",
+        "native_id": "^AEX"
+      },
+      "index:pythia:nikkei225": {
+        "native_scope": "symbol",
+        "native_id": "^N225"
+      },
+      "index:pythia:hang-seng": {
+        "native_scope": "symbol",
+        "native_id": "^HSI"
+      },
+      "index:pythia:sse-composite": {
+        "native_scope": "symbol",
+        "native_id": "000001.SS"
+      },
+      "series:pythia:us-treasury-10y-yield": {
+        "native_scope": "symbol",
+        "native_id": "^TNX"
+      },
+      "fx:pythia:EURUSD": {
+        "native_scope": "symbol",
+        "native_id": "EURUSD=X"
+      },
+      "fx:pythia:USDJPY": {
+        "native_scope": "symbol",
+        "native_id": "JPY=X"
+      },
+      "fx:pythia:GBPUSD": {
+        "native_scope": "symbol",
+        "native_id": "GBPUSD=X"
+      },
+      "market:pythia:comex-gc-front-month": {
+        "native_scope": "symbol",
+        "native_id": "GC=F"
+      },
+      "market:pythia:nymex-cl-front-month": {
+        "native_scope": "symbol",
+        "native_id": "CL=F"
+      },
+      "market:pythia:nymex-bz-front-month": {
+        "native_scope": "symbol",
+        "native_id": "BZ=F"
+      }
     }
   },
   "concepts": {

@@ -104,6 +104,8 @@ class RelationType(StrEnum):
     TOKENIZED_FROM = "tokenized_from"                # tokenized security -> the security it represents
     SUCCESSOR_OF = "successor_of"                    # new subject -> old one after a natural key changed
                                                      # (new ISIN after a corporate action, LEI merger)
+    PART_OF = "part_of"                              # a market (a pool, a lending reserve) -> its protocol
+    MARKET_ASSET = "market_asset"                    # a market -> an asset it holds or trades (a token deployment)
 
 
 class Grouping(StrEnum):
@@ -135,6 +137,9 @@ RELATIONS: dict[RelationType, RelationRule] = {
     RelationType.DERIVATIVE_ON: RelationRule((frozenset({Kind.SECURITY, Kind.MARKET}), _UNDERLYING), Grouping.RELATED),
     RelationType.TOKENIZED_FROM: RelationRule((_SECURITY, _SECURITY), Grouping.RELATED),
     RelationType.SUCCESSOR_OF: RelationRule(None, Grouping.RELATED),
+    RelationType.PART_OF: RelationRule((frozenset({Kind.MARKET}), frozenset({Kind.PROTOCOL})), Grouping.RELATED),
+    RelationType.MARKET_ASSET: RelationRule((frozenset({Kind.MARKET}), frozenset({Kind.LISTING, Kind.SECURITY})),
+                                            Grouping.RELATED),
 }
 FOLD = frozenset(type for type, rule in RELATIONS.items() if rule.grouping is Grouping.FOLD)
 # The search group is the investable entity: the company for its equity (these kinds group under their issuer), the

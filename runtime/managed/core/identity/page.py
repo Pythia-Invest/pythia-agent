@@ -1,15 +1,17 @@
 """Instrument page composition (ADR 0038, ADR 0040): the subject, its listings and one plugin per section.
 
-`subject_view` is local only: it reads the reference file, the identity store and the installed plugins' contracts,
-and never calls a plugin. A plugin whose contract lets core build its native reference from open identifiers (a MIC
-suffix table, an identifier-named native scope, the package's canonical-asset table) is addressed at once; that
-derived reference is an address, never identifier evidence. It is `confirmed` only where confirm-level evidence
-states it: a package's provider coin ids, at the package's trust level. Only when core cannot derive the address is
-the section `resolving`: the Desk then asks for that plugin's resolve (`identity-resolve`), which `apply_resolve`
-decides with the one authority rule.
+`subject_view` is local only: it reads the reference file, the identity store and
+the installed plugins' contracts, and never calls a plugin. A plugin whose
+contract lets core build its native reference (its own reference for the subject,
+`addressing.subjects`; a MIC suffix table; an identifier-named native scope) is
+addressed at once; that derived reference is an address, never identifier
+evidence. A declared address is `confirmed` only when the plugin's files are
+granted confirm. Only when core cannot derive the address is the section `resolving`:
+the Desk then asks for that plugin's resolve (`identity-resolve`), which
+`apply_resolve` decides with the one authority rule.
 
-A `market` subject (a perp) comes from core's curated table (`markets.py`); its page needs no reference file, and
-the addresses that table names are derived: no contributor's evidence states them.
+A `market` subject (a perp) comes from core's maintained table (`markets.py`);
+its page needs no reference file.
 """
 from __future__ import annotations
 
@@ -23,12 +25,11 @@ from typing import Any, Callable, Mapping
 
 from .claims import ClaimBatch, RecordClaim
 from .concepts import NOTICE, REGISTRY, Combine, Concept, core_section, ranked, select
+from .declared import DECLARED_RULE
 from .manifest import ConceptEntry, Manifest
-from .markets import MARKETS_RULE
 from .model import Binding, ProviderRef
 from .resolution import QueueItem, Verdict, VerdictOutcome, decide, quotes_underlying, resolve_evidence
-from .schemes import CANONICAL_ASSETS_RULE, INSTRUMENT_KINDS, Kind, Level, provisional_id
-from .trust import CONFIRM
+from .schemes import INSTRUMENT_KINDS, Kind, Level, provisional_id
 from .subject import load_subject, related  # noqa: F401  (re-exported: page composition reads subjects)
 from .vocabulary import KIND_OF_RECORD, AssetClass, InstrumentKind, VerdictRelation
 
@@ -124,22 +125,18 @@ def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] 
 
 # ---- addressing -------------------------------------------------------------------------------------------------
 
-def derive(info: PluginInfo, level: Level | Kind, subject: dict, coins: Callable[[str, str], str | None]) -> tuple[ProviderRef, str] | None:
+def derive(info: PluginInfo, level: Level | Kind, subject: dict) -> tuple[ProviderRef, str] | None:
     """A native reference core builds without a call, with the rule that built it, or None; none from a delisted ticker."""
     manifest, values, listing = info.manifest, subject["values"], subject["listing"]
-    if level not in INSTRUMENT_KINDS:  # a market: the curated table names each serving plugin's reference
-        ref = subject.get("refs", {}).get(manifest.provider)
-        served = ref and any(scope.level is level and scope.native_scope == ref.native_scope for scope in manifest.native)
-        return (ref, MARKETS_RULE) if served else None
+    declared = manifest.subjects.get(subject["ids"].get(level) or "")
+    delisted = level is Level.LISTING and listing is not None and listing["status"] == "inactive"
+    if declared is not None and not delisted:  # the plugin's own reference for this subject (an index, a crypto asset)
+        return ProviderRef(manifest.provider, declared.native_id, declared.native_scope), DECLARED_RULE
+    if level not in INSTRUMENT_KINDS:  # a market, an index: only a declared reference addresses it
+        return None
     for scope in manifest.native:
         if scope.level is not level or (scope.asset_classes and subject["asset_class"] not in scope.asset_classes):
             continue
-        if level is Level.SECURITY and subject["asset_class"] == "crypto":
-            security = subject["ids"].get(Level.SECURITY) or ""
-            native = security.startswith("security:caip19:") and coins(  # by the asset's canonical deployment
-                manifest.provider, security.removeprefix("security:caip19:"))
-            if native:
-                return ProviderRef(manifest.provider, native, scope.native_scope), CANONICAL_ASSETS_RULE
         accepted = manifest.schemes.get(level, ())
         if scope.native_scope in accepted and values.get(scope.native_scope):
             return ProviderRef(manifest.provider, values[scope.native_scope], scope.native_scope), f"{scope.native_scope}_ref@1"
@@ -188,7 +185,7 @@ def _addressable(info: PluginInfo, level: Level | Kind, subject: dict) -> bool:
 
 
 def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Callable[[str, str], sqlite3.Row | None],
-             coins: Callable[[str, str], str | None], queue: list[dict],
+             queue: list[dict],
              misses: Mapping[tuple[str, str], str] = {}, checked: Callable[[str, ProviderRef], Mapping | None] = lambda *_: None,
              serves: Callable[[ProviderRef, str], None] = lambda *_: None) -> dict | None:
     """One plugin's answer for one section, or None when its contract does not declare the section's concept.
@@ -221,7 +218,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         return {**answer, "status": "not_covering", "reason": f"{info.label} does not cover {market or 'this market'}"}
     target = subject["ids"].get(via)
     row = stored(target, info.manifest.provider) if target and _addressable(info, via, subject) else None
-    derived = None if row or not target or not _addressable(info, via, subject) else derive(info, via, subject, coins)
+    derived = None if row or not target or not _addressable(info, via, subject) else derive(info, via, subject)
     wants_resolve = (bool(target) and _addressable(info, via, subject) and not row and not derived
                      and bool(resolve_input(info, subject)))
     if not (row or derived or wants_resolve):
@@ -248,7 +245,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule == CANONICAL_ASSETS_RULE and subject.get("trust") == CONFIRM else "derived"
+        state = "confirmed" if rule == DECLARED_RULE and not info.manifest.unaudited else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS, Section.LIVE):
         if operation not in info.operations:  # the contract names it, but no native tool declares it
