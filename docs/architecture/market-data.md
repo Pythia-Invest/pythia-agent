@@ -36,7 +36,8 @@ Two open-data reference connectors are bundled as well. The
 [SEC connector](../../runtime/managed/plugins/sec/README.md) supplies filer
 resolve, filings and reported US GAAP/IFRS facts; it needs a configured SEC
 contact (name and email). The [OpenFIGI connector](../../runtime/managed/plugins/openfigi/README.md)
-resolves identifiers to FIGIs, and its API key is optional. Neither offers
+resolves identifiers to FIGIs and answers core's one-ISIN lookup with that
+ISIN's lines as listing claims; its API key is optional. Neither offers
 provider search, and both return evidence rather than identity decisions.
 
 - [Wire contracts](../../packages/market-data/README.md): subject, series,

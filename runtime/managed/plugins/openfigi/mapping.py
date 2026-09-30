@@ -15,6 +15,8 @@ MAX_JOBS = 100
 CANDIDATE_FIELDS = ('figi', 'compositeFIGI', 'shareClassFIGI', 'ticker', 'exchCode', 'name',
                     'securityType', 'securityType2', 'marketSector', 'securityDescription')
 FIGI = re.compile(r'[A-Z0-9]{12}')
+# Core's venue ticker grammar (identity.schemes.TICKER): a ticker outside it (`BRK/B`) is left out of a claim.
+TICKER = re.compile(r'[A-Z0-9][A-Z0-9.&-]{0,15}(?: [A-Z])?')
 
 
 def _checksum(digits):
@@ -92,3 +94,35 @@ def result(job, row):
         return {'job': job, 'outcome': 'error', 'candidates': [], 'message': row['error'][:200]}
     # A provider "no match" warning is not proof that the instrument does not exist.
     return {'job': job, 'outcome': 'not_found', 'candidates': []}
+
+
+def claims(isin, candidates, observed_at, venues):
+    """An ISIN's lines in core's ClaimBatch wire form (ADR 0038): one listing claim per FIGI line, never a pick.
+
+    Each line carries its FIGI (also its native reference), composite FIGI and share-class FIGI as OpenFIGI states
+    them, and the ISIN: OpenFIGI maps that ISIN to the line, so it is the line's own (`self`) at security scope. A
+    line whose share-class FIGI differs from its siblings' keeps it, so core's join sees the disagreement. The
+    exchange code becomes an operating MIC only through the contract's `venue_codes`; an unmapped code leaves the
+    line without one. The country composite (a line other lines name as their composite FIGI, on a code that maps to
+    no venue, such as JP or GR) is not a venue line and is left out. A ticker is evidence, never a key, and is kept
+    only in core's ticker grammar."""
+    named = {item['compositeFIGI'] for item in candidates if item['compositeFIGI'] not in (None, item['figi'])}
+    records, seen = [], set()
+    for item in candidates:
+        figi, code = item['figi'], item['exchCode']
+        if figi in seen or (figi in named and code not in venues):
+            continue
+        seen.add(figi)
+        identifiers = [{'scheme': 'figi', 'value': figi}, {'scheme': 'isin', 'value': isin}]
+        identifiers += [{'scheme': scheme, 'value': item[key]} for scheme, key in
+                        (('composite_figi', 'compositeFIGI'), ('share_class_figi', 'shareClassFIGI')) if item[key]]
+        ticker = item['ticker'] if TICKER.fullmatch(item['ticker'] or '') else None
+        attributes = {'name': item['name'], 'ticker': ticker, 'provider_venue': code, 'operating_mic': venues.get(code),
+                      'asset_class': 'equity' if item['marketSector'] == 'Equity' else None}
+        records.append({'level': 'listing', 'identifiers': identifiers,
+                        'native_ref': {'provider': 'openfigi', 'native_scope': 'figi', 'native_id': figi},
+                        'attributes': {key: value for key, value in attributes.items() if value},
+                        'provenance': {'plugin': 'pythia-openfigi', 'source': 'openfigi', 'adapter_version': '1',
+                                       'retrieved_at': observed_at, 'source_record': URL}})
+    return {'plugin': 'pythia-openfigi', 'provider': 'openfigi', 'adapter_version': '1', 'origin': 'resolve',
+            'claims': records}
