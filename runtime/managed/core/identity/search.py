@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-from . import ranking
+from . import ranking, relations
 from .model import fold_roots
 from .ranking import logrank, norm, tnorm
 from .vocabulary import ISSUER_INTERESTS
@@ -64,12 +64,13 @@ DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name nam
 
 
 class Directory:
-    """The search directory of one reference file."""
+    """The search directory of one reference file. A fold relation a confirm-level plugin contests (`contested`,
+    `relations`) folds nothing."""
 
-    def __init__(self, reference: sqlite3.Connection):
+    def __init__(self, reference: sqlite3.Connection, contested: frozenset = frozenset()):
         self.db = sqlite3.connect(":memory:", check_same_thread=False)
         self.db.execute(DOC)
-        self._load(reference)
+        self._load(reference, contested)
         self.db.execute("CREATE VIRTUAL TABLE fts USING fts5(ticker, names, content='doc', content_rowid='id',"
                         " tokenize=\"unicode61 remove_diacritics 2\", prefix='2 3 4')")
         self.db.execute("INSERT INTO fts(rowid, ticker, names) SELECT id, coalesce(ticker, ''), names FROM doc")
@@ -85,7 +86,7 @@ class Directory:
         self.db.commit()
         self.lock = threading.Lock()
 
-    def _load(self, ref: sqlite3.Connection) -> None:
+    def _load(self, ref: sqlite3.Connection, contested: frozenset) -> None:
         def many(sql: str) -> dict[str, list[str]]:
             out: dict[str, list[str]] = {}
             for key, value in ref.execute(sql):
@@ -105,7 +106,8 @@ class Directory:
         ids = many("SELECT subject_id, scheme || ':' || value FROM assertions WHERE scheme IN"
                    " ('isin', 'lei', 'cik', 'figi', 'composite_figi', 'share_class_figi', 'caip19')")
         names = many("SELECT subject_id, name FROM names")
-        units, odd = fold_roots(ref.execute("SELECT type, from_id, to_id FROM relations"))
+        units, odd = fold_roots(edge for edge in ref.execute("SELECT type, from_id, to_id FROM relations")
+                                if not relations.contests(tuple(edge), contested))
         if odd:  # the builder's report and the reference audit list them
             logger.warning("reference fold relations: %d second targets and cycles kept apart", len(odd))
         rows = ref.execute(
@@ -367,17 +369,18 @@ _cache: dict[str, tuple[tuple, Directory]] = {}
 _cache_lock = threading.Lock()
 
 
-def directory(path: Path, open_reference: Callable[[Path], sqlite3.Connection]) -> Directory:
-    """The directory for a reference file, rebuilt when the file changes."""
+def directory(path: Path, open_reference: Callable[[Path], sqlite3.Connection],
+              contested: frozenset = frozenset()) -> Directory:
+    """The directory for a reference file, rebuilt when the file or the plugin relations contesting its folds change."""
     info = Path(path).stat()
-    stamp = (str(path), info.st_mtime_ns, info.st_size)
+    stamp = (str(path), info.st_mtime_ns, info.st_size, contested)
     with _cache_lock:
         cached = _cache.get("current")
         if cached and cached[0] == stamp:
             return cached[1]
         reference = open_reference(path)
         try:
-            built = Directory(reference)
+            built = Directory(reference, contested)
         finally:
             reference.close()
         _cache["current"] = (stamp, built)

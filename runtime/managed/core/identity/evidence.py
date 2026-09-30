@@ -73,8 +73,8 @@ def show(subject: dict[str, Any]) -> None:
     """The view's identifier fields from the subject's values: a contested scheme shows none, and the view lists
     each contested scheme's values with their sources (labelled as the page names sources) and display-level evidence
     with its source. `provenance` names where each identifier shown comes from: the first assertion stating it, at its
-    contributor's trust level, or the user where their answer decided a contested value (`build_questions`). A
-    subject's assertions are the reference package's, so their contributor is the package."""
+    contributor's trust level, or the user where their answer decided a contested value (`build_questions`). Its
+    contributor is the plugin that stated it on the device (`contributed`, by evidence ID), else the reference package."""
     from .page import LABELS  # page composition reads subjects: imported when used
     values, view = subject["values"], subject["view"]
     listing = subject["listing"]
@@ -94,7 +94,8 @@ def show(subject: dict[str, Any]) -> None:
                               if item.scheme == scheme and item.value == value), (None, None))
         if item is not None:
             view["provenance"][scheme] = {
-                "source": item.provenance.source, "plugin": PACKAGE, "level": granted,
+                "source": item.provenance.source, "level": granted,
+                "plugin": subject.get("contributed", {}).get(item.evidence_id, PACKAGE),
                 "authority": str(Authority.USER_ATTESTED if scheme in subject.get("attested", ()) else item.authority)}
     view.pop("contested", None)
     view.pop("shown", None)

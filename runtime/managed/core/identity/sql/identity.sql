@@ -203,6 +203,14 @@ CREATE INDEX IF NOT EXISTS device_assertions_subject ON device_assertions (subje
 
 -- A device subject's earlier IDs: a better key re-keys it upward, never down. Followed after the reference's
 -- id_aliases (`device.current_id`); `lifecycle.rekey` re-points the rows that name the old ID.
+-- Lookups core's ingest makes on every record (ADR 0037, amendment "ingest"): a record's earlier statements, a
+-- subject's relations and children, and the records placed on a subject. Indexes only: no schema change.
+CREATE INDEX IF NOT EXISTS device_assertions_record ON device_assertions (plugin, native_scope, native_id);
+CREATE INDEX IF NOT EXISTS relations_from ON relations (from_id, type);
+CREATE INDEX IF NOT EXISTS relations_to ON relations (to_id);
+CREATE INDEX IF NOT EXISTS subjects_parent ON subjects (parent_id);
+CREATE INDEX IF NOT EXISTS claims_subject ON claims (subject_id);
+
 CREATE TABLE IF NOT EXISTS device_aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,

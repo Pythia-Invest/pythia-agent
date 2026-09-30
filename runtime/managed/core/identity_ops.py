@@ -23,10 +23,10 @@ from .identity import (
     INSTRUMENT_KINDS, MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch,
     RelationType, subject_kind, validate_manifest, vouched,
 )
-from . import queue_ops, read_checks, search_venues
+from . import ingest_ops, queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
 from .queue_ops import ISSUE_CODES, NO_REFERENCE, SUBJECT_ID, UNKNOWN_SUBJECT, no_reference
-from .identity import batch_from_json, batch_to_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
+from .identity import batch_from_json, build_questions, lifecycle, location, markets, page, queue, reference_package, search, store
 from .identity import declared, device, flags, trust
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ class Identity:
         try:
             if (path := self.reference_path()) is None:
                 return _envelope("empty", empty, issue=no_reference(self.data_dir))
-            directory = search.directory(path, store.open_reference)
+            directory = self.directory(path)
             kinds = arguments.get("kinds")
             data = (directory.group(group, kinds=kinds) if group
                     else directory.search(query, limit=limit, kinds=kinds, prefer=self._preference(),
@@ -231,7 +231,7 @@ class Identity:
         if subject["level"] is not Kind.MARKET:  # the curated markets that are derivatives on it, as links
             view["related"] += markets.markets_on(markets.curated(), [value for value in subject["ids"].values() if value])
         if subject["asset_class"] == "equity" and security and path:  # the instrument's lines, receipts folded in
-            directory = search.directory(path, store.open_reference)
+            directory = self.directory(path)
             view["listings"] = directory.instrument_listings(security) or view["listings"]
             # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
@@ -243,17 +243,17 @@ class Identity:
     def _load(self, subject_id: str) -> tuple[Path | None, dict | None, dict, str | None]:
         """The reference path and the subject with the store lookups pages read: a curated market (no reference needed), a
         reference subject with the user's answers, else a device subject (`device`); a declared alias is followed."""
-        aliases = declared.aliases(info.manifest for info in installed()) if ":provisional:" in subject_id else {}
-        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(
-            markets.curated(), aliases.get(subject_id, subject_id))
+        plugins = installed()  # their evidence counts at their levels (`device.merge`)
+        aliases = declared.aliases(info.manifest for info in plugins) if ":provisional:" in subject_id else {}
+        curated = subject_kind(subject_id) in markets.CURATED_KINDS and markets.load_market(markets.curated(), aliases.get(subject_id, subject_id))
         path, ref = (None, None) if curated else self.reference()
         try:
             subject_id = subject_id if curated else device.current_id(ref, self.store, subject_id, aliases)
-            subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store)
+            subject = curated or ref and build_questions.load_subject(ref, subject_id, None, self.store, plugins)
             default = subject and not curated and self._default_listing(path, subject)
             if default and default != (subject["listing"] or {"id": None})["id"]:
-                subject = build_questions.load_subject(ref, subject_id, default, self.store)
-            subject = subject or device.load(ref, self.store, subject_id, installed())
+                subject = build_questions.load_subject(ref, subject_id, default, self.store, plugins)
+            subject = subject or device.load(ref, self.store, subject_id, plugins)
         finally:
             if ref is not None:
                 ref.close()
@@ -273,16 +273,17 @@ class Identity:
                            for plugin, reason in identity_store.misses(target).items()},
                 "order": self.order(), **read_checks.lookups(self, subject_ids)}
 
-    @staticmethod
-    def _default_listing(path: Path, subject: dict) -> str | None:
+    def directory(self, path: Path) -> search.Directory:  # a fold a confirm-level plugin contests stays apart
+        return search.directory(path, store.open_reference, ingest_ops.contested(self.store))
+
+    def _default_listing(self, path: Path, subject: dict) -> str | None:
         """The line an equity security or issuer subject is priced through: the first of the instrument's own
         lines in the listing selector's order (a flagged primary, else the best exchange line), so the page
         and market-data reads agree with the selector. None for a listing subject or anything else."""
         security = subject["ids"].get(Level.SECURITY)
         if subject["level"] == Level.LISTING or subject["asset_class"] != "equity" or not security:
             return None
-        own = [line for line in search.directory(path, store.open_reference).instrument_listings(security)
-               if not line["folded"]]
+        own = [line for line in self.directory(path).instrument_listings(security) if not line["folded"]]
         return own[0]["id"] if own else None
 
     def _resolve(self, info: page.PluginInfo, subject: dict) -> tuple[str | None, bool]:
@@ -314,8 +315,7 @@ class Identity:
             logger.warning("resolve answer rejected for %s: %s", info.key, error)
             return f"{info.label} gave an unusable answer", False
         now = store.now()
-        for claim in batch_to_json(batch)["claims"]:
-            self.store.put_claim(batch.plugin, batch.provider, claim)
+        ingest_ops.keep(self, info, batch)  # every record placed by identifier (`identity.ingest`)
         for level in sorted(levels, key=lambda item: item != Level.LISTING):
             binding, item, _records = page.apply_resolve(batch, info, level, subject, sent, now=now,
                                                          bound_to=self.store.bound_subject)

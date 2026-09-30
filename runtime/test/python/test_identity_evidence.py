@@ -200,7 +200,13 @@ class AnswerTest(BuildQuestionFixture):
         self.install([], second, "reference-20260927")
         self.assertEqual(self.page(REGISTRANT)["issuer"]["id"], ISSUER, "the answer stays applied until the user decides")
         [conflict] = self.open()
-        self.assertEqual((conflict["reason"], conflict["candidate_ids"]), ("binding", [ISSUER, REGISTRANT]))
+        # The registrant's own LEI refuses the company it was matched to and "none" alike (unanimous proof, ruling
+        # 2.6), so the question offers the registrant alone and says why (#109 re-review).
+        self.assertEqual((conflict["reason"], conflict["candidate_ids"]), ("binding", [REGISTRANT]))
+        [asked] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
+        self.assertEqual([(answer["relation"], answer["chosen_id"]) for answer in asked["answers"]],
+                         [("same_issuer", REGISTRANT), ("ambiguous", None)])
+        self.assertIn("rules out the company you matched it to", asked["question"])
         self.assertEqual(self.answer(conflict["id"], "same_issuer", REGISTRANT)["state"], "resolved")
         view = self.page(REGISTRANT)
         self.assertEqual((view["issuer"]["id"], view["issuer"]["lei"], self.open()), (REGISTRANT, OPERATOR, []))

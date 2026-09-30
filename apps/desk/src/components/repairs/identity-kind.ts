@@ -302,7 +302,11 @@ export function useIdentityKind(): RepairKind<IdentityQuestion> {
           run: verdict(item, entry),
         });
       });
-      if (!agent || !isNoMatch(agent))
+      // Core leaves "none" out where identifier evidence would always refuse it.
+      const offersNone = item.answers.some(
+        (entry) => entry.relation === "none",
+      );
+      if ((!agent || !isNoMatch(agent)) && offersNone)
         actions.push({
           label: built ? "None of these" : "Not a match",
           hint: built

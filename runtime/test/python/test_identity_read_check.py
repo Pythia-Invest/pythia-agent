@@ -102,12 +102,12 @@ class ReadCheckTest(Fixture):
     def test_a_read_is_checked_once_per_window(self):
         with unittest.mock.patch.object(self.checks.time, "monotonic", return_value=1000.0):
             self.assertEqual([self.check(currency="EUR"), self.check(currency="EUR")], ["verified", "verified"])
-            self.assertEqual(self.installed.call_count, 1)
+            once = self.installed.call_count  # what one check reads of the installed plugins (its page's and its own)
             self.assertEqual(self.check(currency="USD"), "unverified")  # other stated values are checked at once
-        self.assertEqual(self.installed.call_count, 2)
+        self.assertEqual(self.installed.call_count, 2 * once)
         with unittest.mock.patch.object(self.checks.time, "monotonic", return_value=1000.0 + self.checks.CHECK_EVERY + 1):
             self.check(currency="EUR")
-        self.assertEqual(self.installed.call_count, 3)
+        self.assertEqual(self.installed.call_count, 3 * once)
 
 
 if __name__ == "__main__":

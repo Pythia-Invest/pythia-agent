@@ -11,7 +11,12 @@ local override:
 - **An answer the release contradicts.** The installed release, at confirm level, names another issuer, underlying or
   identifier value than the user's answer, or gives a registrant the user matched to a company identifiers of its own
   (`build_questions.load_subject`). The answer stays applied until the user answers this question, whose candidates
-  are the two.
+  are the two, except that a registrant's own identifiers refuse both the company the user matched it to and "none":
+  that question offers the registrant alone (`build_questions.itself`).
+
+A plugin's evidence counts here as on the subject's page (`device.merge`), at its plugin's trust level: a confirm-level
+plugin whose record contradicts a fact the package states contests it, so the plugin's conflict is asked about once,
+when the subject becomes relevant (ADR 0037, amendment "ingest").
 
 Each is asked once per question key, like the build's (`build_questions.import_build`).
 """
@@ -27,12 +32,14 @@ from .resolution import QueueItem
 from .schemes import subject_id, subject_level
 
 
-def raised(ref: sqlite3.Connection, store, subject_ids: Iterable[str]) -> list[QueueItem]:
-    """The conflict questions these subjects' pages raise, their listing's, security's and issuer's facts included."""
+def raised(ref: sqlite3.Connection, store, subject_ids: Iterable[str], plugins: Iterable = ()) -> list[QueueItem]:
+    """The conflict questions these subjects' pages raise, their listing's, security's and issuer's facts included,
+    with the `plugins`' evidence at their levels."""
     items: list[QueueItem] = []
+    plugins = list(plugins)
     for touched in dict.fromkeys(subject_ids):
         try:
-            subject = build_questions.load_subject(ref, touched, None, store)
+            subject = build_questions.load_subject(ref, touched, None, store, plugins)
         except ValueError:  # a malformed subject ID asks nothing
             continue
         items += about(subject) if subject else []
@@ -48,7 +55,10 @@ def about(subject: dict) -> list[QueueItem]:
         if None not in named and len(set(named)) == len(named):
             items.append(_question("identifier", (owner,), named, [item.evidence_id for item in found], scheme, values))
     for answer in subject["contradicted"]:
-        items.append(_question("binding", (answer["question"], answer["release"]), (answer["chosen"], answer["release"]),
+        itself = answer["release"] == answer["question"] and not build_questions.own_identifier(
+            {"reason": answer["reason"], "scheme": answer["scheme"], "subject_ids": [answer["question"]]})
+        items.append(_question("binding", (answer["question"], answer["release"]),
+                               (answer["release"],) if itself else (answer["chosen"], answer["release"]),
                                [evidence_id({"kind": "verdict", "verdict": answer["verdict"]})], answer["scheme"],
                                answer["values"]))
     return items
