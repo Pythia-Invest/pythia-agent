@@ -421,7 +421,7 @@ build. The approach that follows:
 | Listing choice | Which of two exchanges a dual-listed company counts as primary | A preference or documented default; pinned where a decision depends on it | The listing in use, with the alternatives |
 | Subjects only one plugin describes | DeFi pools and protocols; a vendor's proprietary indices | The plugin's claims count like any enabled plugin's, labelled with their source; the absence of other plugins does not raise them. Links to shared subjects are made by identifier agreement | New subjects appear with the plugin's label |
 | Vendor symbols | Mapping a vendor's ticker to a listing | Automatic matching by open identifiers when the plugin connects | A summary of what matched, and what stays available only from that vendor |
-| The user's own unmatched records | A broker position or wallet token that no source identifies | On the user's machine, only when it matters. An agent proposes a match and the user confirms | The record appears immediately, labelled "not matched", with a suggestion |
+| The user's own unmatched records | A broker position or wallet token that no source identifies | On the user's machine, only when it matters. An agent proposes a match and the user confirms (a calibrated verdict will apply for read-only use, decided and not built) | The record appears immediately, labelled "not matched", with a suggestion |
 | Values that differ | Two vendors reporting different revenue | Never merged: single values are shown side by side, lists are merged without duplicates, and a price view uses one source ([ADR 0040](decisions/0040-data-concepts-and-agent-tools.md)) | Labelled rows |
 | A source changes | A vendor alters a field | Detected by drift alarms and fixed by the plugin's maintainer | "Source changed, fix pending". Affected views show stale labels, never wrong data |
 | Plan limits | A key that covers end-of-day data but not intraday data | The plugin's connection check records what the credential allows | An inspectable connection result. Selection skips what is not covered |
@@ -471,7 +471,7 @@ build. The approach that follows:
   and not yet built: a verdict of a calibrated question type, at or above its
   threshold, will apply for read-only use, labelled and undoable, while
   everything else stays a suggestion
-  ([ADR 0044](decisions/decisions/0044-product-direction.md#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)). A saved interpretation keeps its
+  ([ADR 0044](decisions/0044-product-direction.md#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)). A saved interpretation keeps its
   evidence, scope and dependencies, and becomes stale when they change. Saving
   it makes it repeatable, not correct: whether it may be used by a
   consequential operation depends on its evidence and that operation's
@@ -542,7 +542,8 @@ through services that are shared and cost money to operate:
   prebuilt reference snapshot, sufficient to use Pythia fully.
 - **Pythia Data (optional):**
   - frequent reference updates;
-  - maintained plugin rules and corrections as they land;
+  - faster delivery of the maintained plugin rules and source corrections
+    (the fixes themselves ship free in the default plugins);
   - deep datasets built from open sources, such as fundamentals as first
     reported with their filing dates, a filings index and institutional
     holdings.

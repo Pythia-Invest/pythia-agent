@@ -66,7 +66,9 @@ It takes time, and it is the only way to get data we can trust.
 
   Without more, it only suggests. Auto-confirmation also needs a gold set per
   relation with a frozen dev/test split, and a test precision whose Wilson 95%
-  lower bound is at least 99%.
+  lower bound is at least 99%. A type that meets the bar may apply its
+  verdicts for read-only use ([ADR 0044](0044-product-direction.md),
+  amendment of 2026-09-30, J2).
 - **Where the material lives.** Question sets and the eval harness are public
   source. Gold labels on licensed data, raw model exchanges and verdicts stay on
   the device.

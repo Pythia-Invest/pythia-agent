@@ -208,7 +208,10 @@ Code handles the other hard cases:
   written values rather than the verdict scores, and record the error rate.
 
 Without more, a question type is **suggest-only**: `model_suggested`, and the
-answers go to Repairs.
+answers go to Repairs. A type that meets the bar below may apply its verdicts
+for read-only use, labelled and undoable
+([ADR 0044](../decisions/0044-product-direction.md), amendment of 2026-09-30,
+J2; decided, not built).
 
 **Auto-confirm (`model_confirmed`) also needs** a gold set per relation:
 

@@ -447,7 +447,7 @@ be. The direction for resolving the rest is decided in
 query above still describes what the stores hold:
 
 - **The plugin that owns the data fixes it.** A misread is a plugin bug, a known
-  error in a source becomes a labelled correction inside that source's plugin
+  error in a source becomes a labelled source correction inside that source's plugin
   with the original value kept visible and the error reported to the source, and
   a missing fact is fixed by the plugin stating more. One plugin never patches
   another's data.
