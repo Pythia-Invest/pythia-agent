@@ -238,6 +238,12 @@ the version either way).
 
 ## Amendment (2026-09-29): reference sources contribute like any plugin
 
+*Status on 2026-09-30: every plugin emits through core's ingest (amendment "core
+dispatches catalogue and resolve" below). The reference sources are still builder
+adapters that write the reference package, and A8 of ADR 0044 leaves their direct
+and prebuilt forms open, so "until that lands" below has not ended for them. Trust
+attached to a release no longer exists (amendment "no trust levels" below).*
+
 [ADR 0044](0044-product-direction.md) sets the direction that reference
 sources contribute subjects and evidence through the same contract as any
 plugin, replacing "Reference sources do not emit". The concern behind that
@@ -247,6 +253,12 @@ to a signed or hashed release rather than to a plugin name. Until that lands,
 the reference builder remains the only writer of the reference store.
 
 ## Amendment (2026-09-30): contract version 2, introduced subjects and a plugin's own addresses
+
+*Three consequences below are no longer true: the package dropped `canonical_assets`,
+`provider_chains` and the provisional-coin aliases in format 6 (ADR 0037, amendment
+"package format 6 states kinds and names no provider"), the Hyperliquid perp's
+address is `confirmed`, and no release grants or digests exist (amendment "no trust
+levels" below).*
 
 **Status: accepted and implemented** (roadmap stage 0). [ADR 0044](0044-product-direction.md)
 A1, A3 and A4 let any plugin introduce subjects under declared identifier

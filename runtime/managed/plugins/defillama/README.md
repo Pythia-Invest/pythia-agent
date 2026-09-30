@@ -31,10 +31,10 @@ attributions yet.
 | --- | --- | --- |
 | `catalogue` | `scope`: `protocols` or `pools`; optional `cursor` from the previous page | One page of a `ClaimBatch` in core's wire form (ADR 0038) as `data`, and `next_cursor` (null on the last page, which is `complete`) |
 
-Core's identity sync, which stage 0's ingest work adds, is to page the scopes
-in the order the contract declares them, `protocols` then `pools`, so a pool's
-protocol is known when the pool arrives, and ingest each batch. Until then the
-operation answers direct calls only.
+Core's identity sync pages the scopes in the order the contract declares them,
+`protocols` then `pools`, so a pool's protocol is known when the pool arrives,
+and ingests each batch. It runs on the investor's request (Settings, Data, Data
+sources, "Sync now"); nothing schedules it.
 
 A page holds at most 2,000 claims. Both scopes read both directories,
 `https://api.llama.fi/protocols` and `https://yields.llama.fi/pools`, and keep
@@ -88,7 +88,7 @@ beside chains that match, or an error with no page when none does.
 The `pools` scope takes the pools on those chains. The `protocols` scope takes
 the protocols that list one of them or run a pool there, so every pool's
 protocol is introduced. The last page of a scope is `complete`; by the claim
-contract, core's ingest is to mark what a complete scope no longer lists as not
+contract, core's ingest marks what a complete scope no longer lists as not
 seen, never unbound or deleted, so narrowing the setting will not remove
 subjects.
 

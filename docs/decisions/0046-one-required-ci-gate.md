@@ -1,4 +1,6 @@
-# 0037: One required CI gate
+# 0046: One required CI gate
+
+*Numbered 0037 until 2026-09-30, when the identity backbone ADR took the same number; renumbered 0046 and every link updated.*
 
 ## Context
 

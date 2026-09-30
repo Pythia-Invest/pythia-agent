@@ -38,7 +38,7 @@ The common reads are marked for the market-data owner (`details`, `series`,
 A page holds up to 2,000 active coins ordered by permanent coin ID, so offsets
 stay stable while ranks move. Continue with `next_cursor` until it is null. A
 coin activated or retired during a sync can shift one row; the next sync repairs
-it. Each row is shaped for the plugin addressing contract (ADR 0038, pending):
+it. Each row is shaped for the plugin addressing contract (ADR 0038):
 
 - `native_ref` (`provider: coinmarketcap`, `native_scope: coin`, numeric
   `native_id`), `level: crypto`, `asset_class: crypto`, `status`, `name`, `symbol`.
@@ -52,6 +52,11 @@ Symbols are not unique, and a shared contract address is not proof that two
 providers mean the same asset. Rows are source assertions; the core
 decides every join.
 
+These rows are in the older catalogue format (`provider_ref`), not the claim
+batch core's ingest reads, so Settings → Data → Data sources cannot sync this
+catalogue yet; the operation answers direct calls only
+([ADR 0044](../../../../docs/decisions/0044-product-direction.md), "Today").
+
 CoinMarketCap uses two network namespaces. The map names a token's platform by
 a platform ID (Ethereum is platform 1); info names each deployment's chain by
 that chain's own coin ID (Ethereum is coin 1027). The connector keeps them
@@ -59,7 +64,8 @@ distinct (`coinmarketcap:platform:<id>` and `coinmarketcap:coin:<id>`) with the
 chain's name, slug and symbol. Two chains can share a native coin (BNB Beacon
 Chain and BNB Smart Chain), so each `details` `platform_contracts` entry keeps the
 deployment's platform name beside its coin ID to tell them apart.
-That is enough for a core CAIP-2 table to derive CAIP-19 later. CoinMarketCap
+The contract's `addressing.chain_codes` maps those chain coin IDs to CAIP-2
+chains, which is what core needs to derive CAIP-19. CoinMarketCap
 lists wrapped representations for some native coins (SOL shows the wrapped-SOL
 mint); the mapping must not treat those addresses as the native asset.
 

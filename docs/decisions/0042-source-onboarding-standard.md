@@ -56,6 +56,10 @@ It takes time, and it is the only way to get data we can trust.
 - **Not trusted until sign-off.** Until then, a source does not create or change
   identity bindings, subjects or relations without review. It is also not
   enabled by default, and it is not the default source for any section.
+  *Superseded on 2026-09-30 except "not enabled by default": an enabled plugin
+  introduces subjects, binds and contributes evidence whatever its sign-off, and
+  any enabled source can be the default for a section (amendment "installing a
+  plugin means trusting it" below).*
 - **Authority follows derivation.** Only a value read directly from a source
   field carries `snapshot` authority. A rule output, a default or a model
   answer carries its own.
@@ -205,6 +209,10 @@ data and raw model exchanges stay on the device. Further source audits are pause
 strategy's universe or a second user needs them.
 
 ## Amendment (2026-09-29): builder rules name kinds of evidence
+
+*Amended on 2026-09-30: core's `BUNDLED` list is gone with the trust levels, and
+the builder's `snapshot` authority is gone with package format 6 (the
+amendments below).*
 
 **Context.** [ADR 0044](0044-product-direction.md) A2 requires rules that name
 kinds of evidence and trust levels, never sources, and that are published,

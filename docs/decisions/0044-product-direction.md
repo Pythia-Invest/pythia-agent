@@ -1,5 +1,11 @@
 # 0044: Product direction: mandate-driven agents, a decision ledger, and extensible data
 
+*Reading this record.* The rulings below are the first version. Amendments
+follow, and a later one can supersede part of an earlier one; the superseded
+passage carries a dated note and stays as history. What is built now is the
+"Today" list of the amendment "data any plugin can extend", which each later
+amendment keeps true.
+
 ## Context
 
 Pythia began as a local research companion. Much of the recent work built the
@@ -91,6 +97,9 @@ following:
      centrally and delivered as signed downloads. Pythia's services do not
      receive users' queries.
    - Licensed provider data is never redistributed.
+
+   *Superseded on 2026-09-29 by A1 below: any plugin can extend the data, and
+   central curation is a maintained default, not the path.*
 8. **Conflict handling.**
    - World identity conflicts are resolved centrally at build time, by rules,
      typed claims and AI-assisted review, with maintainer approval.
@@ -102,6 +111,9 @@ following:
      identifiers and reasoning only.
    - When a user's own vendor disagrees with the reference, the reference is
      the default and the user may override it locally.
+
+   *The first and last bullets are superseded by A2 below (2026-09-29), and the
+   reference is one source among the enabled plugins (2026-09-30).*
 9. **Identity scope.**
    - **Kept:** the four-level backbone and its relations, today's coverage,
      permanent identifiers (aliases, successors, and no identifier ever
@@ -110,10 +122,15 @@ following:
    - **Added only when a strategy needs them:** new kinds of subject.
    - **Paused until a strategy universe reaches a gap or a second user
      arrives:** new reference sources and further source audits.
+
+   *Superseded by A3 below (2026-09-29).*
 10. **Plugin trust levels.** Display, suggest identity, and confirm identity.
     Only confirming identity requires the full onboarding audit and sign-off.
     A display-only plugin, including a user's own licensed vendor, needs
     declared coverage and terms only.
+
+    *Superseded by A4 (2026-09-29), which the amendment of 2026-09-30 "installing
+    a plugin means trusting it" replaced in turn: there are no trust levels.*
 11. **Extension model.** Builders customise through files and plugins, and the
     core stays upstream and updatable.
     - **Files:** strategies, mandates, skills, prompts and agent roles.
@@ -182,7 +199,8 @@ It amends the following rulings:
   device".**
   - Reviewed curated answers over open data may ship in the reference package.
   - Gold labels on licensed data and raw model exchanges stay on the device.
-  - The trust levels in ruling 10 define what requires sign-off.
+  - The trust levels in ruling 10 define what requires sign-off. *(Superseded
+    on 2026-09-30: sign-off is Pythia's own audit record and no code reads it.)*
 - **The deferral of agent sandboxing** ends before the first live trading
   credential is connected.
 - **Hermes-native permissions** continue to govern reads. Approval of orders is
@@ -252,6 +270,10 @@ also narrows the rationale "Resolve shared facts once" and the rejected
 alternative "Fully local data resolution" to raising every world-level
 question on every installation.
 
+*Amended on 2026-09-30: A4 is superseded, and A2 and A3 weigh evidence by kind
+alone, with no trust levels (amendment "installing a plugin means trusting it"
+below).*
+
 **A1.** **Extensible data with maintained defaults** (replaces ruling 7).
    - Research, strategies, credentials, portfolios and ledgers stay on the
      investor's machine.
@@ -278,7 +300,8 @@ question on every installation.
      category does not make it irrelevant.
    - An agent's answer to any identity question is a suggestion and changes
      nothing until the user confirms it. *Modified on 2026-09-30: a calibrated
-     verdict above its threshold applies for read-only use, and everything
+     verdict above its threshold applies for read-only use (decided, not built;
+     see Today), and everything
      else stays a suggestion
      ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
 
@@ -397,10 +420,18 @@ central curator exists.
   delisted" toggle in the search panel hides them. Its page still gets no live
   price through the ticker. A security none of whose lines has a ticker is
   found too, as one row marked "No ticker" (amendment of 2026-09-30 below).
+- **A source corrects its own errors, labelled.** A plugin or a builder adapter
+  states a known error in its own source as a source correction: the field, the
+  source's original text and the reason, with the corrected value stated once in
+  the record and the original kept beside it, applied only while the source still
+  states the original. It keeps the source's own authority and is not the
+  investor's catalogue correction. The first entry retracts the issuer FIRDS
+  states on Concord Medical's ADR; the SEC state-code mis-keys wait for an emitter
+  of incorporation (amendment "a source adapter corrects its own source").
 - **A source switches off at once, from Settings.** Settings → Data → Data sources
   has a switch per source that pauses it: a paused plugin counts as disabled
-  for data, with no restart, and its subjects and saved references keep
-  resolving, labelled as paused. The section shows first which subjects only
+  for data, with no restart. The subjects only it supplies are hidden from
+  search and selection, while a saved reference still opens, labelled as paused. The section shows first which subjects only
   that source supplies and which saved watchlist and card entries name them.
   Enabling a plugin Hermes does not run, and disabling one for good, stay
   Hermes's commands ([ADR 0037](0037-identity-backbone.md), amendment
@@ -472,13 +503,15 @@ stage 0 work below.
 
 ### Consequences
 
-- **Rulings in other ADRs change as stage 0 lands:**
+- **Rulings in other ADRs changed when stage 0 landed:**
   - [ADR 0037](0037-identity-backbone.md): crypto keys only from the curated
     table; `snapshot` outranking `source_asserted`; `curated` at the top tier.
   - [ADR 0038](0038-plugin-addressing-contract.md): "Reference sources do not
-    emit".
+    emit" (plugins emit through core's ingest; the reference sources are still
+    builder adapters).
   - [ADR 0039](0039-local-first-reference-data-and-rights.md): a published
-    package, as a maintained default without extra authority.
+    package would be a maintained default without extra authority. None is
+    published.
   - [ADR 0042](0042-source-onboarding-standard.md): "The builder's reference
     sources are not plugins", and no subjects before sign-off, for plugins
     that introduce subjects.
@@ -1092,7 +1125,8 @@ third-party plugin's own maintainer.
 
 ### Status
 
-Decided; the plugin source-correction mechanism is being built; the verdict
+Decided; the plugin source-correction mechanism is built (amendment "a source
+adapter corrects its own source" below); the verdict
 ledger, thresholds and procedures are deferred until the first question type
 runs (their shape depends on its measurement). Open conflicts stay open
 questions. The platform works with them: facts held back show an open-conflict
@@ -1110,8 +1144,8 @@ What building the rest needs:
   can settle what it can.
 
 Only one piece of J1, a plugin's labelled source correction of its own
-source, is being built ahead of any question type, because it does not depend on a
-measurement. The mechanism gets its own amendment when it lands. The ledger
+source, was built ahead of any question type, because it does not depend on a
+measurement; it has its own amendment below. The ledger
 fields and the per-type threshold are deferred on
 purpose: a threshold is set from a gold-set measurement, and what a verdict
 must record is learned from the first type that runs. Until a type has a
@@ -1151,7 +1185,7 @@ raise them; none blocks the foundations):
   jurisdiction field disagrees with GLEIF and looks like a keying error
   (Theravance's code says California although its address is in the Cayman
   Islands, as GLEIF's is). Whether the SEC plugin states these as labelled source corrections (J1)
-  is undecided.
+  is undecided; the SEC record lists them as awaiting an emitter of incorporation.
 
 ### Rejected alternatives
 
@@ -1177,6 +1211,7 @@ raise them; none blocks the foundations):
 - **Keeping every agent answer a suggestion (A2 as written).** It leaves
   each investor clicking through every open conflict, which is the curator's
   work that the amendment "data any plugin can extend" rejected.
+
 ## Amendment (2026-09-30): a source adapter corrects its own source
 
 ### Context
