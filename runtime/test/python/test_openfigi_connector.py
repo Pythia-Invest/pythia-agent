@@ -2,7 +2,8 @@
 
 ZZ-prefixed ISINs and BBGZZ FIGIs below are fabricated identifiers, not securities. The Toyota answer is built by hand
 in the shape OpenFIGI gave on 2026-09-30 (country composite lines beside venue lines, one share-class FIGI); only its
-ISIN is real, and no provider response is kept.
+ISIN is real, and no provider response is kept. Exchange codes are real Bloomberg codes; the vocabulary decides what
+each is.
 """
 import importlib
 import importlib.util
@@ -71,7 +72,7 @@ def figi(stem):
 
 TOYOTA = 'JP3633400001'
 SHARE_CLASS, OTHER_CLASS = figi('BBGZZ0000S0'), figi('BBGZZ0000S2')
-JP, JT, JN, GR, GF, GS, X1, GM = (figi(stem) for stem in ('BBGZZ0000C1', 'BBGZZ0000L1', 'BBGZZ0000L2', 'BBGZZ0000C2',
+JP, JT, JU, GR, GF, GS, X1, GM = (figi(stem) for stem in ('BBGZZ0000C1', 'BBGZZ0000L1', 'BBGZZ0000L2', 'BBGZZ0000C2',
                                                           'BBGZZ0000L3', 'BBGZZ0000L4', 'BBGZZ0000L5', 'BBGZZ0000L6'))
 
 
@@ -81,9 +82,9 @@ def line(exch, number, composite, ticker, share_class=SHARE_CLASS):
             'securityType2': 'Common Stock', 'securityDescription': ticker}
 
 
-# The Japan (JP) and Germany (GR) composites, Tokyo (JT), Frankfurt (GF) and Stuttgart (GS) lines, a Japanese line on
-# a code the contract maps to no venue (JN), and a line without a share-class FIGI (X1).
-TOYOTA_LINES = [line('JP', JP, JP, '7203'), line('JT', JT, JP, '7203'), line('JN', JN, JP, '7203'),
+# The Japan (JP) and Germany (GR) composites, Tokyo (JT), Frankfurt (GF) and Stuttgart (GS) lines, Japannext's second
+# book (JU), and a trade-report line without a share-class FIGI (X1).
+TOYOTA_LINES = [line('JP', JP, JP, '7203'), line('JT', JT, JP, '7203'), line('JU', JU, JP, '7203'),
                 line('GR', GR, GR, 'TOM'), line('GF', GF, GR, 'TOM'), line('GS', GS, GR, 'TOM/A'),
                 line('X1', X1, figi('BBGZZ0000C3'), '7203USD', share_class=None)]
 
@@ -197,23 +198,53 @@ class OpenFigiClaims(unittest.TestCase):
         self.assertEqual(result['outcome'], 'ok', result)
         return {claim.native_ref.native_id: claim for claim in checked_batch('openfigi', result).claims}
 
-    def test_every_venue_line_is_a_figi_keyed_listing_claim_under_the_isin(self):
+    def test_every_line_is_a_figi_keyed_listing_claim_under_the_isin_and_none_is_dropped(self):
         claims = self.claims(TOYOTA_LINES)
-        # The country composites are not venue lines; each venue line carries its composite FIGI instead.
-        self.assertEqual(set(claims), {JT, JN, GF, GS, X1})
+        self.assertEqual(set(claims), {JP, JT, JU, GR, GF, GS, X1})
         tokyo = claims[JT]
         self.assertEqual({(item.scheme, item.value, item.role) for item in tokyo.identifiers},
                          {('figi', JT, 'self'), ('composite_figi', JP, 'self'), ('share_class_figi', SHARE_CLASS, 'self'),
                           ('isin', TOYOTA, 'self')})
         self.assertEqual((tokyo.level, tokyo.attributes.operating_mic, tokyo.attributes.ticker,
                           tokyo.attributes.asset_class), ('listing', 'XJPX', '7203', 'equity'))
-        self.assertEqual({figi: claims[figi].attributes.operating_mic for figi in claims},
-                         {JT: 'XJPX', JN: None, GF: 'XFRA', GS: 'XSTU', X1: None})
+        # Only an order book (an exchange code) names an operating MIC; every other line says why it names none.
+        self.assertEqual({figi: (claims[figi].attributes.operating_mic, claims[figi].attributes.venue_note)
+                          for figi in claims},
+                         {JT: ('XJPX', None), GF: ('XFRA', None), GS: ('XSTU', None),
+                          JP: (None, 'venue code JP is the JP composite, not a venue'),
+                          GR: (None, 'venue code GR is the DE composite, not a venue'),
+                          JU: (None, 'venue code JU is a second book on SBIJ (Japannext - X - Market); JE is the line there'),
+                          X1: (None, 'venue code X1 is a trade report (Tradecho Eu Apa), not an order book')})
         # A ticker is evidence only: never a key or identifier, and left out outside core's grammar.
         self.assertEqual({claim.native_ref.native_scope for claim in claims.values()}, {'figi'})
         self.assertFalse(any(item.scheme == 'ticker_mic' for claim in claims.values() for item in claim.identifiers))
         self.assertEqual((claims[GF].attributes.ticker, claims[GS].attributes.ticker), ('TOM', None))
         self.assertNotIn('share_class_figi', {item.scheme for item in claims[X1].identifiers})
+
+    def test_a_line_that_is_no_order_book_keeps_its_code_and_the_reason_in_the_vocabulary_words(self):
+        codes = ['GD', 'QT', 'XV', 'L3', 'GR', 'ER', 'ZZ', 'TT (Taiwan Stock Exchange)', 'BSE', None, 'UN', 'PQ', 'B2']
+        lines = [line(code, figi(f'BBGZZ0001{index:02d}'), None, 'SYN') for index, code in enumerate(codes)]
+        claims = list(self.claims(lines, isin=ISIN).values())
+        self.assertEqual([(claim.attributes.provider_venue, claim.attributes.operating_mic, claim.attributes.venue_note)
+                          for claim in claims],
+                         [('GD', 'XDUS', None),
+                          ('QT', None, 'venue code QT is a second book on XDUS (Boerse Duesseldorf - Quotrix); GD is the line there'),
+                          ('XV', None, 'venue code XV is a trade report (Cboe Europe BOTC), not an order book'),
+                          ('L3', None, 'venue code L3 is a dark venue (Tp Icap Uk Mtf - Liquidnet Cash Equity), not a public order book'),
+                          ('GR', None, 'venue code GR is the DE composite, not a venue'),
+                          ('ER', None, "venue code ER is unknown: no MIC resolved it through OpenFIGI's micCode filter"),
+                          ('ZZ', None, 'venue code ZZ is not in the vocabulary'),
+                          ('TT', 'XTAI', None),  # the descriptive suffix is not part of the code
+                          ('BSE', None, 'venue code BSE is unknown: a descriptive string on bond or structured lines, not an exchange code'),
+                          (None, None, 'the line carries no venue code'),
+                          ('UN', None, 'venue code UN is a US exchange line (New York Stock Exchange, Inc.) from unlisted '
+                                       'trading: the listing comes from SEC'),
+                          ('PQ', 'OTCM', None),  # OTC Markets is the one US code that maps
+                          ('B2', None, 'venue code B2 is a request-for-quote MTF (Bloomberg Trading Facility Limited), '
+                                       'not an order book')])
+        # An exchange the contract leaves unmapped is a packaging defect: it fails loudly, it is not parked quietly.
+        with self.assertRaisesRegex(ValueError, 'venue code GD is an exchange'):
+            mapping.claims(ISIN, [line('GD', figi('BBGZZ0002000'), None, 'SYN')], '2026-09-30T10:00:00Z', {})
 
     def test_a_differing_share_class_figi_stays_the_lines_own(self):
         # One line OpenFIGI files under another share class keeps it beside the ISIN, so core's join sees both.
@@ -223,12 +254,12 @@ class OpenFigiClaims(unittest.TestCase):
         self.assertIn(('share_class_figi', SHARE_CLASS, 'self'),
                       {(item.scheme, item.value, item.role) for item in claims[GF].identifiers})
 
-    def test_a_composite_on_a_mapped_code_stays_a_venue_line(self):
-        # AU is Australia's composite code, mapped to the ASX as the builder's home table does: its line is the ASX's.
-        asx, chix = figi('BBGZZ0000B1'), figi('BBGZZ0000B2')
-        claims = self.claims([line('AU', asx, asx, 'SYN'), line('AT', chix, asx, 'SYN')], isin=ISIN)
-        self.assertEqual({number: claim.attributes.operating_mic for number, claim in claims.items()},
-                         {asx: 'XASX', chix: None})
+    def test_au_is_australias_composite_and_at_is_the_asx_line(self):
+        asx, composite = figi('BBGZZ0000B1'), figi('BBGZZ0000B2')
+        claims = self.claims([line('AU', composite, composite, 'SYN'), line('AT', asx, composite, 'SYN')], isin=ISIN)
+        self.assertEqual({number: (claim.attributes.operating_mic, claim.attributes.venue_note)
+                          for number, claim in claims.items()},
+                         {composite: (None, 'venue code AU is the AU composite, not a venue'), asx: ('XASX', None)})
 
     def test_no_match_is_empty_a_provider_error_is_an_error_and_a_malformed_isin_is_refused(self):
         opener = Opener([[{'warning': 'No identifier found.'}], [{'error': 'Synthetic job error'}]])
@@ -240,6 +271,28 @@ class OpenFigiClaims(unittest.TestCase):
         refused = resolver(opener).invoke({'identifiers': {'isin': 'JP3633400002'}}, operation='resolve')
         self.assertEqual(refused['issues'][0]['code'], 'invalid_request')
         self.assertEqual(len(opener.requests), 2)  # the malformed ISIN never reached OpenFIGI
+
+
+class OpenFigiVocabulary(unittest.TestCase):
+    """The vocabulary says what every code is; the contract maps only its exchanges, and the two agree."""
+
+    def setUp(self):
+        self.codes = json.loads((ROOT / 'vocabulary.json').read_text())['codes']
+        self.venues = json.loads((ROOT / 'contract.json').read_text())['addressing']['venue_codes']
+
+    def test_the_contract_maps_exactly_the_exchange_codes(self):
+        exchanges = {code: entry['mic'] for code, entry in self.codes.items() if entry['kind'] == 'exchange'}
+        self.assertEqual(self.venues, exchanges)
+
+    def test_every_entry_has_what_its_reason_reads_and_a_second_book_names_a_real_main_on_its_mic(self):
+        fields = {'exchange': {'mic', 'name'}, 'second_book': {'mic', 'name', 'of'}, 'trade_report': {'mic', 'name'},
+                  'dark': {'mic', 'name'}, 'us_unlisted_trading': {'mic', 'name'}, 'rfq': {'mic', 'name'}, 'composite': {'name'}, 'unknown': {'note'}}
+        for code, entry in self.codes.items():
+            with self.subTest(code=code):
+                self.assertEqual(set(entry), {'kind'} | fields[entry['kind']])
+                if entry['kind'] == 'second_book':
+                    main = self.codes[entry['of']]
+                    self.assertEqual((main['kind'], main['mic']), ('exchange', entry['mic']))
 
 
 class OpenFigiRegistration(unittest.TestCase):
@@ -260,7 +313,7 @@ class OpenFigiRegistration(unittest.TestCase):
         self.assertEqual((result['outcome'], result['data']['results'][0]['outcome']), ('ok', 'found'))
         # Core dispatches `resolve` with the subject's identifiers and reads a claim batch back.
         batch = checked_batch('openfigi', tools[plugin.TOOLS['resolve']]['handler']({'identifiers': {'isin': TOYOTA}}))
-        self.assertEqual(len(batch.claims), 5)
+        self.assertEqual(len(batch.claims), 7)
         self.assertEqual(opener.requests, [{'jobs': 1, 'key': None}] * 2)
 
 

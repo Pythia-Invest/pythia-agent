@@ -104,7 +104,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | An identifier of a reference subject | `ref.assertions` | `source` | `source_record` names the link or rule for a derived value; a plain read has none | `retrieved_at` is the build's read; file dates are in `ref.release` | `authority`; the rule is in `source_record` |
 | A relation in the build | `ref.relations` | `source` | `source_record` | `retrieved_at` | `authority`; the rule is in `source_record` |
 | An identifier a plugin stated | `device_assertions` | `plugin` | `native_scope` and `native_id`, which key its `claims` row | `retrieved_at` | always a plugin's own statement |
-| A plugin's record and its placement | `claims` | `plugin` | `native_scope` and `native_id`; the `claim` JSON holds the record's own provenance, `source_record` and `adapter_version` included | `first_seen`, `last_seen` | `state`: joined, introduced, conflict, unmatched or not_seen |
+| A plugin's record and its placement | `claims` | `plugin` | `native_scope` and `native_id`; the `claim` JSON holds the record's own provenance, `source_record` and `adapter_version` included | `first_seen`, `last_seen` | `state`: joined, introduced, conflict, unmatched or not_seen; for an unmatched record the plugin's own reason, where it gives one, is `attributes.venue_note` in the `claim` JSON |
 | A plugin relation | `relations` | `plugin`, `source` | `source_record`, `source_version`, `adapter_version` | `retrieved_at` | `authority` |
 | A subject a plugin introduced, and its parent | `subjects` | `introduced_by` | its `claims` rows (`subject_id`) | `first_seen`, `last_seen` | the claim's `state` |
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
@@ -293,6 +293,24 @@ UNION ALL
 SELECT 'device', type, from_id, to_id, authority, plugin, source_record, retrieved_at
 FROM relations
 WHERE from_id IN (SELECT value FROM json_each(:family)) OR to_id IN (SELECT value FROM json_each(:family));
+```
+
+### Why was this record not placed?
+
+A plugin's record that core could not place on any subject is kept as `unmatched`.
+Where the plugin says why, its words are in the claim as emitted (OpenFIGI says
+"venue code XV is a trade report (Cboe Europe BOTC), not an order book"). This
+lists one plugin's unplaced records for an identifier, such as an ISIN; an empty
+`why_not_placed` means the plugin gave no reason, and the record stays
+unmatched for the join's own reason (two lines on one exchange, or no exchange):
+
+```sql
+-- example: unplaced-records
+SELECT native_id, state, json_extract(claim, '$.attributes.provider_venue') AS venue_code,
+       json_extract(claim, '$.attributes.venue_note') AS why_not_placed, last_seen
+FROM claims
+WHERE plugin = :plugin AND state = 'unmatched'
+  AND EXISTS (SELECT 1 FROM json_each(claim, '$.identifiers') WHERE json_extract(value, '$.value') = :value);
 ```
 
 ### What did a plugin add or change?

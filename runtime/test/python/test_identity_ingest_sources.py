@@ -170,6 +170,70 @@ class OpenFigiTest(IngestTest):
         self.assertEqual(frankfurt["view"]["contributors"][0]["plugin"], "pythia-openfigi")
         self.assertNoQuestions()
 
+    def test_a_line_that_is_no_order_book_is_kept_unplaced_with_its_reason_in_the_stored_claim(self):
+        lines = {"BBG000TYHNX8": ("XV", "TOMEUR"), "BBG000TYHNV0": ("GZ", None), "BBG000TYMNX2": ("GR", "TOM"),
+                 "BBG000TYSWX6": ("ER", "TOMUSD")}
+        done = self.answer(*((figi, code, ticker) for figi, (code, ticker) in lines.items()))
+        self.assertEqual(done["introduced"], 0)
+        self.assertEqual(self.world.identity.select("SELECT id FROM subjects"), [])
+        rows = self.world.identity.select(
+            "SELECT native_id, state, json_extract(claim, '$.attributes.provider_venue'),"
+            " json_extract(claim, '$.attributes.venue_note') FROM claims WHERE plugin = 'pythia-openfigi'")
+        self.assertEqual(sorted(tuple(row) for row in rows), [
+            ("BBG000TYHNV0", "unmatched", "GZ", "venue code GZ is a second book on XMUN (Boerse Muenchen - Gettex - Freiverkehr); GM is the line there"),
+            ("BBG000TYHNX8", "unmatched", "XV", "venue code XV is a trade report (Cboe Europe BOTC), not an order book"),
+            ("BBG000TYMNX2", "unmatched", "GR", "venue code GR is the DE composite, not a venue"),
+            ("BBG000TYSWX6", "unmatched", "ER", "venue code ER is unknown: no MIC resolved it through OpenFIGI's micCode filter")])
+        self.assertNoQuestions()
+
+    def test_a_country_composite_joins_the_reference_line_that_carries_its_figi_and_asks_nothing(self):
+        # The builder gives a US listing the composite FIGI when it finds no venue line, so OpenFIGI's US composite line
+        # (emitted now, no longer dropped) names that listing by FIGI: it joins, adds the ISIN as evidence, and places
+        # no venue line, introduces no subject and opens no question.
+        world = self.fresh(("asml.json",))
+        world.plugins = [self.openfigi]
+        line = "listing:figi:BBG000K6N6G7"
+        with closing(sqlite3.connect(world.path)) as db, db:
+            db.execute("UPDATE assertions SET value = 'BBG000K6MRN4' WHERE subject_id = ? AND scheme = 'figi'", (line,))
+        world.ref.close()
+        world.ref = store.open_reference(world.path)
+        composite = {"figi": "BBG000K6MRN4", "compositeFIGI": "BBG000K6MRN4", "shareClassFIGI": "BBG001SCG0R3",
+                     "ticker": "ASML", "exchCode": "US", "name": "ASML HOLDING NV", "securityType": "Common Stock",
+                     "securityType2": "Common Stock", "marketSector": "Equity", "securityDescription": "ASML"}
+        batch = self.mapping.claims("USN070592100", [composite], "2026-09-30T10:00:00Z", self.openfigi.manifest.venue_codes)
+        done = ingest.ingest(world.identity, world.ref, self.openfigi, identity.batch_from_json(batch),
+                             plugins=world.plugins)
+        self.assertEqual((done["joined"], done["introduced"], done["conflicts"], done["subjects"]), (1, 0, 0, [line]))
+        self.assertEqual(self.placed(self.openfigi, "BBG000K6MRN4", world), (line, "joined"))
+        isin = world.identity.select("SELECT subject_id FROM device_assertions WHERE scheme = 'isin' AND value = 'USN070592100'")
+        self.assertEqual([row[0] for row in isin], ["security:figi:BBG001SCG0R3"])
+        self.assertEqual(world.identity.select("SELECT id FROM subjects"), [])
+        self.assertNoQuestions(world)
+
+    def test_claims_stored_before_venue_note_existed_are_placed_again_to_the_same_result(self):
+        # `venue_note` is a new key of every wire record, so each stored claim differs from a re-emitted one once. That
+        # re-place changes nothing: same placements, same subjects and identifiers, no new question.
+        lines = [("BBG000TYFRN2", "GF", "TOM"), ("BBG000TYLND5", "LN", "TYT"), ("BBG000TYHNX8", "XV", "TOMEUR")]
+
+        def held():
+            world = self.world.identity
+            return ([tuple(row) for row in world.select("SELECT native_id, state, subject_id FROM claims ORDER BY 1")],
+                    [tuple(row) for row in world.select("SELECT id, parent_id FROM subjects ORDER BY 1")],
+                    [tuple(row) for row in world.select("SELECT subject_id, scheme, value FROM device_assertions ORDER BY 1, 2, 3")],
+                    world.queue_items(which="open"))
+        self.answer(*lines)
+        before = held()
+        with self.world.identity.db:  # as stored by the release before: no `venue_note` key in any record
+            for native_id, claim in self.world.identity.select("SELECT native_id, claim FROM claims"):
+                old = json.loads(claim)
+                del old["attributes"]["venue_note"]
+                self.world.identity.db.execute("UPDATE claims SET claim = ? WHERE native_id = ?", (json.dumps(old), native_id))
+        self.answer(*lines)
+        self.assertEqual(held(), before)
+        self.assertEqual({"venue_note" in json.loads(row[0])["attributes"] for row in
+                          self.world.identity.select("SELECT claim FROM claims")}, {True})  # each was stored again
+        self.assertNoQuestions()
+
     def test_an_answer_with_two_lines_on_one_exchange_or_another_ticker_there_joins_no_line(self):
         # Two Frankfurt lines in the answer (say USD and EUR) and one in the build: which one is it? Neither joins.
         self.answer(("BBG000TYFRN2", "GF", "TOMUSD"), ("BBG000TYHNX8", "GF", "TOM"))

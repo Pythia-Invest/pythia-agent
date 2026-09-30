@@ -189,6 +189,24 @@ FROM relations
 WHERE from_id IN (SELECT value FROM json_each(:family)) OR to_id IN (SELECT value FROM json_each(:family));
 ```
 
+## Why was this record not placed?
+
+A plugin's record that core could not place on any subject is kept as `unmatched`.
+Where the plugin says why, its words are in the claim as emitted (OpenFIGI says
+"venue code XV is a trade report (Cboe Europe BOTC), not an order book"). This
+lists one plugin's unplaced records for an identifier, such as an ISIN; an empty
+`why_not_placed` means the plugin gave no reason, and the record stays
+unmatched for the join's own reason (two lines on one exchange, or no exchange):
+
+```sql
+-- example: unplaced-records
+SELECT native_id, state, json_extract(claim, '$.attributes.provider_venue') AS venue_code,
+       json_extract(claim, '$.attributes.venue_note') AS why_not_placed, last_seen
+FROM claims
+WHERE plugin = :plugin AND state = 'unmatched'
+  AND EXISTS (SELECT 1 FROM json_each(claim, '$.identifiers') WHERE json_extract(value, '$.value') = :value);
+```
+
 ## What did a plugin add or change?
 
 ```sql
