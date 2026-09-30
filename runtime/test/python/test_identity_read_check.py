@@ -92,13 +92,6 @@ class ReadCheckTest(Fixture):
         self.assertEqual(self.check(currency="EUR", venue="AMS"), "verified")
         self.assertEqual(self.quote()["status"], "ready")
 
-    def test_an_unaudited_source_never_stamps_verified(self):
-        patch = unittest.mock.patch.object(type(self.yahoo.manifest), "unaudited", True)
-        patch.start()
-        self.addCleanup(patch.stop)
-        self.assertEqual(self.check(currency="EUR", venue="AMS"), "unverified")
-        self.assertEqual(self.label(), ("ready", "derived", False, "source not audited"))
-
     def test_a_read_is_checked_once_per_window(self):
         with unittest.mock.patch.object(self.checks.time, "monotonic", return_value=1000.0):
             self.assertEqual([self.check(currency="EUR"), self.check(currency="EUR")], ["verified", "verified"])

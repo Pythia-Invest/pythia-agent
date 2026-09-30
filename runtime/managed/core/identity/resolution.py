@@ -29,7 +29,6 @@ class QueueReason(StrEnum):
     NO_KEY = "no_key"                                # residual: no identifier the join can use
     UNDERLYING_IDENTIFIER = "underlying_identifier"  # residual: carries its underlying's ISIN
     AMBIGUOUS = "ambiguous"                          # residual: several candidates fit
-    UNAUDITED = "unaudited"                          # residual: a match from a source not yet signed off (ADR 0042)
     IDENTIFIER = "identifier"                        # conflict: one key claimed by two subjects, or two values
     BINDING = "binding"                              # conflict: new evidence contradicts a binding
     RELATION = "relation"                            # conflict: a typed edge contradicts identifiers
@@ -37,8 +36,7 @@ class QueueReason(StrEnum):
 
 
 REASONS = {
-    QueueItemKind.RESIDUAL: frozenset({QueueReason.NO_KEY, QueueReason.UNDERLYING_IDENTIFIER, QueueReason.AMBIGUOUS,
-                                       QueueReason.UNAUDITED}),
+    QueueItemKind.RESIDUAL: frozenset({QueueReason.NO_KEY, QueueReason.UNDERLYING_IDENTIFIER, QueueReason.AMBIGUOUS}),
     QueueItemKind.CONFLICT: frozenset({QueueReason.IDENTIFIER, QueueReason.BINDING, QueueReason.RELATION, QueueReason.GUARD}),
 }
 
@@ -191,9 +189,9 @@ def contradicts(claimed: Iterable[IdentifierValue], evidence: Iterable[Identifie
     """Rule 2: identifier evidence contradicts an association.
 
     `claimed`: the record's identifiers; only those naming the record itself count.
-    `evidence`: the confirm-level assertions on the chosen subject and its ancestors (display-level evidence never
-    blocks; callers leave it out). The T0 assertions of a single-valued scheme, valid at `as_of`, contradict when a
-    source asserts only other values, whoever it is, so where confirm-level sources disagree every answer is blocked.
+    `evidence`: the counting assertions on the chosen subject and its ancestors (a disabled plugin's never block;
+    callers leave them out). The T0 assertions of a single-valued scheme, valid at `as_of`, contradict when a
+    source asserts only other values, whoever it is, so where sources disagree every answer is blocked.
     One source that asserts several values contradicts none of them. With `unanimous` (the user's answer), only
     evidence whose sources agree contradicts.
     """
@@ -248,10 +246,9 @@ def decide(verdict: Verdict, item: QueueItem, *, claimed: Iterable[IdentifierVal
     """The authority rule (ADR 0037), identical for every resolver.
 
     A verdict may confirm in the absence of identifier proof, never against it:
-    contradicting confirm-level identifier evidence and the receipt guard always block. Likewise
+    contradicting identifier evidence and the receipt guard always block. Likewise
     "not a match" is blocked when the record's own identifiers name the candidate. The user's
-    answer is refused only by unanimous identifier proof: where confirm-level contributors
-    disagree, the user decides. If the resolver found several candidates, or a standing `prior`
+    answer is refused only by unanimous identifier proof: where contributors disagree, the user decides. If the resolver found several candidates, or a standing `prior`
     verdict on the item gives a different answer, nothing is confirmed. A model verdict confirms
     only at or above the relation's gold-calibrated `threshold`; without one it suggests.
     The queue keeps an agent answer that would take effect as a suggestion.

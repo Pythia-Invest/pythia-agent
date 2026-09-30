@@ -20,7 +20,7 @@ from test_identity_ingest import (
 )
 from test_identity_queue import load_core
 from test_reference_package import make_package
-from pythia_identity_fixture import device, ingest, page, reference_package, search, store, trust  # noqa: E402
+from pythia_identity_fixture import device, ingest, page, reference_package, search, store  # noqa: E402
 
 
 class DeFiPageTest(IngestTest):
@@ -42,7 +42,7 @@ class DeFiPageTest(IngestTest):
 
     def test_tokens_named_by_caip19_alone_are_kept_and_placed(self):
         world = self.fresh(("asml.json", "failures.json", "crypto.json"))
-        llama = source("llama", level="market", display=True, scopes=("protocols", "pools"),
+        llama = source("llama", level="market", scopes=("protocols", "pools"),
                        introduces={"market": ["native"], "protocol": ["native"], "listing": ["caip19"]},
                        native=({"native_scope": "protocol", "level": "protocol"},))
         protocols, pools = self.pages(llama)
@@ -182,19 +182,21 @@ class OpenFigiTest(IngestTest):
         self.answer(("BBG000TYSWX6", "GS", "TOM"))
         self.assertEqual(self.placed(self.openfigi, "BBG000TYSWX6"), (self.line("XSTU"), "joined"))
 
-    def test_a_display_plugins_line_on_the_exchange_never_blocks_the_join(self):
-        community = source("community", introduces={"listing": ["isin", "figi"]}, display=True)
+    def test_another_plugins_line_on_the_exchange_makes_a_currency_less_answer_ambiguous(self):
+        # Another enabled plugin's USD line there counts like the build's: a second Frankfurt line, so which is it?
+        community = source("community", introduces={"listing": ["isin", "figi"]})
         self.world.plugins = [self.openfigi, community]
         self.ingest(community, record(community, "TOM.F", ("isin", TOYOTA_ISIN), ("figi", "BBG000TYHNX8"),
                                       operating_mic="XFRA", currency="USD"))
         self.assertEqual(device.subject_row(self.world.identity, self.line("XFRA", "USD"))["parent_id"], TOYOTA)
         self.answer(("BBG000TYFRN2", "GF", "TOM"))
-        self.assertEqual(self.placed(self.openfigi, "BBG000TYFRN2"), (self.line("XFRA"), "joined"))
+        self.assertEqual(self.placed(self.openfigi, "BBG000TYFRN2"), (None, "unmatched"))  # left unresolved
+        self.assertNoQuestions()
 
-    def test_a_confirm_level_line_record_gives_the_parent_whoever_introduced_the_line(self):
-        # A display plugin's London line with no security, and OpenFIGI's, in either order: the line sits under Toyota.
+    def test_a_line_record_that_names_the_parent_gives_it_whoever_introduced_the_line(self):
+        # A community plugin's London line with no security, and OpenFIGI's, in either order: the line sits under Toyota.
         london = "listing:figi:BBG000TYLND5"
-        community = source("community", introduces={"listing": ["figi"]}, display=True)
+        community = source("community", introduces={"listing": ["figi"]})
         outcomes = []
         for community_first in (True, False):
             world = self.world = self.fresh(("toyota.json",))
@@ -209,12 +211,12 @@ class OpenFigiTest(IngestTest):
         self.assertEqual(outcomes[0], outcomes[1])
         self.assertEqual(outcomes[0][0], TOYOTA)
 
-    def test_a_display_line_under_another_security_never_carries_toyotas_identifiers_there(self):
-        # A display plugin puts the London line under ASML; OpenFIGI answers it for Toyota. In either order the line
-        # sits under Toyota, ASML's security takes none of Toyota's values and asks nothing, and a later Frankfurt
-        # answer still joins the build's one Frankfurt line.
+    def test_two_plugins_naming_different_securities_for_a_line_leave_it_without_a_parent(self):
+        # A community plugin puts the London line under ASML; OpenFIGI answers it for Toyota. In either order the line
+        # has no parent (they disagree, so neither wins), ASML's security takes none of Toyota's values and asks
+        # nothing, and a later Frankfurt answer still joins the build's one Frankfurt line.
         asml, london = "security:isin:NL0010273215", "listing:figi:BBG000TYLND5"
-        community = source("community", introduces={"listing": ["figi"]}, display=True)
+        community = source("community", introduces={"listing": ["figi"]})
         outcomes = []
         for community_first in (True, False):
             world = self.world = self.fresh(("toyota.json", "asml.json"))
@@ -232,10 +234,10 @@ class OpenFigiTest(IngestTest):
             self.answer(("BBG000TYFRN2", "GF", "TOM"))
             self.assertEqual(self.placed(self.openfigi, "BBG000TYFRN2", world), (self.line("XFRA"), "joined"))
             outcomes.append(device.subject_row(world.identity, london)["parent_id"])
-        self.assertEqual(outcomes, [TOYOTA, TOYOTA])
+        self.assertEqual(outcomes, [None, None])
 
     def test_a_line_with_no_currency_whose_isin_names_two_securities_is_no_line_core_adds(self):
-        # A confirm-level source states Toyota's ISIN for another security too: which security's Frankfurt line is it?
+        # A source states Toyota's ISIN for another security too: which security's Frankfurt line is it?
         world = self.world = self.fresh(("toyota.json", "asml.json"))
         vendor = source("vendor", level="security")
         world.plugins = [self.openfigi, vendor]
@@ -263,7 +265,7 @@ class OpenFigiTest(IngestTest):
                                                 "authority": "source_asserted", "provenance": {
                                                     **PROVENANCE, "source": "fixture", "source_record": "firds"}}]})
         self.world.ref.close()
-        self.world.ref = store.open_reference(path, "confirm")
+        self.world.ref = store.open_reference(path)
         self.world.rekey(path)
         self.assertEqual((device.current_id(self.world.ref, self.world.identity, london),
                           self.world.identity.bound_subject(ref), self.world.subject(london)["id"]), (held, held, held))
@@ -292,7 +294,7 @@ class OpenFigiTest(IngestTest):
 
 
 class OperationFixture(unittest.TestCase):
-    """Core loaded with an installed confirm-level package, fixture plugins and a stand-in for Hermes's tool registry."""
+    """Core loaded with an installed package, fixture plugins and a stand-in for Hermes's tool registry."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -306,7 +308,7 @@ class OperationFixture(unittest.TestCase):
         from pythia_core_queue_fixture import identity_ops, ingest_ops, queue_ops
         from pythia_core_queue_fixture.identity import page as core_page, validate_manifest
         self.ingest_ops, self.queue_ops, self.core_page, self.validate = ingest_ops, queue_ops, core_page, validate_manifest
-        reference_package.install(make_package(root / "package", source=world.path), root / "core", trust.CONFIRM)
+        reference_package.install(make_package(root / "package", source=world.path), root / "core")
         self.plugins, self.calls, self.answers = [], [], {}
         self.enterContext(unittest.mock.patch.object(identity_ops, "installed", lambda: self.plugins))
         registry = types.SimpleNamespace(dispatch=self.dispatch)

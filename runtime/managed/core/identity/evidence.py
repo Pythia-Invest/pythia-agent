@@ -1,30 +1,23 @@
-"""Evidence counts by its kind and its contributor's trust level, never by its origin (ADR 0044 A1, A2, A4; ADR 0037,
-amendment of 2026-09-30).
+"""Evidence counts by its kind, never by its origin or a level (ADR 0044 A1, A2 and its amendment of 2026-09-30:
+installing a plugin means trusting it; ADR 0037, amendment of 2026-09-30).
 
-A reference package's rows count at the package's trust level (`trust.package_level`, carried by the connection
-`store.open_reference` returns); a plugin's claims count at its plugin's (`installed()`, `Manifest.unaudited`). Only
-confirm-level evidence proves or blocks an association (`resolution.decide`). Display-level evidence is shown with its
-source and never proves, blocks or confirms. Where different confirm-level sources assert different values of a
-single-valued scheme, the fact is contested: every value is kept, none is applied, and the user's answer decides it on
-this device (`conflicts`). One source's several values (OpenFIGI's two German composite FIGIs) are not a contest.
+The reference package and every enabled plugin are equal contributors. Their statements prove or block an association
+(`resolution.decide`). What a plugin that is disabled or removed stated stays on the device, shown with its source: it
+keeps its subjects' labels and identifiers, and never proves, blocks or contests while the plugin is off. Where
+different sources assert different values of a single-valued scheme, the fact is contested: every value is kept, none
+is applied, and the user's answer decides it on this device (`conflicts`). One source's several values (OpenFIGI's
+two German composite FIGIs) are not a contest.
 """
 from __future__ import annotations
 
-import sqlite3
 from datetime import date
 from typing import Any, Iterable
 
 from .model import IdentifierAssertion
 from .schemes import SINGLE_VALUED
-from .trust import CONFIRM, DISPLAY
 from .vocabulary import Authority
 
 PACKAGE = "reference"  # the reference package as a contributor: its evidence's plugin, and its questions' tag
-
-
-def level(ref: sqlite3.Connection) -> str:
-    """The trust level of the reference `ref` reads: display unless its package is granted confirm."""
-    return getattr(ref, "level", DISPLAY)
 
 
 def disagree(assertions: Iterable[IdentifierAssertion]) -> bool:
@@ -34,23 +27,22 @@ def disagree(assertions: Iterable[IdentifierAssertion]) -> bool:
                                                             for item in items}) > 1
 
 
-def weigh(assertions: Iterable[IdentifierAssertion], granted: str, as_of: str | None = None) -> dict[str, Any]:
-    """One contributor's assertions at the trust level `granted` to it (`weigh_each`)."""
-    return weigh_each(((item, granted) for item in assertions), as_of)
+def weigh(assertions: Iterable[IdentifierAssertion], as_of: str | None = None) -> dict[str, Any]:
+    """Assertions that all count (a reference package's; see `weigh_each`)."""
+    return weigh_each(((item, True) for item in assertions), as_of)
 
 
-def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, str]], as_of: str | None = None) -> dict[str, Any]:
-    """Assertions, each at the trust level granted to its contributor (a device subject's plugins and the package),
-    in the order they are stored.
+def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, bool]], as_of: str | None = None) -> dict[str, Any]:
+    """Assertions, each with whether its contributor counts now (the package and the enabled plugins; a disabled or
+    removed plugin's do not), in the order they are stored.
 
-    `evidence` holds the confirm-level ones (they prove and block), `shown` the display-level ones. `values` gives
-    each scheme the value its current confirm-level assertions agree on, else the one its display-level ones agree
-    on; where only one source asserts several, its first. `contested` maps a single-valued scheme whose current
-    confirm-level sources disagree (`disagree`) to those assertions: it has no value. Display-level sources that
-    disagree give none and contest nothing."""
+    `evidence` holds the ones that count (they prove and block), `shown` the others. `values` gives each scheme the
+    value its current counting assertions agree on, else the one the shown ones agree on; where only one source asserts
+    several, its first. `contested` maps a single-valued scheme whose current counting sources disagree (`disagree`)
+    to those assertions: it has no value. Shown sources that disagree give none and contest nothing."""
     items = list(assertions)
-    evidence = [item for item, granted in items if granted == CONFIRM]
-    shown = [item for item, granted in items if granted != CONFIRM]
+    evidence = [item for item, counts in items if counts]
+    shown = [item for item, counts in items if not counts]
     today = as_of or date.today().isoformat()
     values: dict[str, str] = {}
     contested: dict[str, list[IdentifierAssertion]] = {}
@@ -71,10 +63,10 @@ def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, str]], as_of: str
 
 def show(subject: dict[str, Any]) -> None:
     """The view's identifier fields from the subject's values: a contested scheme shows none, and the view lists
-    each contested scheme's values with their sources (labelled as the page names sources) and display-level evidence
-    with its source. `provenance` names where each identifier shown comes from: the first assertion stating it, at its
-    contributor's trust level, or the user where their answer decided a contested value (`build_questions`). Its
-    contributor is the plugin that stated it on the device (`contributed`, by evidence ID), else the reference package."""
+    each contested scheme's values with their sources (labelled as the page names sources) and what a disabled plugin
+    stated, with its source. `provenance` names where each identifier shown comes from: the first assertion stating it, or the
+    user where their answer decided a contested value (`build_questions`). Its contributor is the plugin that stated
+    it on the device (`contributed`, by evidence ID), else the reference package."""
     from .page import LABELS  # page composition reads subjects: imported when used
     values, view = subject["values"], subject["view"]
     listing = subject["listing"]
@@ -87,14 +79,13 @@ def show(subject: dict[str, Any]) -> None:
         view["issuer"].update(lei=values.get("lei"), cik=values.get("cik"))
     if view.get("security"):
         view["security"]["isin"] = values.get("isin")
-    stated = [(item, CONFIRM) for item in subject["evidence"]] + [(item, DISPLAY) for item in subject["shown"]]
+    stated = [*subject["evidence"], *subject["shown"]]
     view["provenance"] = {}
     for scheme, value in view["identifiers"].items():
-        item, granted = next(((item, granted) for item, granted in stated
-                              if item.scheme == scheme and item.value == value), (None, None))
+        item = next((item for item in stated if item.scheme == scheme and item.value == value), None)
         if item is not None:
             view["provenance"][scheme] = {
-                "source": item.provenance.source, "level": granted,
+                "source": item.provenance.source,
                 "plugin": subject.get("contributed", {}).get(item.evidence_id, PACKAGE),
                 "authority": str(Authority.USER_ATTESTED if scheme in subject.get("attested", ()) else item.authority)}
     view.pop("contested", None)

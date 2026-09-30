@@ -5,7 +5,7 @@ A release never rewrites a saved ID: it records each re-key in `id_aliases`, and
 names a subject (bindings, queue items, verdicts, resolve misses, read checks, and the device subjects with their
 parents, assertions, relations and placed claims) through those chains, once, in one transaction recorded against
 the release ID; after writing device aliases, core runs it `again` (with no release installed, for device aliases
-alone). Each step also follows the provisional IDs confirm-level contracts alias to the subjects they address
+alone). Each step also follows the provisional IDs contracts alias to the subjects they address
 (`declared.aliases`), so a row saved under a coin plugin's provisional ID follows its curated asset although the
 package names no provider. A new release that holds a device subject under another ID (a line a plugin introduced,
 now in the build) aliases it there first (`covered`). An assertion a row cites moved with its subject, so the row
@@ -21,13 +21,11 @@ from dataclasses import replace
 from typing import Callable, Mapping
 
 from . import device
-from . import evidence as weighing
 from .model import ProviderRef
 from .subject import _assertion, load_subject
 from .resolution import question_key
 from .schemes import Level, subject_kind
 from .store import IdentityStore
-from .trust import CONFIRM
 
 REKEYED = "rekeyed_release"     # identity.sqlite3 metadata: the release local rows were last re-pointed through
 VANISHED = "vanished_subjects"  # JSON list: reference subjects local rows name that the release neither holds nor aliases
@@ -116,10 +114,10 @@ KEYED_BY = {("listing", "figi"): "figi", ("listing", "caip19"): "caip19", ("secu
 
 
 def covered(ref: sqlite3.Connection | None, store: IdentityStore) -> dict[str, str]:
-    """Device subjects a confirm-level release now holds under another ID: the one reference subject of the kind that
-    asserts the identifier a device subject is keyed by (a line a plugin introduced by its FIGI, now in the build),
-    by device subject (ADR 0037, amendment "ingest"). A display-level release re-points no saved ID."""
-    if ref is None or weighing.level(ref) != CONFIRM:
+    """Device subjects a release now holds under another ID: the one reference subject of the kind that asserts the
+    identifier a device subject is keyed by (a line a plugin introduced by its FIGI, now in the build), by device
+    subject (ADR 0037, amendment "ingest")."""
+    if ref is None:
         return {}
     found = {}
     for (subject,) in store.select("SELECT id FROM subjects WHERE kind IN ('listing', 'security', 'issuer')"):

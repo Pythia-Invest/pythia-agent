@@ -1,27 +1,21 @@
-"""Evidence counts by its kind and its contributor's trust level, never by its origin (ADR 0044 A1, A2, A4; ADR 0037,
-amendment of 2026-09-30): a contested fact decides nothing until the user answers, display-level evidence proves and
-blocks nothing, and a later release that contradicts the user's answer asks again."""
+"""Evidence counts by its kind, never by its origin or a level (ADR 0044 A1, A2 and its amendment of 2026-09-30; ADR
+0037, amendment of 2026-09-30): a contested fact decides nothing until the user answers, and a later release that
+contradicts the user's answer asks again."""
 import contextlib
-import io
 import json
 import sqlite3
-from pathlib import Path
 
 from test_identity_build_questions import (
     ISSUER, NAME, NASDAQ, NOTE, OPERATOR, OPERATOR_ISSUER, RECEIPT, RECEIPT_OF, REGISTRANT, SECURITY,
     BuildQuestionFixture, issuer_question,
 )
 from test_identity_contracts import PROVENANCE, assertion_row, identity, insert
-from test_identity_page import ASML, BTC, CONTRACTS, plugin
+from test_identity_page import ASML, plugin
 from test_identity_queue import AS_OF, NOW, QueueFixture, answer
-from test_reference_package import make_package
-from pythia_identity_fixture import page, queue, reference_package, store, trust  # noqa: E402
+from pythia_identity_fixture import page  # noqa: E402
 
 A, B = "NL0010273215", "NL0006034001"  # ASML's ISIN, and another company's
 USER = {"user_turn": "desk:identity-verdict:test"}
-RECORD = {"level": "listing", "provenance": PROVENANCE, "attributes": {"name": "ASML Holding"},  # EODHD's, naming A
-          "identifiers": [{"scheme": "isin", "value": A}],
-          "native_ref": {"provider": "eodhd", "native_id": "ASML.AS", "native_scope": "catalogue"}}
 
 
 def add(path, subject, scheme, value, source, authority="source_asserted"):
@@ -33,7 +27,7 @@ def add(path, subject, scheme, value, source, authority="source_asserted"):
 
 
 class ContestedTest(QueueFixture):
-    def test_two_confirm_level_isins_that_disagree_block_both_answers_and_mark_the_fact_contested(self):
+    def test_two_sources_isins_that_disagree_block_both_answers_and_mark_the_fact_contested(self):
         add(self.path, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN
         subject = page.load_subject(self.ref, ASML)
         self.assertEqual(subject["view"]["contested"], {"isin": [{"value": B, "sources": ["vendor"]},
@@ -46,7 +40,7 @@ class ContestedTest(QueueFixture):
                 self.assertEqual((item.kind, item.reason), ("conflict", "binding"))
                 agent = self.submit(item, "agent")
                 self.assertEqual(agent["outcome"], "blocked")
-                user = self.submit(item, "user", **USER)  # where confirm-level evidence disagrees, the user decides
+                user = self.submit(item, "user", **USER)  # where evidence disagrees, the user decides
                 self.assertEqual((user["outcome"], user["state"]), ("confirmed", "resolved"))
 
     def test_one_sources_two_composite_figis_are_not_a_contest(self):
@@ -61,10 +55,10 @@ class ContestedTest(QueueFixture):
             {"value": "BBG000BDTBL9", "sources": ["vendor"]}, {"value": "BBG000C1HSN8", "sources": ["OpenFIGI"]},
             {"value": "BBG000K6MRN4", "sources": ["OpenFIGI"]}]})
 
-    def test_a_user_answer_is_refused_only_under_unanimous_confirm_level_proof(self):
-        item = self.ask(answer(("isin", B)))  # the record names another ISIN than every confirm-level assertion
+    def test_a_user_answer_is_refused_only_under_unanimous_proof(self):
+        item = self.ask(answer(("isin", B)))  # the record names another ISIN than every assertion
         self.assertEqual(self.submit(item, "user", **USER)["outcome"], "blocked")
-        add(self.path, SECURITY, "isin", B, "vendor")  # a second confirm-level contributor names the record's ISIN
+        add(self.path, SECURITY, "isin", B, "vendor")  # a second contributor names the record's ISIN
         self.assertEqual(self.submit(item, "user", **USER)["outcome"], "confirmed")
 
     def test_none_is_refused_when_one_candidates_own_evidence_names_the_record(self):
@@ -78,20 +72,6 @@ class ContestedTest(QueueFixture):
                                   plugins=("eodhd",), provider_ref=batch.claims[0].native_ref)
         self.identity.put_queue_item(item)
         self.assertEqual(self.submit(item, "user", relation="none", chosen_id=None, **USER)["outcome"], "blocked")
-
-    def test_display_level_evidence_neither_blocks_nor_corroborates(self):
-        display = store.open_reference(self.path, trust.DISPLAY)
-        self.addCleanup(display.close)
-        subject = page.load_subject(display, ASML)
-        self.assertEqual(subject["evidence"], [])
-        self.assertEqual(subject["view"]["identifiers"]["isin"], A)  # shown, with its source
-        self.assertIn({"scheme": "isin", "value": A, "source": "gleif"}, subject["view"]["shown"])
-        stale = self.ask(answer(("isin", B)), subject=subject)  # the display evidence disagrees: no conflict
-        agreeing = self.ask(answer(("isin", A), native_id="ASML2.AS"), subject=subject)  # it agrees: no binding
-        self.assertEqual([(item.kind, item.reason) for item in (stale, agreeing)], [("residual", "no_key")] * 2)
-        refused = queue.submit(self.identity, display, item_id=agreeing.id, resolver="user", relation="unrelated",
-                               chosen_id=ASML, now=NOW, as_of=AS_OF, **USER)
-        self.assertEqual(refused["outcome"], "no_match", "display evidence naming the instrument proves nothing")
 
     def test_the_same_evidence_under_other_contributors_decides_identically(self):
         """Who states a value changes nothing: the reference build's source and a vendor decide alike."""
@@ -119,40 +99,6 @@ class ContestedTest(QueueFixture):
 
 
 class AnswerTest(BuildQuestionFixture):
-    def core(self):
-        from pythia_core_queue_fixture import identity as core
-        from pythia_core_queue_fixture.identity import page as core_page
-        return core, core_page
-
-    def test_a_display_package_serves_search_and_pages_but_confirms_nothing(self):
-        core, core_page = self.core()
-        info = {name: core_page.PluginInfo(key=f"pythia-{name}", manifest=core.validate_manifest(CONTRACTS[name]))
-                for name in ("coingecko", "eodhd")}
-        self.plugins = [info["coingecko"]]
-        for day, level in (("26", "display"), ("27", "confirm")):
-            with self.subTest(level=level):
-                out = make_package(Path(self.tmp.name) / level, f"reference-202609{day}", source=self.world(level))
-                flag = ["--display"] if level == "display" else []
-                with contextlib.redirect_stdout(io.StringIO()):
-                    self.assertEqual(reference_package.main(["install", str(out), "--data-dir", str(self.data),
-                                                             *flag]), 0)
-                self.assertEqual(reference_package.status(self.data)["installed"]["trust"], level)
-                found = json.loads(self.ops.search({"query": "ASML"}))
-                self.assertEqual((found["outcome"], bool(found["data"]["groups"])), ("ok", True))
-                view = self.page(ASML)
-                self.assertEqual(view["identifiers"]["isin"], A)
-                self.assertEqual("shown" in view, level == "display")
-                # A coin address is the coin plugin's own declaration: its trust decides, not the package's.
-                quote = next(item for item in self.page(BTC)["sections"] if item["section"] == "quote")
-                self.assertEqual((quote["status"], quote["binding_status"]), ("ready", "confirmed"))
-                _path, subject, _lookups, _issue = self.ops._load(ASML)  # as identity-resolve reads it
-                batch = core.batch_from_json({"plugin": "eodhd", "provider": "eodhd", "adapter_version": "1",
-                                              "origin": "resolve", "claims": [RECORD]})
-                binding, item, _ = core_page.apply_resolve(batch, info["eodhd"], core.Level.LISTING, subject,
-                                                           {"isin": A}, now=NOW, as_of=AS_OF)
-                self.assertEqual((binding and binding.status, item and item.reason),
-                                 (None, "no_key") if level == "display" else ("confirmed", None))
-
     def test_a_later_release_contradicting_an_answer_raises_one_conflict_question_on_touch(self):
         self.install([issuer_question()], self.world(issuer=False))
         self.page(NASDAQ)
@@ -213,7 +159,7 @@ class AnswerTest(BuildQuestionFixture):
 
     def test_a_contested_identifier_is_asked_on_touch_and_the_users_answer_decides_it(self):
         contested = self.world("contested")
-        add(contested, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN, at the package's confirm level
+        add(contested, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN
         self.install([], contested)
         self.assertNotIn("isin", self.page(ASML)["identifiers"])
         [item] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
@@ -231,7 +177,7 @@ class AnswerTest(BuildQuestionFixture):
         [item] = self.open()
         self.assertEqual(self.answer(item["id"], "same_issuer", ISSUER)["outcome"], "blocked")
         contested = self.world("contested")
-        add(contested, ISSUER, "cik", "1234567", "vendor")  # another confirm-level contributor gives it the registrant's
+        add(contested, ISSUER, "cik", "1234567", "vendor")  # another contributor gives it the registrant's
         self.install([NAME], contested, "reference-20260927")
         self.queue_ops.read_queue(self.ops, {"subject_id": REGISTRANT})
         [item] = [entry for entry in self.open() if entry["reason"] == "ambiguous"]

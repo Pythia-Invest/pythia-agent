@@ -17,9 +17,9 @@ from dataclasses import replace
 from unittest import mock
 
 from test_identity_contracts import load, load_reference
-from test_identity_trust import TrustCase, identity, identity_ops, page, reference_package, store, trust
+from test_identity_installed import PluginCase, identity, identity_ops, page, reference_package, store
 from test_reference_package import make_package
-from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_trust loaded)
+from pythia_core_queue_fixture import queue_ops  # noqa: E402  (the core test_identity_installed loaded)
 from pythia_core_queue_fixture.identity import device, lifecycle, search, search_device, search_index  # noqa: E402
 from pythia_core_queue_fixture.platform.request_context import usage  # noqa: E402
 
@@ -32,7 +32,7 @@ POOL, PROTOCOL = "market:provisional:poolsource:pool:usdc-navi", "protocol:provi
 GLOBEX, GLOBEX_TSX = "listing:provisional:fixture:line:globex", "listing:provisional:lister:line:globex"
 RIGHTS = {"licence": "open", "cache": "unlimited", "hostable": False}
 LISTER = page.PluginInfo(key="pythia-lister", operations={"resolve": "lister_resolve"}, manifest=identity.validate_manifest({
-    # A listings source core never names, at confirm level: it introduces lines and looks records up by ISIN.
+    # A listings source core never names: it introduces lines and looks records up by ISIN.
     "contract_version": 2, "plugin": "lister", "provider": "lister",
     "addressing": {"native": [{"native_scope": "line", "level": "listing"}]},
     "introduces": {"listing": ["isin", "native"], "security": ["isin"]},
@@ -41,7 +41,7 @@ LISTER = page.PluginInfo(key="pythia-lister", operations={"resolve": "lister_res
 
 
 def pools(provider: str, status: str = "unsigned") -> page.PluginInfo:
-    """A DeFi source core never names, introducing pools and protocols: display level unless `status` confirms it."""
+    """A DeFi source core never names, introducing pools and protocols, declaring `status` as its sign-off."""
     return page.PluginInfo(key=f"{provider}-plugin", manifest=identity.validate_manifest({
         "contract_version": 2, "plugin": f"{provider}-plugin", "provider": provider,
         "addressing": {"native": [{"native_scope": "pool", "level": "market"},
@@ -83,8 +83,8 @@ def introduce_pool(at, info=POOLS, native_id="usdc-navi", name="USDC lending on 
     return pool
 
 
-class DeviceSearch(TrustCase):
-    """A device with the hand-written reference (ASML, Ericsson and others) installed at confirm level."""
+class DeviceSearch(PluginCase):
+    """A device with the hand-written reference (ASML, Ericsson and others) installed."""
 
     def setUp(self):
         super().setUp()
@@ -101,7 +101,7 @@ class DeviceSearch(TrustCase):
                        " (?, 'security:provisional:fixture:id:globex', 'XNYS', 'XNYS', 'GBX', 'USD')", (GLOBEX,))
         self.package = make_package(self.root / "package", source=self.reference)
         self.data = self.root / "data"
-        reference_package.install(self.package, self.data, trust.CONFIRM)
+        reference_package.install(self.package, self.data)
         self.plugins = [LISTER, POOLS]
         self.enterContext(mock.patch.object(identity_ops, "installed", lambda: self.plugins))
         self.enterContext(mock.patch.object(identity_ops.search_venues, "priced", dict))  # no quote plugin installed
@@ -172,11 +172,10 @@ class FoundTest(DeviceSearch):
         self.assertEqual((self.groups("QW9"), self.search("asml")["data"]["groups"][0]["listings"]), ([], 2))
 
     def test_a_plugins_line_under_a_reference_security_joins_its_company_whatever_kind_it_states(self):
-        shown = replace(LISTER, manifest=identity.vouched(LISTER.manifest, trust.DISPLAY))
-        self.plugins, line = [shown, POOLS], "listing:provisional:lister:line:asml-tokyo"
+        self.plugins, line = [LISTER, POOLS], "listing:provisional:lister:line:asml-tokyo"
         device.put_subject(self.ops.store, line, plugin="lister", name="ASML", parent_id=ASML_SECURITY, attributes={
             "ticker": "ASMLJ", "operating_mic": "XJPX", "currency": "JPY", "kind": "etf", "asset_class": "crypto"})
-        place(self.ops.store, shown, "ASMLJ", line, name="ASML")
+        place(self.ops.store, LISTER, "ASMLJ", line, name="ASML")
         group = self.search("asml")["data"]["groups"][0]
         self.assertEqual((group["id"], group["kind"], group["listings"]), (ASML_GROUP, "ordinary", 3))
         self.assertEqual({row["id"]: row["kind"] for row in self.search("ASMLJ")["data"]["groups"][0]["rows"]}[line],
@@ -207,22 +206,12 @@ class RankingTest(DeviceSearch):
         device.bump(at)
         self.assertEqual(self.groups(query)[0], "security:provisional:fixture:id:globex")
 
-    def test_trust_breaks_a_tie(self):
-        confirmed = pools("zetapools", "grandfathered")  # its pool's ID sorts after the display source's
-        self.plugins = [LISTER, POOLS, confirmed]
-        shown = introduce_pool(self.ops.store, POOLS, "blue", "Blue Pool USDC")
-        proved = introduce_pool(self.ops.store, confirmed, "blue", "Blue Pool USDC")
-        self.assertEqual(self.groups("blue pool"), [proved, shown])
-        self.plugins = [LISTER, replace(POOLS, manifest=identity.vouched(POOLS.manifest, trust.CONFIRM)),
-                        replace(confirmed, manifest=identity.vouched(confirmed.manifest, trust.DISPLAY))]
-        self.assertEqual(self.groups("blue pool"), [shown, proved])
-
     def test_a_contested_identifier_finds_neither_value(self):
-        # A confirm-level plugin states another ISIN for ASML's share than the package: neither value applies.
+        # A plugin states another ISIN for ASML's share than the package: neither value applies.
         place(self.ops.store, LISTER, "ASML-AMS", ASML, state="joined", stated=[(ASML_SECURITY, "isin", "DE0007164600")])
         self.assertEqual((self.groups("NL0010273215"), self.groups("DE0007164600")), ([], []))
         self.assertEqual(self.groups("asml")[0], ASML_GROUP)  # still found by its name
-        self.plugins = [replace(LISTER, manifest=identity.vouched(LISTER.manifest, trust.DISPLAY)), POOLS]
+        self.plugins = [replace(LISTER, enabled=False), POOLS]  # disabled, it contests nothing
         self.assertEqual((self.groups("NL0010273215"), self.groups("DE0007164600")), ([ASML_GROUP], []))
 
 
@@ -302,8 +291,8 @@ class OverlayTest(DeviceSearch):
         self.assert_as_built()
         self.assertNotIn("navi", search._cache["current"][1].vocab)
         introduce_pool(at, native_id="scallop-sui", name="SUI lending on Scallop")
-        self.plugins = [replace(LISTER, manifest=identity.vouched(LISTER.manifest, trust.DISPLAY)), POOLS]
-        self.assert_as_built()  # both pools back; the ISIN no longer contested
+        self.plugins = [replace(LISTER, enabled=False), POOLS]
+        self.assert_as_built()  # both pools back; the lister and the contested ISIN gone
 
     def test_a_pools_protocol_never_rebuilds_the_reference_and_a_failed_renew_is_not_kept(self):
         confirmed = pools("zetapools", "grandfathered")
@@ -311,7 +300,7 @@ class OverlayTest(DeviceSearch):
         pool = introduce_pool(self.ops.store, confirmed, "blue", "Blue Pool USDC")
         self.search("sap")
         with mock.patch.object(search_index.Index, "_load", side_effect=AssertionError("the reference rebuilt")):
-            self.ops.store.db.execute(  # a confirm-level plugin's `part_of`: one target, but not a fold
+            self.ops.store.db.execute(  # a plugin's `part_of`: one target, but not a fold
                 "INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, retrieved_at)"
                 " VALUES ('ev:part-of', 'part_of', ?, ?, 'source_asserted', 'zetapools', 'zetapools-plugin', ?)",
                 (pool, "protocol:provisional:zetapools:protocol:blue", NOW))
@@ -352,7 +341,7 @@ class RemovalTest(DeviceSearch):
         self.assertEqual(list(at.db.iterdump()), rows)  # device evidence and the open question stay
         # The same package again: the same release, so nothing re-keys and no question is retired, in this process
         # and in a new one.
-        self.assertTrue(reference_package.install(self.package, self.data, trust.CONFIRM)["changed"])
+        self.assertTrue(reference_package.install(self.package, self.data)["changed"])
         self.assertIsNone(reference_package.status(self.data)["removed"])
         for ops in (self.ops, self.identity(self.data)):
             view = json.loads(queue_ops.read_subject(ops, {"subject_id": ASML}))["data"]

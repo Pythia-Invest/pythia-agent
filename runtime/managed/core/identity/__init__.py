@@ -21,7 +21,7 @@ from .declared import DECLARED_RULE, DeclaredRef
 from .live_market import LiveMarketError, validate_live_market
 from .manifest import (
     CONTRACT_VERSION, MANIFEST_FILE, CatalogueMode, ConceptEntry, Coverage, Manifest, ManifestError,
-    ManifestNeedsUpdate, SignOff, contract_version, validate_manifest, vouched,
+    ManifestNeedsUpdate, SignOff, contract_version, validate_manifest,
 )
 from .model import (
     Binding, Composite, IdentifierAssertion, Issuer, Listing, Provenance, ProviderRef, Relation, Security,

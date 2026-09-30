@@ -5,8 +5,8 @@ own rule: an offered record of no other enabled plugin is placed on them or stat
 inactive, and no reference package holds them. While the plugin is off they leave search and keep only their label
 (ADR 0037, amendment "device subjects"). It also answers the saved entries of
 the markets overview (`markets_watchlist`, `markets_cards`) that name them, through their aliases, each as a count with
-a short sample. Without `plugin`, it answers every enabled plugin that declares a bulk catalogue or a resolve, with its
-trust level, as the Desk's Data sources settings list them. It calls no provider and writes nothing. A Desk operation:
+a short sample. Without `plugin`, it answers every enabled plugin that declares a bulk catalogue or a resolve, as the
+Desk's Data sources settings list them. It calls no provider and writes nothing. A Desk operation:
 the agent's tool list has no room for it (test_agent_surface.py's budget).
 """
 from __future__ import annotations
@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 
 from .identity import CatalogueMode, device, location
 from .identity.search_device import OFFERED
-from .identity.trust import CONFIRM, DISPLAY
 
 if TYPE_CHECKING:
     from .identity_ops import Identity
@@ -86,7 +85,6 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     named = [{"id": item, "name": sole[current], "setting": setting} for setting, items in saved.items()
              for item in items if (current := device.current_id(ref, store, item)) in sole]
     return {"plugin": info.key, "label": info.label, "enabled": info.enabled,
-            "level": DISPLAY if info.manifest.unaudited else CONFIRM,
             "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "resolve": info.manifest.resolve is not None,
             "sole": {"count": len(sole), "sample": [{"id": key, "name": sole[key]} for key in list(sole)[:SAMPLE]]},
             "saved": {"count": len(named), "sample": named[:SAMPLE]}}

@@ -1,14 +1,11 @@
 """A package states the kind of evidence each row is, never where it came from (ADR 0044 A1, A2; package format 6):
 a value read from a source is `source_asserted`, a relation or CIK link a builder rule derives is `rule_confirmed`
-with the rule in `source_record`, and core's curated crypto table is Pythia's own list. Its rows count at the trust
-level the user installed the package at."""
+with the rule in `source_record`, and core's curated crypto table is Pythia's own list. Its rows all count as evidence once installed."""
 
 import contextlib
 import importlib
-import os
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from reference_builder import schema
 from reference_builder.model import Evidence, Issuer, Relationship, Security, Snapshot
@@ -28,29 +25,24 @@ RECEIPT = "USN070592100"  # ASML's New York registry shares
 class AuthorityTest(unittest.TestCase):
     setUp, build = test_package.PackageTest.setUp, test_package.PackageTest.build
 
-    def open(self, level: str):
-        """The built package installed at trust `level`, opened as core opens it: at the level its grant gives it."""
-        data = Path(self.tmp.name) / level
-        with mock.patch.dict(os.environ, {"PYTHIA_CONFIG_ROOT": str(data / "config")}):
-            installer.install(self.out, data, level)
-            return contextlib.closing(store.open_reference(store.reference_path(data)))
+    def open(self):
+        """The built package installed, opened as core opens it."""
+        data = Path(self.tmp.name) / "core"
+        installer.install(self.out, data)
+        return contextlib.closing(store.open_reference(store.reference_path(data)))
 
-    def test_rows_state_their_kind_of_evidence_and_count_at_the_packages_level(self):
+    def test_rows_state_their_kind_of_evidence_and_all_count(self):
         self.assertEqual(self.build()["format_version"], installer.FORMAT_VERSION)
-        with self.open("confirm") as ref:
+        with self.open() as ref:
             asserted = {tuple(row) for row in ref.execute("SELECT DISTINCT scheme, authority FROM assertions"
                                                           " WHERE authority <> 'source_asserted'")}
             relations = {tuple(row) for row in ref.execute("SELECT type, source, source_record, authority FROM relations")}
-            self.assertEqual((ref.level, asserted), ("confirm", {("cik", "rule_confirmed")}))  # joined CIK links only
+            self.assertEqual(asserted, {("cik", "rule_confirmed")})  # joined CIK links only
             self.assertIn(("depositary_receipt_of", "pythia", "receipt_issuer_share@1", "rule_confirmed"), relations)
             self.assertIn(("wraps", "pythia", "canonical_assets@1", "source_asserted"), relations)  # Pythia's own list
             for subject_id, kinds in ((ASML, {"source_asserted", "rule_confirmed"}), (BTC, {"source_asserted"})):
                 subject = subjects.load_subject(ref, subject_id)
                 self.assertEqual(({item.authority for item in subject["evidence"]}, subject["shown"]), (kinds, []))
-        with self.open("display") as ref:
-            subject = subjects.load_subject(ref, ASML)
-            self.assertEqual((ref.level, subject["evidence"], subject["values"]["isin"]), ("display", [], "NL0010273215"))
-            self.assertEqual({item.authority for item in subject["shown"]}, {"source_asserted", "rule_confirmed"})
 
     def test_a_cik_the_build_joins_to_a_lei_issuer_is_the_rules_and_keeps_its_evidence_id(self):
         # A CIK linked by a FIRDS US ISIN or a shared share-class FIGI is the build's join; GLEIF's EDGAR registration

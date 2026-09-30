@@ -177,14 +177,14 @@ CREATE TABLE IF NOT EXISTS read_checks (
   plugin TEXT NOT NULL,
   stated TEXT NOT NULL,            -- JSON: what the read stated, e.g. {"currency": "EUR", "venue": "MUN", "operating_mic": "XMUN"}
   differs TEXT NOT NULL,           -- JSON list: the stated attributes the reference gives otherwise ("venue", "currency")
-  note TEXT,                       -- why the last read did not verify ("venue differs", "source not audited"); NULL if it did
+  note TEXT,                       -- why the last read did not verify ("venue differs"); NULL if it did
   checked_at TEXT NOT NULL,
-  verified_at TEXT,                -- the last read that agreed on all it stated, from an audited source
+  verified_at TEXT,                -- the last read that agreed on all it stated
   PRIMARY KEY (subject_id, provider, native_scope, native_id)
 );
 
 -- A plugin's identifiers for device subjects (`device`): the join index by (scheme, value) and the evidence a
--- device subject's page weighs at the plugin's trust level. Only `self` values identify their subject (at the
+-- device subject's page weighs as the package's. Only `self` values identify their subject (at the
 -- scheme's own level); `underlying` and `unqualified` ones are kept for the join. A plugin's statements count as
 -- `source_asserted`. The evidence ID hashes the assertion with its subject, so a re-key gives it a new one.
 CREATE TABLE IF NOT EXISTS device_assertions (
@@ -217,3 +217,8 @@ CREATE TABLE IF NOT EXISTS device_aliases (
   at TEXT NOT NULL,
   CHECK (old_id <> new_id)
 );
+
+-- The `unaudited` residual is gone (ADR 0044, amendment of 2026-09-30: installing a plugin means trusting it). One an
+-- earlier Pythia queued stays in the history under a reason this core reads, and is no longer open.
+UPDATE queue SET reason = 'no_key', state = CASE WHEN state = 'open' THEN 'superseded' ELSE state END
+  WHERE reason = 'unaudited';

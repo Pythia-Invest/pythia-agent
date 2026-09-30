@@ -4,8 +4,8 @@ Scans every builder module except the adapters and audits named below, which may
 `identity/*.py`. It catches `x.source == "sec"`, `row["plugin"] in (...)`, `row.get("provider") != SEC` and a
 `match` on such a field with a string case. A lookup keyed by provider (`LABELS`, `ALIASES`), a provenance
 assignment, and membership in a record named `source` are no comparison, so they pass. Rules test a row's kind of
-evidence (`model.Evidence`) or trust instead. Core's plugin trust follows a digest of the plugin's files, never its
-name (`identity/trust.py`).
+evidence (`model.Evidence`) instead. Core's plugins are all equal: nothing in core ranks one by its name (ADR 0044,
+amendment of 2026-09-30).
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def scanned() -> list[Path]:
 def main() -> int:
     found = [hit for path in scanned() for hit in name_comparisons(path)]
     for hit in found:
-        print(f"{hit}\n  a rule names a source: test the row's kind of evidence or its trust level instead", file=sys.stderr)
+        print(f"{hit}\n  a rule names a source: test the row's kind of evidence instead", file=sys.stderr)
     return 1 if found else 0
 
 

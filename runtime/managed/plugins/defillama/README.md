@@ -11,9 +11,9 @@ later.
 
 ## Opt-in
 
-The plugin is installed **disabled**. Its contract is unsigned, so it is a
-display source ([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md)),
-and DefiLlama's terms license the site and its data for personal,
+The plugin is installed **disabled**: its contract is unsigned
+([ADR 0042](../../../../docs/decisions/0042-source-onboarding-standard.md)), which
+Pythia records and no code reads, and DefiLlama's terms license the site and its data for personal,
 non-commercial use only, with no republishing without permission. Enabling it
 is the investor's choice:
 

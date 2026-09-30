@@ -3,10 +3,10 @@ existing ones, and keeps saved references working through disabling, re-enabling
 overlapping financial source and a DeFi source. Disabling one shows its effect first (`identity-plugin-effect`).
 
 Both sources are fixture plugins core never names: a contract.json in a plugin directory, found through a stand-in
-for Hermes's plugin table by core's own `installed()`, levelled by the digest of their files, and read through
-`identity-sync` into core's ingest. The financial source (Meridian) is grandfathered, so Pythia's release grants
-confirm it; the DeFi source (Tidepool) is unsigned, so display. An update is what a plugin emits on its next sync, from
-a new plugin version or new provider data alike.
+for Hermes's plugin table by core's own `installed()`, and read through `identity-sync` into core's ingest. They
+stand on equal terms whatever sign-off their contracts declare: the financial source (Meridian) is grandfathered, the
+DeFi source (Tidepool) unsigned (ADR 0044, amendment of 2026-09-30). An update is what a plugin emits on its next sync,
+from a new plugin version or new provider data alike.
 """
 import json
 import os
@@ -21,7 +21,7 @@ from identity_world import World
 from test_identity_contracts import PROVENANCE
 from test_identity_queue import CORE, load_core
 from test_reference_package import make_package
-from pythia_identity_fixture import reference_package, trust  # noqa: E402
+from pythia_identity_fixture import reference_package  # noqa: E402
 
 NOW = "2026-09-30T08:00:00Z"
 ASML_LINE = "listing:isin:NL0010273215:XAMS:EUR"
@@ -57,8 +57,8 @@ def record(provider, scope, native_id, level, *identifiers, **attributes):
         "native_ref": {"provider": provider, "native_scope": scope, "native_id": native_id}}
 
 
-def line(native_id, *identifiers, mic="XETR", currency="EUR", **attributes):
-    return record("meridian", "line", native_id, "listing", *identifiers, operating_mic=mic, currency=currency,
+def line(native_id, *identifiers, mic="XETR", currency="EUR", provider="meridian", **attributes):
+    return record(provider, "line", native_id, "listing", *identifiers, operating_mic=mic, currency=currency,
                   **attributes)
 
 
@@ -81,7 +81,7 @@ def pools(*records):
 
 
 class PeersFixture(unittest.TestCase):
-    """Core on a device with a confirm-level reference package, fixture plugins in plugin directories, the investor's
+    """Core on a device with a reference package, fixture plugins in plugin directories, the investor's
     settings.json, and stand-ins for Hermes's plugin table, enablement and tool registry."""
 
     def setUp(self):
@@ -91,15 +91,10 @@ class PeersFixture(unittest.TestCase):
         self.enterContext(mock.patch.dict(os.environ, {"PYTHIA_CONFIG_ROOT": str(self.config)}))
         load_core()
         from pythia_core_queue_fixture import identity_ops, ingest_ops, markets_ops, plugin_effect, queue_ops
-        from pythia_core_queue_fixture.identity import ingest, trust as core_trust
+        from pythia_core_queue_fixture.identity import ingest
         from pythia_core_queue_fixture.platform import access, harness
         self.identity_ops, self.ingest_ops, self.markets_ops = identity_ops, ingest_ops, markets_ops
-        self.plugin_effect, self.queue_ops, self.trust = plugin_effect, queue_ops, core_trust
-        self.release = self.root / "release" / core_trust.FILE
-        self.release.parent.mkdir()
-        self.enterContext(mock.patch.object(core_trust, "RELEASE", self.release))
-        for cache in ("_digests", "_files", "_warned"):
-            self.enterContext(mock.patch.object(core_trust, cache, type(getattr(core_trust, cache))()))
+        self.plugin_effect, self.queue_ops = plugin_effect, queue_ops
         self.enterContext(mock.patch.object(ingest, "stamp", lambda: NOW))
         config = types.ModuleType("hermes_cli.config")
         config.load_config_readonly = dict
@@ -115,31 +110,25 @@ class PeersFixture(unittest.TestCase):
         self.device("device")
 
     def device(self, name):
-        """A fresh device: its own store, the reference package installed at confirm, and no plugins yet."""
+        """A fresh device: its own store, the reference package installed, and no plugins yet."""
         self.dirs, self.disabled, self.pages, self.calls, self.syncs = {}, set(), {}, [], 0
         folder = self.root / name
         (folder / "world").mkdir(parents=True)
         World(folder / "world", ("asml.json", "failures.json", "crypto.json")).close()
         reference_package.install(make_package(folder / "package", source=folder / "world" / "reference-20260926.sqlite3"),
-                                  folder / "core", trust.CONFIRM)
+                                  folder / "core")
         self.ops = self.identity_ops.Identity(
             types.SimpleNamespace(manifest=types.SimpleNamespace(path=str(CORE.parent))), data_dir=folder / "core")
         self.addCleanup(lambda ops=self.ops: ops.store.db.close())
 
-    def install(self, key, contract, *, managed=False):
-        """A plugin payload in its own directory, as Hermes finds it; `managed` adds the lifecycle's copy receipt."""
+    def install(self, key, contract):
+        """A plugin payload in its own directory, as Hermes finds it."""
         directory = self.root / "plugins" / f"{len(self.dirs)}-{key}"
         directory.mkdir(parents=True)
         (directory / "contract.json").write_text(json.dumps(contract, indent=2), encoding="utf-8")
         (directory / "definition.py").write_text("OPERATIONS = ('catalogue', 'latest')\n", encoding="utf-8")
-        if managed:
-            (directory / self.trust.RECEIPT).write_text("{}\n", encoding="utf-8")
         self.dirs[key] = directory
         return directory
-
-    def ship(self, *keys):
-        """Pythia's release grants for these payloads, as the lifecycle generates them when it assembles them."""
-        self.trust.release([{"plugin": key, "directory": str(self.dirs[key])} for key in keys], self.release)
 
     def save(self, *watchlist):
         path = self.config / "settings.json"
@@ -196,15 +185,14 @@ class PeersFixture(unittest.TestCase):
     def placed(self, native_id):
         return tuple(self.ops.store.select("SELECT subject_id, state FROM claims WHERE native_id = ?", (native_id,))[0])
 
-    def meridian(self, *, managed=True, key="pythia-meridian"):
-        """The financial source; as a managed default, Pythia's release grants are generated for its payload."""
-        self.install(key, MERIDIAN, managed=managed)
-        if managed:
-            self.ship(key)
-        self.pages[("meridian", "lines")] = [
-            line("ASML.AS", ("isin", "NL0010273215"), mic="XAMS", ticker="ASML", name="ASML Holding"),
-            line("SAP.DE", ("figi", SAP_FIGI), ticker="SAP", name="SAP SE"),
-            line("AAPL.OQ", ("isin", "US0378331005"), mic="XNAS", currency="USD", ticker="AAPL", name="Apple Inc.")]
+    def meridian(self, *, key="pythia-meridian", name="meridian", signoff="grandfathered"):
+        """The financial source, installed as `key`: its plugin and provider are `name`, which its records carry."""
+        self.install(key, {**MERIDIAN, "plugin": name, "provider": name, "signoff": {"status": signoff}})
+        self.pages[(name, "lines")] = [
+            line("ASML.AS", ("isin", "NL0010273215"), mic="XAMS", ticker="ASML", name="ASML Holding", provider=name),
+            line("SAP.DE", ("figi", SAP_FIGI), ticker="SAP", name="SAP SE", provider=name),
+            line("AAPL.OQ", ("isin", "US0378331005"), mic="XNAS", currency="USD", ticker="AAPL", name="Apple Inc.",
+                 provider=name)]
         return key
 
     def tidepool(self):
@@ -351,36 +339,43 @@ class SavedReferenceTest(PeersFixture):
 
 
 class EqualTermsTest(PeersFixture):
-    """PLAN-REVIEW test 9: the same payload as a managed default or as a community plugin, under one grant, gives
-    identical IDs, rows, statuses and conflicts."""
+    """PLAN-REVIEW test 9, and ADR 0044's amendment of 2026-09-30: two plugins that send the same records under other
+    names, one declaring itself grandfathered and the other unsigned, give identical IDs, rows, statuses, conflicts and
+    effects, and nothing in any of them is a level."""
 
     COLUMNS = {"claims": "plugin, native_scope, native_id, scope, subject_id, state, claim",
                "subjects": "id, kind, parent_id, name, attributes, status, introduced_by",
-               "device_assertions": "evidence_id, subject_id, scheme, value, role, plugin, native_id",
+               "device_assertions": "subject_id, scheme, value, role, plugin, native_id",  # an ID hashes the source
                "device_aliases": "old_id, new_id", "queue": "key, kind, reason, subject_ids, candidate_ids, state",
                "bindings": "provider, native_scope, native_id, subject_id, status, authority, rule_id, plugin"}
 
-    def run_as(self, name, key, managed):
-        self.device(name)
-        self.meridian(key=key, managed=managed)
+    def run_as(self, device, key, name, signoff):
+        self.device(device)
+        self.meridian(key=key, name=name, signoff=signoff)
         summaries = [self.sync(key)]
-        self.pages[("meridian", "lines")][1] = line("SAP.DE", ("figi", SAP_FIGI), ("isin", SAP_ISIN), ticker="SAP")
+        self.pages[(name, "lines")][1] = line("SAP.DE", ("figi", SAP_FIGI), ("isin", SAP_ISIN), ticker="SAP", provider=name)
         summaries.append(self.sync(key))
-        self.pages[("meridian", "lines")][0] = line("ASML.AS", ("isin", "NL0010273215"), ("figi", OTHER_FIGI), mic="XAMS")
+        self.pages[(name, "lines")][0] = line("ASML.AS", ("isin", "NL0010273215"), ("figi", OTHER_FIGI), mic="XAMS",
+                                              provider=name)
         summaries.append(self.sync(key))
         pages = {subject: {**self.page(subject), "queue": None} for subject in (ASML_LINE, SAP_BY_FIGI, APPLE_LINE)}
         rows = {table: sorted(tuple(row) for row in self.ops.store.select(f"SELECT {columns} FROM {table}"))
                 for table, columns in self.COLUMNS.items()}
         [plugin] = self.effect(key)
-        return summaries, json.loads(json.dumps(pages).replace(key, "KEY")), rows, {**plugin, "plugin": None}
+        results = {"summaries": summaries, "pages": pages, "rows": rows, "effect": {**plugin, "plugin": None, "label": None}}
+        # Only the names differ: read them back as one, and the two results are the same.
+        return json.loads(json.dumps(results).replace(key, "KEY").replace(name, "NAME"))
 
-    def test_the_same_payload_as_a_managed_default_or_a_community_plugin_gives_identical_results(self):
-        managed = self.run_as("managed", "pythia-meridian", True)
-        community = self.run_as("community", "community-meridian", False)
-        self.assertEqual(managed, community)
-        self.assertEqual(managed[3]["level"], "confirm")  # Pythia's one release grant, on the files' digest
-        self.assertEqual(managed[0][2]["conflicts"], 1)  # a FIGI the package's line contradicts
-        self.assertIn("figi", managed[1][ASML_LINE]["contested"])
+    def test_the_same_records_under_other_names_and_sign_offs_give_identical_results(self):
+        shipped = self.run_as("shipped", "pythia-meridian", "meridian", "grandfathered")
+        community = self.run_as("community", "community-ledger", "ledger", "unsigned")
+        self.assertEqual(shipped, community)
+        self.assertEqual(shipped["summaries"][2]["conflicts"], 1)  # a FIGI the package's line contradicts
+        self.assertIn("figi", shipped["pages"][ASML_LINE]["contested"])
+        self.assertGreater(shipped["effect"]["sole"]["count"], 0)  # its own subjects, as any plugin's are
+        everything = json.dumps(shipped)  # no trust level, label or "shown" evidence anywhere in what it says
+        for level in ('"confirm"', '"display"', '"trust"', '"unaudited"', '"shown"'):
+            self.assertNotIn(level, everything)
 
 
 class PluginEffectTest(PeersFixture):
@@ -391,8 +386,7 @@ class PluginEffectTest(PeersFixture):
         self.sync(self.tidepool())
         self.save(POOL, SAP_BY_FIGI, ASML_LINE)
         [pools_effect] = self.effect("tidepool-community")
-        self.assertEqual((pools_effect["level"], pools_effect["catalogue"], pools_effect["sole"]["count"]),
-                         ("display", True, 4))
+        self.assertEqual((pools_effect["catalogue"], pools_effect["sole"]["count"]), (True, 4))
         self.assertEqual(pools_effect["saved"], {"count": 1, "sample": [
             {"id": POOL, "name": "Example Lend USDC", "setting": "markets_watchlist"}]})
         [lines] = self.effect("pythia-meridian")  # the ASML line is the package's: disabling keeps it
@@ -427,8 +421,8 @@ class PluginEffectTest(PeersFixture):
                                 "plugin": "quotes", "provider": "quotes", "addressing": {
                                     "native": [{"native_scope": "line", "level": "listing"}],
                                     "mic_table": {"XETR": ".DE"}}})  # quotes only: no catalogue, no resolve
-        self.assertEqual([(item["plugin"], item["level"], item["sole"]["count"]) for item in self.effect()],
-                         [("pythia-meridian", "confirm", 0), ("tidepool-community", "display", 0)])
+        self.assertEqual([(item["plugin"], item["sole"]["count"]) for item in self.effect()],
+                         [("pythia-meridian", 0), ("tidepool-community", 0)])
         self.disabled.add("tidepool-community")
         self.assertEqual([item["plugin"] for item in self.effect()], ["pythia-meridian"])
         body = json.loads(self.plugin_effect.effect(self.ops, {"plugin": "nobody"}))

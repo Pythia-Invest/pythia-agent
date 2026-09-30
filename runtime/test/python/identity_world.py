@@ -82,9 +82,9 @@ class World:
             db.executescript(identity.schema_sql("reference"))
             for name in fixtures:
                 load_reference(db, load(name))
-        self.ref = store.open_reference(self.path, "confirm")  # a build the user trusts to confirm
+        self.ref = store.open_reference(self.path)
         self.identity = store.IdentityStore(tmp / "core")
-        self.plugins: list[page.PluginInfo] = []  # the installed plugins, whose levels weigh device assertions
+        self.plugins: list[page.PluginInfo] = []  # the installed plugins: the enabled ones' device assertions count
 
     def close(self) -> None:
         self.ref.close()
@@ -95,7 +95,7 @@ class World:
         return device.load_subject(self.ref, self.identity, subject_id, self.plugins)
 
     def lookups(self, subject: dict) -> dict:
-        """The store lookups page composition reads for a subject, at each of its levels."""
+        """The store lookups page composition reads for a subject."""
         ids = [value for value in subject["ids"].values() if value]
         stored = {(row["subject_id"], row["provider"]): row for row in self.identity.bindings(ids, ("confirmed", "conflicting"))}
         return {"stored": lambda target, provider: stored.get((target, provider)), "queue": self.identity.open_queue(ids)}
@@ -156,6 +156,6 @@ class World:
         return release(self.path, directory, name, **changes)
 
     def rekey(self, path: Path) -> dict | None:
-        """Lifecycle A: the device's rows follow the release at `path`, a build the user trusts to confirm."""
-        with closing(store.open_reference(path, "confirm")) as ref:
+        """Lifecycle A: the device's rows follow the release at `path`."""
+        with closing(store.open_reference(path)) as ref:
             return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem))

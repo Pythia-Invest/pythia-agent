@@ -5,8 +5,7 @@ the installed plugins' contracts, and never calls a plugin. A plugin whose
 contract lets core build its native reference (its own reference for the subject,
 `addressing.subjects`; a MIC suffix table; an identifier-named native scope) is
 addressed at once; that derived reference is an address, never identifier
-evidence. A declared address is `confirmed` only when the plugin's files are
-granted confirm. Only when core cannot derive the address is the section `resolving`:
+evidence. A declared address is `confirmed`. Only when core cannot derive the address is the section `resolving`:
 the Desk then asks for that plugin's resolve (`identity-resolve`), which
 `apply_resolve` decides with the one authority rule.
 
@@ -85,8 +84,7 @@ ALIASES = {"sec": ("edgar", "sec edgar", "sec-edgar"), "xbrl-filings": ("esef", 
 CORE_PLUGIN = "pythia"  # core's own operations (the combined filings read)
 ABSENT = frozenset({"not_covering", "not_addressable"})  # a section only these could serve is not shown
 # Why a source's answer waits in the resolution queue instead of binding, in the investor's words.
-QUEUED = {"unaudited": "the source is not yet audited, so its match waits for sign-off",
-          "ambiguous": "several of its records match", "no_key": "its record carries no identifier to check",
+QUEUED = {"ambiguous": "several of its records match", "no_key": "its record carries no identifier to check",
           "underlying_identifier": "its record names this instrument as its underlying, so it may be a receipt"}
 
 
@@ -116,10 +114,8 @@ def serving(manifest: Manifest, section: Section) -> tuple[ConceptEntry, str] | 
 
 
 def ordered(plugins: list[PluginInfo], section: Section, order: tuple[str, ...] = ()) -> list[PluginInfo]:
-    """The investor's order, then core's default order for the section's concept (free before paid), then key;
-    a source not yet signed off follows every audited one unless the investor names it."""
-    entries = [{"plugin": info.key, "provider": info.manifest.provider, "unaudited": info.manifest.unaudited,
-                "info": info} for info in plugins]
+    """The investor's order, then core's default order for the section's concept (free before paid), then key."""
+    entries = [{"plugin": info.key, "provider": info.manifest.provider, "info": info} for info in plugins]
     return [entry["info"] for entry in ranked(entries, order, REGISTRY[SERVES[section][0]].default_order)]
 
 
@@ -202,8 +198,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
               "label": info.label,
               "concept": str(concept), "operation": concept_operation, "status": "ready", "binding": None,
               "binding_status": None, "verified_at": None, "unverified": None, "request": None, "alternatives": [],
-              "reason": None, "authorities": [str(item) for item in entry.authorities],
-              **({"unaudited": True} if info.manifest.unaudited else {})}  # labelled "not yet audited"
+              "reason": None, "authorities": [str(item) for item in entry.authorities]}
     coverage, listing = entry.coverage_for(concept_operation), subject["listing"]
     market = listing and (listing["operating_mic"] or listing["mic"])
     # A curated subject outside the hierarchy (a market, index, pair or series) is addressed as itself; one with
@@ -248,7 +243,7 @@ def evaluate(info: PluginInfo, section: Section, subject: dict, *, stored: Calla
         ref, state = ProviderRef(row["provider"], row["native_id"], row["native_scope"]), row["status"]
     else:
         ref, rule = derived
-        state = "confirmed" if rule == DECLARED_RULE and not info.manifest.unaudited else "derived"
+        state = "confirmed" if rule == DECLARED_RULE else "derived"
     request = None
     if section in (Section.PROFILE, Section.FILINGS, Section.LIVE):
         if operation not in info.operations:  # the contract names it, but no native tool declares it
@@ -289,9 +284,8 @@ def price_sources(subject: dict, plugins: list[PluginInfo], **lookups: Any) -> l
 
 
 def source(answer: dict) -> dict:
-    """A source as page sections and agent results name it; one not yet signed off says so."""
-    return {"source": answer["label"], "provider": answer["provider"], "plugin": answer["plugin"],
-            **({"unaudited": True} if answer.get("unaudited") else {})}
+    """A source as page sections and agent results name it."""
+    return {"source": answer["label"], "provider": answer["provider"], "plugin": answer["plugin"]}
 
 
 def filings_request(subject: dict, use: str | None = None) -> dict:
@@ -354,9 +348,7 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     The answer names a native reference for the identifiers core sent (`sent`); an issuer's LEI or CIK confirms only an
     issuer. Rule `resolve_answer@1` binds it to the subject unless identifier evidence or the depositary-receipt guard
     contradicts it, or `bound_to` says the reference is already confirmed for another subject (a conflict, never a
-    re-point). Several references, or a record quoting a sent identifier as its underlying's, are a residual. A display-
-    level source (ADR 0042) confirms only the device subject it introduced, never its parent or child; else a would-be
-    binding is an `unaudited` residual citing its evidence."""
+    re-point). Several references, or a record quoting a sent identifier as its underlying's, are a residual."""
     target, plugin = subject["ids"][level], info.manifest.plugin
     records = [claim for claim in batch.claims if isinstance(claim, RecordClaim) and claim.native_ref is not None
                and (scope := info.manifest.native_scope(claim.native_ref.native_scope)) is not None
@@ -385,10 +377,6 @@ def apply_resolve(batch: ClaimBatch, info: PluginInfo, level: Level, subject: di
     confirms = outcome is VerdictOutcome.CONFIRMED and bool(evidence_ids)
     if confirms and other not in (None, target):
         return None, QueueItem(id=item.id, kind="conflict", reason="binding", subject_ids=(other, target),
-                               evidence_ids=evidence_ids, **base), records
-    own = subject.get("introduced_by") == plugin and target == subject["id"]  # the device subject it introduced
-    if confirms and info.manifest.unaudited and not own:
-        return None, QueueItem(id=item.id, kind="residual", reason="unaudited", subject_ids=local,
                                evidence_ids=evidence_ids, **base), records
     if confirms:
         return Binding(provider_ref=ref, subject_id=target, status="confirmed", authority="rule_confirmed",

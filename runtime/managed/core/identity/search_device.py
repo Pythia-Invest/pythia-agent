@@ -1,5 +1,5 @@
 """What the device store adds to search's directory (ADR 0037, amendment "search over reference and device"; ADR 0044
-A1 and A3).
+A1 and A3 and its amendment of 2026-09-30).
 
 Search stays one local read: no provider call and no write. Beside the reference's lines, the directory holds what the
 enabled plugins state (`additions`):
@@ -13,8 +13,8 @@ enabled plugins state (`additions`):
 
 Only records a plugin still offers count (placed `joined`, `introduced` or `conflict`). A disabled plugin adds nothing:
 its subjects leave search, and their pages still open by ID. The additions are laid over the reference's lines in place
-(`search_index.Index.renew`) whenever the store's `generation`, the enabled plugins and their levels, or the package's
-level change (`key`); the reference's part is rebuilt only with the reference file. `offers` names the lookups a search
+(`search_index.Index.renew`) whenever the store's `generation` or the enabled plugins change (`key`); the
+reference's part is rebuilt only with the reference file. `offers` names the lookups a search
 answer offers.
 """
 from __future__ import annotations
@@ -26,13 +26,12 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import Store, device, evidence as weighing, reference_package, relations, schema_sql, trust
+from . import Store, device, evidence as weighing, relations, schema_sql
 from .ranking import logrank, notability
 from .schemes import IdentifierError, Kind, normalize_identifier
 from .search import Directory, classify, directory as cached
 from .store import IdentityStore, open_reference
 from .subject import _assertion
-from .trust import CONFIRM
 from .vocabulary import FOLD
 
 SEARCHED = ("isin", "lei", "cik", "figi", "composite_figi", "share_class_figi", "caip19")  # the directory's identifiers
@@ -47,27 +46,17 @@ class Additions:
     """What the device adds to one directory build; empty while no plugin is enabled."""
 
     rows: list[tuple] = field(default_factory=list)  # device subjects, as the reference's listing join gives its lines
-    lines: dict[str, dict] = field(default_factory=dict)  # a device line's subject -> its size, trust and source
+    lines: dict[str, dict] = field(default_factory=dict)  # a device line's subject -> its size and source
     tickers: dict[str, list[str]] = field(default_factory=dict)  # a listing -> the tickers plugins state for it
     names: dict[str, list[str]] = field(default_factory=dict)  # a subject -> the names plugins give it
     ids: dict[str, list[str]] = field(default_factory=dict)  # a subject -> "scheme:value", in place of the reference's
     issuers: dict[str, tuple] = field(default_factory=dict)  # a device issuer -> (name, country)
-    package: int = 0  # 1 while the installed package is granted confirm: its lines' trust
 
 
-def enabled(plugins: Iterable) -> dict[str, str]:
-    """Each enabled plugin's trust level, by plugin name: only these add to search."""
-    return device.levels(info for info in plugins if info.enabled)
-
-
-def key(store: IdentityStore, plugins: Iterable, path: Path | None = None) -> tuple:
-    """What the device's part of a directory reads: the store's generation, the enabled plugins with their levels, and
-    the level of the package at `path` (its lines' trust and its identifiers' weight)."""
-    try:
-        package = trust.package_level(reference_package.read_manifest(Path(path).parent)) if path else None
-    except (OSError, reference_package.PackageError):
-        package = trust.DISPLAY
-    return device.generation(store), tuple(sorted(enabled(plugins).items())), package
+def key(store: IdentityStore, plugins: Iterable) -> tuple:
+    """What the device's part of a directory reads: the store's generation and the enabled plugins (only these add
+    to search)."""
+    return device.generation(store), tuple(sorted(device.enabled(plugins)))
 
 
 def directory(path: Path | None, store: IdentityStore, plugins: Iterable) -> Directory:
@@ -75,40 +64,38 @@ def directory(path: Path | None, store: IdentityStore, plugins: Iterable) -> Dir
     the file, with what the enabled plugins add laid over it whenever that changes."""
     plugins = list(plugins)
     return cached(path, lambda at: open_reference(at) if at else empty_reference(),
-                  relations.contested(store, device.levels(plugins), FOLD),  # only a fold changes the reference part
+                  relations.contested(store, device.enabled(plugins), FOLD),  # only a fold changes the reference part
                   partial(additions, store=store, plugins=plugins),
-                  key(store, plugins, path))
+                  key(store, plugins))
 
 
 def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterable) -> Additions:
     """What the enabled plugins add to the directory of the reference `ref` (an empty one when none is installed)."""
     plugins = list(plugins)
-    granted, out = enabled(plugins), Additions(package=int(weighing.level(ref) == CONFIRM))
-    if not granted:
+    active, out = device.enabled(plugins), Additions()
+    if not active:
         return out
-    marks = json.dumps(sorted(granted))
+    marks = json.dumps(sorted(active))
     claims = store.select("SELECT subject_id, plugin, name, state FROM claims WHERE subject_id IS NOT NULL AND plugin IN"
                           " (SELECT value FROM json_each(?)) AND state IN (SELECT value FROM json_each(?))", (marks, OFFERED))
     stated = [dict(row) for row in store.select(  # what a record still offered states
         "SELECT a.*, c.state FROM device_assertions a JOIN claims c ON c.plugin = a.plugin AND c.native_scope ="
         " a.native_scope AND c.native_id = a.native_id WHERE a.plugin IN (SELECT value FROM json_each(?)) AND c.state IN"
         " (SELECT value FROM json_each(?))", (marks, OFFERED))]
-    touched: dict[str, set[str]] = {}  # each subject, with the enabled plugins that state anything about it
-    for row in [*claims, *stated]:
-        touched.setdefault(row["subject_id"], set()).add(row["plugin"])
+    touched = {row["subject_id"] for row in [*claims, *stated]}  # each subject an enabled plugin states anything about
     for row in claims:  # a record kept as a conflict names another subject than this one
         if row["name"] and row["state"] != "conflict":
             out.names.setdefault(row["subject_id"], []).append(row["name"])
     for row in stated:
         if row["scheme"] == "ticker_mic" and row["role"] == "self" and row["state"] != "conflict":
             out.tickers.setdefault(row["subject_id"], []).append(row["value"].rsplit("@", 1)[0])
-    out.ids = _weighed(ref, [row for row in stated if row["role"] == "self" and row["scheme"] in SEARCHED], granted)
+    out.ids = _weighed(ref, [row for row in stated if row["role"] == "self" and row["scheme"] in SEARCHED])
     every = {row["id"]: {**dict(row), "attributes": json.loads(row["attributes"])}
              for row in store.select("SELECT * FROM subjects")}
     out.issuers = {subject: (row["name"], row["attributes"].get("country")) for subject, row in every.items()
                    if row["kind"] == Kind.ISSUER}
     labels = {info.manifest.plugin: info.label for info in plugins}
-    for subject, contributors in sorted(touched.items()):
+    for subject in sorted(touched):
         row = every.get(subject)
         kind = Kind(row["kind"]) if row is not None else None
         if row is None or row["status"] == "inactive" or kind in (Kind.ISSUER, Kind.SECURITY, Kind.COMPOSITE) \
@@ -118,8 +105,7 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
         out.rows.append(line)
         if row["name"]:
             out.names.setdefault(subject, []).insert(0, row["name"])
-        out.lines[subject] = {"size": size, "trust": int(any(granted[name] == CONFIRM for name in contributors)),
-                              "source": labels.get(row["introduced_by"], row["introduced_by"])}
+        out.lines[subject] = {"size": size, "source": labels.get(row["introduced_by"], row["introduced_by"])}
     return out
 
 
@@ -184,22 +170,22 @@ def _own(row: Mapping[str, Any], kind: Kind) -> tuple[tuple, float | None]:
     return line, notability(attributes.get("rank"))
 
 
-def _weighed(ref: sqlite3.Connection, rows: list[dict], granted: Mapping[str, str]) -> dict[str, list[str]]:
-    """The identifiers of each subject the enabled plugins state some for, weighed with the reference's, each at its
-    contributor's trust level: the value its evidence gives each scheme (a source's several reference values stay, as
-    a German line's two composite FIGIs), and none for a contested one (#109's marker)."""
+def _weighed(ref: sqlite3.Connection, rows: list[dict]) -> dict[str, list[str]]:
+    """The identifiers of each subject the enabled plugins state some for, weighed with the reference's: the value its
+    evidence gives each scheme (a source's several reference values stay, as a German line's two composite FIGIs), and
+    none for a contested one (#109's marker)."""
     stated: dict[str, list] = {}
     for row in rows:
-        stated.setdefault(row["subject_id"], []).append((device._assertion(row), granted[row["plugin"]]))
+        stated.setdefault(row["subject_id"], []).append((device._assertion(row), True))
     held: dict[str, list] = {}
     for row in ref.execute("SELECT * FROM assertions WHERE subject_id IN (SELECT value FROM json_each(?))",
                            (json.dumps(sorted(stated)),)):
         if row["scheme"] in SEARCHED:
             held.setdefault(row["subject_id"], []).append(row)
-    package, out = weighing.level(ref), {}
+    out = {}
     for subject, found in stated.items():
         own = held.get(subject, [])
-        weighed = weighing.weigh_each([*((_assertion(row), package) for row in own), *found])
+        weighed = weighing.weigh_each([*((_assertion(row), True) for row in own), *found])
         values = []
         for scheme, value in weighed["values"].items():
             kept = [row["value"] for row in own if row["scheme"] == scheme]

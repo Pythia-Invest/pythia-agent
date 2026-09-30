@@ -21,11 +21,7 @@ import {
   managedRunnerBuilds,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
-import {
-  PLUGIN_COPY_RECEIPT,
-  RELEASE_GRANTS,
-} from "../../scripts/dev/files.mjs";
-import { writeReleaseGrants } from "../../scripts/dev/release-grants.mjs";
+import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
 
 const repository = new URL("../../", import.meta.url).pathname;
 const runnerBuilds = managedRunnerBuilds(MANAGED_PLUGINS);
@@ -60,7 +56,6 @@ function fixture(profile = "fixture") {
   for (const { source, files } of MANAGED_PLUGINS) {
     mkdirSync(join(managedRoot, source), { recursive: true });
     for (const file of files) {
-      if (source === "core" && file === RELEASE_GRANTS) continue; // generated below
       mkdirSync(dirname(join(managedRoot, source, file)), { recursive: true });
       copyFileSync(
         join(repository, "runtime/managed", source, file),
@@ -88,7 +83,6 @@ function fixture(profile = "fixture") {
     managedRoot,
     managedCore: join(managedRoot, "core"),
   };
-  writeReleaseGrants(paths, { python: "python3" }); // as preparation does
   return paths;
 }
 
@@ -169,44 +163,6 @@ platform_toolsets:
     ).toBe("user-owned");
     expect(commands.map((args) => args[3])).toEqual(["doctor"]);
     expect(commands.every((args) => args[1] === paths.profile)).toBe(true);
-  });
-
-  it("installs each shipped plugin at the digest its release grant names", () => {
-    // Generated from the payload lists before the copy; core hashes the
-    // installed files at runtime with the same function (ADR 0042, amendment
-    // of 2026-09-30). Bytecode written beside them is not part of a release.
-    const paths = fixture();
-    refreshManagedPlugins(paths, "synthetic", { execute: () => {} });
-    const core = join(paths.profileRoot, "plugins", "pythia");
-    const granted = JSON.parse(
-      readFileSync(join(core, RELEASE_GRANTS), "utf8"),
-    ).grants;
-    const contracts = MANAGED_PLUGINS.filter((plugin) =>
-      plugin.files.includes("contract.json"),
-    ).map((plugin) => join(paths.profileRoot, "plugins", plugin.name));
-    for (const directory of contracts) {
-      mkdirSync(join(directory, "__pycache__"));
-      writeFileSync(join(directory, "__pycache__", "x.cpython-312.pyc"), "");
-    }
-    const status = JSON.parse(
-      execFileSync(
-        "python3",
-        ["-P", "-B", join(core, "identity/trust.py"), "status", ...contracts],
-        { encoding: "utf8", env: { PATH: process.env.PATH } },
-      ),
-    );
-    const installed = Object.fromEntries(
-      status.directories.map((item: { directory: string }) => [
-        item.directory.split("/").at(-1),
-        item,
-      ]),
-    );
-    expect(granted.length).toBeGreaterThan(0);
-    for (const grant of granted)
-      expect(installed[grant.plugin], grant.plugin).toMatchObject({
-        digest: grant.digest,
-        level: "confirm",
-      });
   });
 
   it("validates the complete copied payload before enabling fresh profiles", () => {
@@ -344,13 +300,9 @@ platform_toolsets:
     const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
     if (!core) throw new Error("Missing core payload fixture");
     const payloads = [
-      // ADR 0042: Hyperliquid has not signed off, so it stays off even if its
-      // payload were listed as enabled by default.
-      ...MANAGED_PLUGINS.map((plugin) =>
-        plugin.name === "pythia-hyperliquid"
-          ? { ...plugin, enabledByDefault: true }
-          : plugin,
-      ),
+      // Hyperliquid, DeFiLlama and NSM are installed but off by default: a
+      // product default in their payload entries, not a trust level.
+      ...MANAGED_PLUGINS,
       {
         ...core,
         name: "optional",

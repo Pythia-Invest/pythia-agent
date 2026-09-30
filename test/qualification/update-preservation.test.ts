@@ -15,7 +15,6 @@ import {
   PLUGIN_COPY_RECEIPT,
   refreshManagedPlugin,
 } from "../../scripts/dev/files.mjs";
-import { writeReleaseGrants } from "../../scripts/dev/release-grants.mjs";
 import {
   atomicWriteJson,
   copyPrivateFile,
@@ -146,14 +145,11 @@ function installedFixture() {
   file(owned.knowledge, "# Synthetic investment case\n\nKeep this Markdown.\n");
 
   const pluginDestination = join(paths.profileRoot, "plugins", "pythia");
-  // As preparation does: Pythia's release trust grants, then core's copy.
-  const copyCore = () => {
-    writeReleaseGrants(paths, { python: "python3" });
+  const copyCore = () =>
     refreshManagedPlugin(
       join(paths.checkout, "runtime", "managed", "core"),
       pluginDestination,
     );
-  };
   copyCore();
   file(
     join(pluginDestination, "__pycache__/__init__.cpython-312.pyc"),

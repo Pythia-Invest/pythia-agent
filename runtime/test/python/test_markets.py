@@ -2,7 +2,6 @@
 
 Screener rows are synthetic, shaped like yahoo-finance2 4.0.2's ScreenerQuote (docs/sources/yahoo-screener.md).
 """
-import dataclasses
 import importlib.util
 import json
 import sqlite3
@@ -44,7 +43,7 @@ class CuratedSubjectTest(unittest.TestCase):
         quote_section = sections["quote"]
         self.assertEqual((quote_section["plugin"], quote_section["binding"], quote_section["binding_status"]),
                          ("pythia-yahoo-discovery", {"provider": "yahoo", "native_id": "^GSPC", "native_scope": "symbol"},
-                          "confirmed"))  # Yahoo's own contract declares it, and Yahoo's files are confirm-level
+                          "confirmed"))  # Yahoo's own contract declares it
         self.assertEqual(set(sections), {"quote", "chart"})  # no profile or filings for an index
 
     def test_a_pair_without_an_asset_class_is_served_where_a_plugin_addresses_it(self):
@@ -126,8 +125,7 @@ class MarketReadsTest(unittest.TestCase):
         plugins = [info if info.key != "pythia-yahoo-discovery" else page.PluginInfo(
             key=info.key, manifest=info.manifest, operations={"movers": "pythia_yahoo_movers"}) for info in shipped()]
         yahoo = next(info for info in plugins if info.key == "pythia-yahoo-discovery")
-        other = dataclasses.replace(yahoo.manifest, signoff=type(yahoo.manifest.signoff).UNSIGNED)  # not yet audited
-        plugins += [page.PluginInfo(key="pythia-other", manifest=other, operations={"movers": "other_movers"})
+        plugins += [page.PluginInfo(key="pythia-other", manifest=yahoo.manifest, operations={"movers": "other_movers"})
                     for _ in more]
         registry = types.SimpleNamespace(dispatch=dispatch)
         with unittest.mock.patch.dict("sys.modules", {"tools": types.ModuleType("tools"),
@@ -164,7 +162,7 @@ class MarketReadsTest(unittest.TestCase):
         self.assertEqual([tool for tool, _ in self.calls], ["pythia_yahoo_movers", "other_movers"])
         self.assertEqual((body["outcome"], body["data"]["source"]["plugin"], body["data"]["skipped"][-1]["code"]),
                          ("ok", "pythia-other", "not_covering"))
-        self.assertTrue(body["data"]["source"]["unaudited"])  # labelled wherever its data appears (ADR 0042)
+        self.assertNotIn("unaudited", body["data"]["source"])
 
     def test_an_unreadable_reference_leaves_rows_unlinked_and_keeps_the_list(self):
         data, issues = movers.adapt(screen(quote()), "most_active", 25)

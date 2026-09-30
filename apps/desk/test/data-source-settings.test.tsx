@@ -36,7 +36,6 @@ const defi = {
   plugin: "pythia-defillama",
   label: "DeFiLlama",
   enabled: true,
-  level: "display",
   catalogue: true,
   resolve: false,
   sole: {
@@ -58,7 +57,6 @@ const lookup = {
   ...defi,
   plugin: "pythia-openfigi",
   label: "OpenFIGI",
-  level: "confirm",
   catalogue: false,
   resolve: true,
   sole: { count: 0, sample: [] },
@@ -70,15 +68,14 @@ beforeEach(() => {
   state.sync = null;
 });
 
-it("shows each source's trust level and what disabling it would take away", () => {
+it("shows what disabling each source would take away, and no trust level", () => {
   const html = renderToStaticMarkup(<DataSourceSettings />);
   expect(html).toContain("DeFiLlama");
-  expect(html).toContain("Display only");
+  expect(html).not.toMatch(/Display only|Confirms identity/u);
   expect(html).toContain(
     "Disabling it takes 1204 subjects only it supplies out of search and data, including one on your watchlist or cards (Navi USDC), which keeps its name.",
   );
   expect(html).toContain("hermes plugins disable pythia-defillama");
-  expect(html).toContain("Confirms identity");
   expect(html).toContain("No subject on this device comes only from it.");
 });
 

@@ -93,7 +93,9 @@ precision has been measured.
 - Coverage grows more slowly.
 - The builder's planned move to typed claims, reconciliation and a build-time
   judge step implements stages 2 and 4.
-- **The code gate is built.** Each plugin's `contract.json` declares its
+- **The code gate is built** (*superseded on 2026-09-30: the `signoff` field
+  remains a record of Pythia's audit and no code reads it; see the last
+  amendment below*). Each plugin's `contract.json` declares its
   `signoff`: `signed_off` with its record, `grandfathered`, or `unsigned`. The
   bundled plugins above are `grandfathered`, each pointing at its pending
   record in `docs/sources/`. The builder's reference sources are not plugins;
@@ -162,6 +164,8 @@ SEC's CIK links depend on FIRDS field 5), and its sign-off does not wait for
 theirs unless it confirms through their evidence.
 
 ## Amendment (2026-09-29): trust levels
+
+*Superseded on 2026-09-30 by the amendment "installing a plugin means trusting it" below.*
 
 [ADR 0044](0044-product-direction.md) sets three plugin trust levels: display,
 suggest identity and confirm identity. Only confirming identity requires this
@@ -249,6 +253,8 @@ builder's `snapshot` authority until trust follows a hashed release.
   keep in step.
 
 ## Amendment (2026-09-30): trust follows a hashed release
+
+*Superseded the same day by the amendment "installing a plugin means trusting it" below; the digest, the grants and the package grant no longer exist.*
 
 **Context.** [ADR 0044](0044-product-direction.md) A4 attaches trust to a
 signed or hashed release, not to a plugin's name. The code gate above honoured
@@ -347,6 +353,8 @@ aside or moved.
 
 ## Amendment (2026-09-30): binding by trust level
 
+*Superseded the same day by the amendment "installing a plugin means trusting it" below: any enabled plugin binds.*
+
 **Context.** A binding could only point at a reference subject: the user's
 answer was refused for any other target, and only a confirm-level plugin bound.
 The identity store now holds device subjects that plugins introduce
@@ -387,3 +395,59 @@ another source describes. Binding a shared subject does, which needs confirm.
   shared instrument without review.
 - **No display binding at all:** a display plugin's own pools or tokens would
   have no address and no page data.
+
+## Amendment (2026-09-30): installing a plugin means trusting it
+
+**Context.** [ADR 0044](0044-product-direction.md)'s amendment of the same day
+removes plugin trust levels: installing a plugin is the user's act of trusting
+it, and every enabled plugin is equal. The three amendments above built the
+levels into the code gate.
+
+**Ruling.**
+
+- **`signoff` is documentation.** A plugin's `contract.json` still declares
+  `signed_off` (with its record), `grandfathered` or `unsigned`. The field
+  records where Pythia's own audit of that source stands. No code reads it:
+  it does not rank a source, label its data, decide whether it binds, or
+  decide what a fresh profile enables.
+- **The standard stays as Pythia's quality process for its own defaults.** The
+  four stages and the sign-off gate decide what Pythia ships enabled and
+  whether it calls a source audited in its records. They do not limit what an
+  enabled plugin can do.
+- **Removed:** the digest `pythia-plugin-digest@1`, Pythia's release grants
+  and the generated `identity/trust.json`, the user's local grants file, the
+  reference package's grant and `reference_package install --display`,
+  `vouched`, the "not yet audited" label, the `unaudited` residual and queue
+  reason, and binding by level.
+- **Kept:** a plugin's own record binds the device subject it introduced (rule
+  `introduced@1`), and every enabled plugin may bind like it. Fresh profiles
+  leave DeFiLlama, Hyperliquid and the FCA NSM plugin off, because each
+  payload entry says so (`enabledByDefault: false`), not because of its
+  `signoff`.
+- **Source selection** is ADR 0040's: the investor's order, then core's
+  default order, then plugin ID. An unsigned source is no longer placed after
+  every signed-off one; a source the default order does not name follows the
+  ones it names.
+
+**Rationale.** A rule that reads a declared status changes behaviour with a
+file the plugin's author writes, which is the trust the digest was built to
+stop. Removing the rule is simpler than guarding it, and the audit keeps its
+meaning as a record.
+
+**Consequences.**
+
+- An `unaudited` question an earlier Pythia queued is marked superseded the
+  next time the store opens, and stays readable as history.
+- Pages, alternatives, filings results, agent reads and market-data reads no
+  longer carry `unaudited` or an `unaudited_source` warning, and search no
+  longer breaks a tie by trust.
+- `scripts/dev/release-grants.mjs` and the grants generated at assembly and in
+  the qualification runs are gone with their parity test.
+
+**Rejected alternatives.**
+
+- **Keeping the code gate and dropping only the digest.** Every installed
+  plugin would be judged by its own declaration, which a community plugin can
+  set to anything.
+- **Deleting `signoff`.** It is how Pythia's records and the contract tests say
+  which sources Pythia has audited.

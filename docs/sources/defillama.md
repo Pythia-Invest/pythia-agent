@@ -3,10 +3,11 @@
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
 ([ADR 0042](../decisions/0042-source-onboarding-standard.md)).
 
-- **Status:** not signed off; ships opt-in; display level. The plugin is
-  installed disabled, and enabling it is the investor's opt-in. It introduces
-  subjects only it describes (protocols and pools) and links pools to token
-  deployments by CAIP-19; it asks no identity question and never confirms one.
+- **Status:** not signed off; ships opt-in. The plugin is installed disabled
+  (a product default), and enabling it is the investor's opt-in; once enabled
+  it is a source like any other. It introduces subjects only it describes
+  (protocols and pools) and links pools to token deployments by CAIP-19; it
+  asks no identity question.
 - **Owner:** `runtime/managed/plugins/defillama/` (`catalogue.py` parses and
   builds claim batches; `__init__.py` reads and caches).
 - **Scope:** two keyless directory reads, `GET https://api.llama.fi/protocols`
