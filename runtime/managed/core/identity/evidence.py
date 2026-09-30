@@ -19,6 +19,8 @@ from .schemes import SINGLE_VALUED
 from .trust import CONFIRM, DISPLAY
 from .vocabulary import Authority
 
+PACKAGE = "reference"  # the reference package as a contributor: its evidence's plugin, and its questions' tag
+
 
 def level(ref: sqlite3.Connection) -> str:
     """The trust level of the reference `ref` reads: display unless its package is granted confirm."""
@@ -62,9 +64,11 @@ def weigh(assertions: Iterable[IdentifierAssertion], granted: str, as_of: str | 
 
 def show(subject: dict[str, Any]) -> None:
     """The view's identifier fields from the subject's values: a contested scheme shows none, and the view lists
-    each contested scheme's values with their sources and display-level evidence with its source. `provenance` names
-    where each identifier shown comes from: the first assertion stating it, at its contributor's trust level, or the
-    user where their answer decided a contested value (`build_questions`)."""
+    each contested scheme's values with their sources (labelled as the page names sources) and display-level evidence
+    with its source. `provenance` names where each identifier shown comes from: the first assertion stating it, at its
+    contributor's trust level, or the user where their answer decided a contested value (`build_questions`). A
+    subject's assertions are the reference package's, so their contributor is the package."""
+    from .page import LABELS  # page composition reads subjects: imported when used
     values, view = subject["values"], subject["view"]
     listing = subject["listing"]
     identifiers = {"isin": values.get("isin"), "lei": values.get("lei"), "cik": values.get("cik"),
@@ -83,13 +87,16 @@ def show(subject: dict[str, Any]) -> None:
                               if item.scheme == scheme and item.value == value), (None, None))
         if item is not None:
             view["provenance"][scheme] = {
-                "source": item.provenance.source, "plugin": item.provenance.plugin, "level": granted,
+                "source": item.provenance.source, "plugin": PACKAGE, "level": granted,
                 "authority": str(Authority.USER_ATTESTED if scheme in subject.get("attested", ()) else item.authority)}
     view.pop("contested", None)
     view.pop("shown", None)
+    def stating(found: list[IdentifierAssertion], value: str) -> list[str]:
+        return sorted({LABELS.get(item.provenance.source, item.provenance.source)
+                       for item in found if item.value == value})
+
     if subject["contested"]:
-        view["contested"] = {scheme: [{"value": value, "sources": sorted({item.provenance.source for item in found
-                                                                           if item.value == value})}
+        view["contested"] = {scheme: [{"value": value, "sources": stating(found, value)}
                                       for value in sorted({item.value for item in found})]
                              for scheme, found in sorted(subject["contested"].items())}
     if subject["shown"]:

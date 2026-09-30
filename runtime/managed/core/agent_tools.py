@@ -275,9 +275,6 @@ def instrument(arguments: dict, **_context: Any) -> str:
         view["home"] = next((line["id"] for line in own if line.get("primary")), "unknown")
         if view["home"] == "unknown":
             view["home_note"] = HOME_UNKNOWN
-    for line in view.get("listings", []):  # summarised by the not_exchange_traded and no_home_country_line flags
-        line.pop("home_country", None)
-        line.pop("regulated", None)
     view.pop("queue", None)  # counted by the identity_question_open flag, read in full by pythia_identity_questions
     view.pop("contested", None)  # the conflicting_identifier flag gives each value with its sources
     view["provider_tools"] = provider_tools_for(str(arguments.get("subject_id") or ""))

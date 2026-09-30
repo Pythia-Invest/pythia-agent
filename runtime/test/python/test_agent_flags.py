@@ -19,10 +19,8 @@ ASML_SECURITY, OTHER_ISIN = "security:isin:NL0010273215", "NL0006034001"
 GSK, GSK_BEFORE = "security:isin:GB00BN7SWP63", "security:isin:GB0009252882"
 SHELL, SHEL = "security:isin:GB00BP6MXD84", "listing:isin:GB00BP6MXD84:XLON:GBP"
 US_STEEL = "listing:provisional:sec:ticker:XNYS.1163302.X"
-# ISO 10383 as the builder writes it: OTC Markets is `OTHR`, never a regulated market.
-VENUES = (("XSTO", "Nasdaq Stockholm", "SE", "RMKT"), ("XLON", "London Stock Exchange", "GB", "RMKT"),
-          ("XNAS", "Nasdaq", "US", "NSPD"), ("XNYS", "New York Stock Exchange", "US", "NSPD"),
-          ("OTCM", "OTC Markets", "US", "OTHR"))
+CURRENCY_GAP = {"code": "trading_currency_unknown", "detail": "A coverage gap: no source Pythia holds states this line's "
+                "trading currency, and its venue does not fix one."}
 
 
 class InstrumentFlagsTest(AgentToolFixture):
@@ -34,9 +32,6 @@ class InstrumentFlagsTest(AgentToolFixture):
         self.path = identity_ops.reference_package.current(Path(self.tmp.name))
         with self.reference() as db:
             load_reference(db, load("failures.json"))
-            db.executemany("INSERT INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
-                           [(mic, mic, name, country, category) for mic, name, country, category in VENUES])
-            db.execute("UPDATE listings SET trading_currency = currency WHERE security_id = ?", (ASML_SECURITY,))
 
     def reference(self):
         """The installed reference, to change one row the way a later build would."""
@@ -54,24 +49,24 @@ class InstrumentFlagsTest(AgentToolFixture):
     def flags(self, subject_id):
         return {flag["code"]: flag.get("detail") for flag in self.read(subject_id)["flags"]}
 
-    def test_a_settled_instrument_has_no_flags_and_names_each_identifiers_source(self):
+    def test_a_settled_instrument_flags_only_its_currency_gap_and_names_each_identifiers_source(self):
+        # ASML on Euronext Amsterdam, as in a real build: FIRDS gives the line no trading currency.
         data = self.read(ASML)
-        self.assertEqual(data["flags"], [])
-        self.assertEqual(data["provenance"]["isin"],
-                         {"source": "gleif", "plugin": "gleif", "authority": "source_asserted", "level": "confirm"})
+        self.assertEqual(data["flags"], [CURRENCY_GAP])
+        self.assertEqual(data["provenance"]["isin"],  # the package contributes it, from GLEIF's record
+                         {"source": "gleif", "plugin": "reference", "authority": "source_asserted", "level": "confirm"})
         self.assertEqual((data["provenance"]["lei"]["source"], data["provenance"]["cik"]["source"]), ("gleif", "sec"))
         # Each identifier shown has one; the listing's ticker, MIC and currency are its own row's.
         self.assertEqual(set(data["provenance"]), {"isin", "lei", "cik", "figi"})
         for key in ("queue", "contested", "open_identity_questions"):
             self.assertNotIn(key, data)
-        self.assertNotIn("regulated", json.dumps(data["listings"]))  # summarised by the flags, not repeated per line
 
     def test_conflicting_identifier_gives_both_values_with_their_sources(self):
         add(self.path, ASML_SECURITY, "isin", OTHER_ISIN, "vendor")  # beside GLEIF's, at the package's confirm level
         data = self.read(ASML)
         flags = {flag["code"]: flag.get("detail") for flag in data["flags"]}
         self.assertEqual(flags["conflicting_identifier"], {"scheme": "isin", "values": [
-            {"value": OTHER_ISIN, "sources": ["vendor"]}, {"value": "NL0010273215", "sources": ["gleif"]}]})
+            {"value": OTHER_ISIN, "sources": ["vendor"]}, {"value": "NL0010273215", "sources": ["GLEIF"]}]})
         self.assertNotIn("isin", data["identifiers"])  # neither value is applied, and neither has provenance
         self.assertNotIn("isin", data["provenance"])
         # Reading it asked the contested identifier as a question (ADR 0037, questions on touch).
@@ -82,7 +77,7 @@ class InstrumentFlagsTest(AgentToolFixture):
         add(self.path, "composite:isin:NL0010273215:NL", "composite_figi", "BBG000K6MRN4", "openfigi")
         add(self.path, ASML_SECURITY, "isin", OTHER_ISIN, "gleif")  # GLEIF again, beside its own ISIN
         data = self.read(ASML)
-        self.assertEqual(data["flags"], [])
+        self.assertEqual(data["flags"], [CURRENCY_GAP])
         self.assertEqual(data["provenance"]["isin"]["source"], "gleif")
 
     def test_issuer_unknown_for_a_share_the_data_names_no_issuer_for(self):
@@ -92,7 +87,7 @@ class InstrumentFlagsTest(AgentToolFixture):
         self.assertIn("issuer_unknown", self.flags(SHELL))
 
     def test_trading_currency_unknown_for_a_line_that_quotes_in_minor_units(self):
-        self.assertEqual(self.flags(SHEL), {"trading_currency_unknown": None})  # London: pence or pounds, undecided
+        self.assertEqual(self.read(SHEL)["flags"], [CURRENCY_GAP])  # London quotes in pence or pounds
 
     def test_successor_in_both_directions_and_not_active_for_the_old_isin(self):
         self.assertEqual(self.flags(GSK)["successor"], {"succeeds": GSK_BEFORE})
@@ -112,21 +107,6 @@ class InstrumentFlagsTest(AgentToolFixture):
 
     def test_not_active_for_a_delisted_line(self):
         self.assertEqual(self.flags(US_STEEL)["not_active"], {"security": "inactive", "listing": "inactive"})
-
-    def test_no_home_country_line_when_only_a_foreign_line_is_known(self):
-        # A GB share whose only line in the reference is Stockholm: the investor's home-market claim is unsupported.
-        with self.reference() as db:
-            db.execute("DELETE FROM listings WHERE id = ?", (SHEL,))
-            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, trading_currency,"
-                       " is_primary, status) VALUES (?, ?, 'XSTO', 'XSTO', 'SHELL', 'SEK', 'SEK', 0, 'active')",
-                       ("listing:isin:GB00BP6MXD84:XSTO:SEK", SHELL))
-        self.assertEqual(self.flags(SHELL), {"no_home_country_line": None})
-
-    def test_not_exchange_traded_when_only_an_otc_line_is_known(self):
-        with self.reference() as db:
-            db.execute("UPDATE listings SET id = 'listing:isin:GB00BP6MXD84:OTCM:USD', mic = 'OTCM',"
-                       " operating_mic = 'OTCM', ticker = 'RYDAF', trading_currency = 'USD' WHERE id = ?", (SHEL,))
-        self.assertEqual(set(self.flags(SHELL)), {"not_exchange_traded", "no_home_country_line"})
 
     def test_the_home_note_says_the_listing_in_use_is_pythias_default(self):
         with self.reference() as db:

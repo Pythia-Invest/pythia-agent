@@ -21,7 +21,7 @@ from typing import Any
 
 from .identity import (
     MANIFEST_FILE, ClaimError, Kind, Level, ManifestError, ManifestNeedsUpdate, check_batch, subject_kind,
-    validate_manifest, vouched,
+    RelationType, validate_manifest, vouched,
 )
 from . import queue_ops, read_checks, search_venues
 from .native_ops import native_operations, operation_tools  # noqa: F401  (the Hermes adapter, re-exported)
@@ -235,7 +235,7 @@ class Identity:
             # The company's other instruments; a share class listed there is not repeated under `related`, a successor is.
             view["other_securities"] = directory.other_instruments(security)
             others = {item["id"] for item in view["other_securities"]}
-            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == flags.SUCCESSOR_OF]
+            view["related"] = [item for item in view["related"] if item["id"] not in others or "authority" in item or item["type"] == RelationType.SUCCESSOR_OF]
         sections = page.compose(subject, installed(), **lookups)
         return {**subject["view"], "sections": sections, "queue": lookups["queue"], "flags": flags.derive(subject, lookups["queue"])}, None
 

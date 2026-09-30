@@ -38,7 +38,7 @@ class ContestedTest(QueueFixture):
         add(self.path, SECURITY, "isin", B, "vendor")  # beside the build's own ISIN, with its `snapshot` marker
         subject = page.load_subject(self.ref, ASML)
         self.assertEqual(subject["view"]["contested"], {"isin": [{"value": B, "sources": ["vendor"]},
-                                                                 {"value": A, "sources": ["gleif"]}]})
+                                                                 {"value": A, "sources": ["GLEIF"]}]})
         self.assertNotIn("isin", subject["view"]["identifiers"])  # neither value is applied
         self.assertIsNone(subject["view"]["security"]["isin"])
         for isin in (A, B):
@@ -59,8 +59,8 @@ class ContestedTest(QueueFixture):
         self.assertEqual((subject["contested"], subject["values"]["composite_figi"]), ({}, "BBG000C1HSN8"))  # its first
         add(self.path, composite, "composite_figi", "BBG000BDTBL9", "vendor")  # another source disagrees: contested
         self.assertEqual(page.load_subject(self.ref, ASML)["view"]["contested"], {"composite_figi": [
-            {"value": "BBG000BDTBL9", "sources": ["vendor"]}, {"value": "BBG000C1HSN8", "sources": ["openfigi"]},
-            {"value": "BBG000K6MRN4", "sources": ["openfigi"]}]})
+            {"value": "BBG000BDTBL9", "sources": ["vendor"]}, {"value": "BBG000C1HSN8", "sources": ["OpenFIGI"]},
+            {"value": "BBG000K6MRN4", "sources": ["OpenFIGI"]}]})
 
     def test_a_user_answer_is_refused_only_under_unanimous_confirm_level_proof(self):
         item = self.ask(answer(("isin", B)))  # the record names another ISIN than every confirm-level assertion

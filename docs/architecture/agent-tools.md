@@ -39,8 +39,10 @@ tool gives and from which source.
 **What `pythia_instrument` says about uncertainty.** This implements the
 vision's "What the agent sees". The subject's listing in use
 (`subject.listing`) is the default. `provenance` gives each identifier shown
-its `source`, `plugin`, `authority` (the kind of evidence, or `user_attested`
-where the user's answer decided it) and trust `level`. `flags` is a list of
+its `source` (the record it comes from, such as `esma_firds`), the contributing
+`plugin` (`reference` for the reference package), its `authority` (the kind of
+evidence, or `user_attested` where the user's answer decided it) and the
+contributor's trust `level`. `flags` is a list of
 `{code, detail}` from a closed vocabulary (`core/identity/flags.py`), derived
 only from what composing the page already loads:
 
@@ -51,11 +53,15 @@ only from what composing the page already loads:
 | `issuer_unknown` | A share whose issuer the data does not settle | none |
 | `successor` | A corporate action changed a natural key | the subject it `succeeds`, or the one it is `succeeded_by` |
 | `not_active` | The security or the listing in use is inactive or of unknown status | which, with its status |
-| `trading_currency_unknown` | The listing in use has no decided trading currency | none |
-| `not_exchange_traded` | None of its own lines is on a regulated market or a US exchange | none |
-| `no_home_country_line` | None of its own lines is in its ISIN's or issuer's country (limited coverage) | none |
+| `trading_currency_unknown` | The listing in use has no decided trading currency | that this is a coverage gap: no source Pythia holds states it, and the venue does not fix one |
 
 The full evidence of a question comes through `pythia_identity_questions`.
+Tradability and coverage flags (no exchange line, no line in the home
+country) wait for venue coverage that can support them. Derived from the
+lines Pythia holds, they fired on 32% and 24% of the equity instruments in a
+real build, mostly where Pythia lacks the home venue (Alibaba, Glencore) or
+where a company lists away from its domicile by design (Airbus, Ferrari), and
+the agent would read them as facts about the instrument.
 Stage 1's consequential operations read these flags as their reasons to be
 unavailable ([ADR 0044](../decisions/0044-product-direction.md) A6). No flag
 gates a read today.

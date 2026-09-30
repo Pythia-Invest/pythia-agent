@@ -37,7 +37,7 @@ from .subject import load_subject as load_reference_subject
 from .vocabulary import Authority, VerdictRelation
 
 logger = logging.getLogger(__name__)
-BUILD = "reference"         # the `plugins` tag of the build's questions, which carry no provider record
+BUILD = weighing.PACKAGE    # the `plugins` tag of the build's questions, which carry no provider record
 LABEL = "Pythia reference"  # the source Repairs shows: it names the origin and grants no authority
 EPOCH = "1970-01-01T00:00:00Z"  # an indexed question's placeholder `opened_at`; queueing sets the real one
 # The build's question types (tooling/reference-builder `QUESTION_SHAPE`) by queue reason, and the one relation an
