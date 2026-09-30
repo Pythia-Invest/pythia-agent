@@ -24,6 +24,9 @@ def build_snapshot(inputs: Inputs, gleif_fetch: GleifFetch, figi_map: FigiMap) -
     snap.venues = used_venues(snap, inputs.venues)
     rank(snap, inputs)
     snap.audit = summarise(snap)
+    snap.audit["source_corrections"] = claims.corrections
+    snap.source_corrections = [(key, source, path, original, value, reason)
+                               for (key, path), (source, original, value, reason) in sorted(claims.corrected.items())]
     return snap
 
 

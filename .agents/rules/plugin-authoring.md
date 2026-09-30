@@ -37,6 +37,11 @@ and naming convention in [agent tools](../../docs/architecture/agent-tools.md).
 A new source or a newly read field follows
 [source onboarding](../../docs/architecture/source-onboarding.md) first.
 
+A plugin states a correction of its own source's error (`attributes.source_corrections`,
+with the original and the reason, only while the source still states the
+original), never a correction of another plugin's or the reference's data. See
+[correcting your own source](../../docs/architecture/plugins.md#correcting-your-own-source).
+
 Bundled native skills use explicit qualified discovery at the pinned release;
 do not assume they enter the automatic prompt skill index. Keep descriptions and
 supporting files scoped to the feature. Builder instructions are not runtime

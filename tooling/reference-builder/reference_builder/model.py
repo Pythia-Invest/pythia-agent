@@ -222,6 +222,7 @@ class Snapshot:
     relationships: list[Relationship] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)
     questions: list[Question] = field(default_factory=list)
+    source_corrections: list[tuple] = field(default_factory=list)  # (working key, source, source field, original, value, reason)
     audit: dict = field(default_factory=dict)
 
     def flag(self, subject_id: str, flag: str, detail: str | None = None) -> None:

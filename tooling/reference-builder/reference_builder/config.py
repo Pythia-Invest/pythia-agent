@@ -12,6 +12,7 @@ from pathlib import Path
 TOOL_DIR = Path(__file__).resolve().parent.parent
 # Outputs and downloads are data: they live under the checkout's ignored `.local/`.
 WORK_DIR = TOOL_DIR.parent.parent / ".local" / "reference-builder"
+SOURCE_CORRECTIONS = TOOL_DIR / "source_corrections.json"  # the adapters' fixes of their own sources' errors (README)
 BUILDER_VERSION = "5"  # the rules version: bump it on every rule change, with a line in the README's "Rules versions"
 
 # Generic project identification; personal contacts never belong in source.
