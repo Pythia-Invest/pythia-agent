@@ -16,6 +16,7 @@ from .fetch import Downloader, log, utc_now
 from .gleif import GleifClient
 from .openfigi import MAPPING_URL, OpenFigi
 from .pipeline import build_snapshot
+from .source_corrections import Table
 
 
 def parse_args(argv: list[str]) -> BuildConfig:
@@ -73,8 +74,7 @@ def run(config: BuildConfig) -> int:
         deltas = [firds.download(downloads, "esma_firds", d) for d in delta_docs]
         admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes, fingerprint)
     stamp = config.as_of.strftime("%Y%m%d")
-    table = schema.source_corrections.Table.read(SOURCE_CORRECTIONS.read_text(encoding="utf-8")) if config.scope.firds \
-        else schema.source_corrections.Table()  # the fixes of FIRDS' own errors; a build without FIRDS reads none
+    table = Table.read(SOURCE_CORRECTIONS.read_text(encoding="utf-8")) if config.scope.firds else Table()  # the fixes of FIRDS' own errors; a build without FIRDS reads none
     firds_claims = claims.load(claims.corrected(firds.claims(admissions), table), table)  # the claims the build decides from
     if config.scope.firds:
         firds.measure(fingerprint, firds_claims.isins)

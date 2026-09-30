@@ -481,7 +481,7 @@ Core never asks who a plugin is or which files it holds.
 A plugin that knows its own source is wrong in a record states the corrected
 value and keeps what the source said ([ADR 0044](../decisions/0044-product-direction.md),
 amendment "a source adapter corrects its own source"). The record carries it in
-`attributes.corrections`, a list of `SourceCorrection` with three fields: the
+`attributes.source_corrections`, a list of `SourceCorrection` with three fields: the
 `field` (an identifier scheme the record states as `self`, or a descriptive
 attribute it states), the `original` (the source's own text, exactly, so it can be
 reported) and the `reason` (what is wrong and the evidence, at most 400
@@ -496,9 +496,9 @@ to the stated value, a second correction of one field, or more than eight.
 - **Only while the source still states the original.** Compare the raw value with
   the original before applying the fix, and pass the raw value through once the
   source has fixed it; the entry is then stale and is deleted. The plugin does this
-  in its own code. The reference builder does it with core's
-  `source_corrections.Table.apply`, which counts applied, stale and absent entries
-  in the build report.
+  in its own code; core cannot see the source, so it cannot check. The reference
+  builder does it with its own `source_corrections.Table`, which counts applied,
+  stale and absent entries in the build report.
 - **It stays the source's statement.** The authority is unchanged (`source_asserted`);
   a correction earns no extra weight, and a conflict with another source is raised as
   before. Keep a list of what you corrected, and report each to the source, in the

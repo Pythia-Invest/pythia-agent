@@ -1,6 +1,6 @@
-"""A plugin or source adapter corrects its own source's error (ADR 0044, amendment "plugins fix their own source's
-data"): the record states the corrected value and keeps what the source said and why that is wrong, a correction applies
-only while the source still states its original, and a subject's view lists each one with the original beside it."""
+"""A plugin corrects its own source's error (ADR 0044, amendment "a source adapter corrects its own source"): the record
+states the corrected value and keeps what the source said and why that is wrong, and a subject's view lists each one with
+the original beside it. Staleness is the plugin's to enforce; the builder's rule is tested in the builder."""
 import sqlite3
 import tempfile
 import unittest
@@ -9,7 +9,6 @@ from pathlib import Path
 
 from identity_world import World, record, vendor
 from test_identity_contracts import PROVENANCE, identity
-from pythia_identity_fixture import source_corrections  # noqa: E402
 
 ASML_LINE, ASML_ISIN = "listing:isin:NL0010273215:XAMS:EUR", "NL0010273215"
 ASML_SECURITY = "security:isin:NL0010273215"
@@ -17,12 +16,12 @@ WRONG = "ASML HLDG NV (TESTDATA)"
 REASON = "the provider lists the line under a test name; the company's filings name it ASML Holding N.V."
 
 
-def corrected(plugin, *, corrections=None, name="ASML Holding N.V."):
+def corrected(plugin, *, source_corrections=None, name="ASML Holding N.V."):
     """A line record of ASML as the plugin emits it."""
     found = record(plugin, "ASML.AS", ("isin", ASML_ISIN))
     found["attributes"] = {"name": name, "operating_mic": "XAMS", "currency": "EUR"}
-    if corrections is not None:
-        found["attributes"]["corrections"] = corrections
+    if source_corrections is not None:
+        found["attributes"]["source_corrections"] = source_corrections
     return found
 
 
@@ -31,7 +30,7 @@ class ClaimTest(unittest.TestCase):
 
     def claim(self, corrections, **attributes):
         plugin = vendor("isin")
-        found = corrected(plugin, corrections=corrections)
+        found = corrected(plugin, source_corrections=corrections)
         found["attributes"].update(attributes)
         return identity.RecordClaim(**found)
 
@@ -41,9 +40,9 @@ class ClaimTest(unittest.TestCase):
         batch = identity.ClaimBatch(plugin="vendor", provider="vendor", adapter_version="1", origin="resolve",
                                     claims=(self.claim(fixes),))
         wire = identity.batch_to_json(batch)
-        self.assertEqual(wire["claims"][0]["attributes"]["corrections"], fixes)
+        self.assertEqual(wire["claims"][0]["attributes"]["source_corrections"], fixes)
         [again] = identity.batch_from_json(wire).claims
-        self.assertEqual(again.attributes.corrections, (identity.SourceCorrection(**fixes[0]), identity.SourceCorrection(**fixes[1])))
+        self.assertEqual(again.attributes.source_corrections, (identity.SourceCorrection(**fixes[0]), identity.SourceCorrection(**fixes[1])))
 
     def test_a_correction_the_record_does_not_back_is_refused(self):
         name = {"field": "name", "original": WRONG, "reason": REASON}
@@ -62,7 +61,7 @@ class ClaimTest(unittest.TestCase):
         with self.assertRaises(ValueError):  # the identifier it corrects is the record's own, never its underlying
             identity.RecordClaim(**{**corrected(vendor("isin")), "identifiers": [
                 {"scheme": "isin", "value": ASML_ISIN, "role": "underlying"}], "attributes": {
-                    "corrections": [{"field": "isin", "original": "NL0010273216", "reason": REASON}]}})
+                    "source_corrections": [{"field": "isin", "original": "NL0010273216", "reason": REASON}]}})
 
 
 class ViewTest(unittest.TestCase):
@@ -80,32 +79,12 @@ class ViewTest(unittest.TestCase):
     def test_a_plugins_correction_of_its_own_source_shows_with_what_the_source_said(self):
         self.assertEqual(self.listed(), [])
         fix = [{"field": "name", "original": WRONG, "reason": REASON}]
-        self.world.ingest(self.plugin, corrected(self.plugin, corrections=fix))
+        self.world.ingest(self.plugin, corrected(self.plugin, source_corrections=fix))
         self.assertEqual(self.listed(), [{
             "plugin": "vendor", "subject_id": ASML_LINE, "source": "vendor", "field": "name", "original": WRONG,
             "value": "ASML Holding N.V.", "reason": REASON}])
-        [row] = self.world.identity.select("SELECT json_extract(claim, '$.attributes.corrections[0].original') FROM claims")
+        [row] = self.world.identity.select("SELECT json_extract(claim, '$.attributes.source_corrections[0].original') FROM claims")
         self.assertEqual(row[0], WRONG)  # raw data answers "what did the source originally say?"
-
-    def test_a_correction_stops_applying_when_the_source_fixes_its_value(self):
-        entry = {"source": "vendor", "key": "ASML.AS", "field": "name", "original": WRONG, "value": "ASML Holding N.V.",
-                 "reason": REASON}
-        table = source_corrections.Table([entry])
-
-        def emit(stated):  # the adapter: the source's raw name in, the claim out
-            value, fix = table.apply("vendor", "ASML.AS", "name", stated)
-            self.world.ingest(self.plugin, corrected(self.plugin, name=value, corrections=[
-                {"field": "name", "original": fix[0], "reason": fix[1]}] if fix else None))
-
-        emit(WRONG)
-        self.assertEqual([row["original"] for row in self.listed()], [WRONG])
-        self.assertEqual({key: table.report()[key] for key in ("applied", "stale")}, {"applied": 1, "stale": 0})
-        table = source_corrections.Table([entry])
-        emit("ASML Holding N.V.")  # the source has fixed it: the raw value passes through and the entry is stale
-        self.assertEqual(self.listed(), [])
-        self.assertEqual(table.report(), {"entries": 1, "applied": 0, "stale": 1, "absent": 0,
-                                          "retire": ["vendor ASML.AS name"]})
-        self.assertEqual(source_corrections.Table([entry]).report()["absent"], 1)  # a record the source never gave
 
     def test_the_reference_builds_corrections_show_beside_the_plugins(self):
         row = (ASML_SECURITY, "esma_firds", "Issr", "529900Z57DVJXUBLHX66", "724500Y6DUVHQD6OXN27", REASON)

@@ -114,7 +114,9 @@ def build_eu(snap: Snapshot, inputs: Inputs, gleif_fetch: GleifFetch, figi_map: 
     scoped = scope_isins(inputs)
     audit["scope_isins"] = len(scoped)
     claims, venues = inputs.claims(), Venues(inputs.venues)
-    entities = gleif_fetch({r.issuer_lei for rs in scoped.values() for r in rs if r.issuer_lei}) if inputs.gleif else {}
+    # The LEIs the build decides from (`claims`, corrected ones included), never the raw field 5 of a record.
+    leis = {lei for isin in scoped for lei in claims.isins.get(isin, {}).get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, ())}
+    entities = gleif_fetch(leis) if inputs.gleif else {}
     disputed = contested(claims, entities, venues, gleif=inputs.gleif)
     issuers = {isin: issuer_lei(claims, venues, entities, isin, disputed) for isin in scoped}
 

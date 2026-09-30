@@ -311,11 +311,13 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   SEC-only class B no longer takes the receipt. A FIRDS receipt's field 5 can be
   a venue's guess (no admission its issuer requested), which the SEC registrant
   behind an ADR is not, so a name may veto the rule: when the receipt's own name
-  and the names of its share and issuer share no leading word (Concord Medical
-  Services' ADR under China Medical System Holdings), nothing is decided, the
-  question stays and the receipt is flagged `receipt_name_disagrees` (3 on the
-  2026-09-28 build: Concord, Huazhu, now H World, and a receipt named only
-  "Depositary Receipts"). The name never links. On that build the rule links 247
+  and the names of its share and issuer share no leading word, nothing is decided,
+  the question stays and the receipt is flagged `receipt_name_disagrees` (2 on the
+  2026-09-28 build: Huazhu, now H World, and a receipt named only "Depositary
+  Receipts"). Concord Medical Services' ADR, which carried China Medical System
+  Holdings' LEI, was the third: it is now a FIRDS source correction that retracts
+  the wrong LEI (no issuer, and a `receipt_underlying` question with no candidate;
+  see Source corrections below). The name never links. On that build the rule links 247
   receipts (198 before FIRDS receipts with no stated underlying were
   included); Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a
   second share without an active line, get none. The edge is `rule_confirmed` and names its
@@ -422,7 +424,7 @@ a rule. `source_corrections.json` lists each one by source, record key (for FIRD
 `isin:<ISIN>`), the source's own field (`Issr`), the `original` the source states, the
 `value` to use (`null` retracts the statement: the claim is not emitted, for a field whose right value does not exist), and a `reason` of at most 400 characters that says what is wrong and
 cites the evidence. The adapter itself reads its source as it is; the build passes
-its claims through `claims.corrected` with core's `source_corrections.Table`, which
+its claims through `claims.corrected` with this builder's `source_corrections.Table`, which
 sets `Claim.correction = (original, reason)` on each corrected claim. That claim's
 value is the corrected one, so the build decides from it.
 `Claims.corrected` keeps them; the writer puts each into the reference's
@@ -435,7 +437,12 @@ A correction applies only while the source still states `original`. If the sourc
 fixes its error the raw value passes through and the entry is counted stale; an
 entry whose record the build did not read is counted absent. The manifest's
 `audit.source_corrections` and the build counts list `applied`, `stale` and
-`absent` with the entries to retire under `retire`. Each entry is a maintainer's
+`absent` with the entries to retire under `retire`; an entry on a record the package
+cannot place (an admission-level key) is counted as `schema.source_corrections_unplaced`
+and listed in the build counts, since its original would not reach the package.
+A retraction removes the claim, so the security counts among those without an issuer
+LEI (`isins_without_issuer_lei` rises by one per retraction, and so do the securities
+without an issuer: 1,546 to 1,547 on the 2026-09-28 build). Each entry is a maintainer's
 to report to the source (the lists of entries and what was reported are in
 `docs/sources/<source>.md`); a build without FIRDS reads none.
 

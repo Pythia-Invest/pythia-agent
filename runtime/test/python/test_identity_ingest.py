@@ -134,6 +134,19 @@ class JoinTest(IngestTest):
         self.assertEqual(sorted(item.value for item in view["contested"]["isin"]), ["GB0009252882", "GB00BN7SWP63"])
         self.assertNoQuestions()
 
+    def test_an_issuer_record_joins_by_lei_then_cik_and_an_unknown_lei_is_introduced(self):
+        issuers = source("issuers", level="issuer", introduces={"issuer": ["lei"]})
+        unknown = "5493001KJTIIGC8Y1R12"
+        done = self.ingest(issuers, record(issuers, "A", ("lei", ERICSSON_LEI), name="Ericsson"),
+                           record(issuers, "B", ("cik", "717826")),
+                           record(issuers, "C", ("lei", unknown), name="Nowhere AB"))
+        self.assertEqual([self.placed(issuers, name) for name in "ABC"],
+                         [(ERICSSON, "joined"), (ERICSSON, "joined"), (f"issuer:lei:{unknown}", "introduced")])
+        self.assertEqual((done["joined"], done["introduced"], done["unmatched"]), (2, 1, 0))
+        self.assertEqual(self.world.subject(ERICSSON)["view"]["contributors"][0]["stated"],
+                         [{"scheme": "cik", "value": "0000717826"}, {"scheme": "lei", "value": ERICSSON_LEI}])
+        self.assertNoQuestions()
+
     def test_the_ericsson_pin_a_shared_cik_never_picks_another_class(self):
         # Ericsson A and B share LEI and CIK; only a class's own share-class FIGI names it.
         classes = source("classes", level="security", introduces={"security": ["figi"], "issuer": ["lei"]})
@@ -252,6 +265,16 @@ class OrderTest(IngestTest):
                                     (f"security:figi:{SAP_SHARE}", None)])
         self.assertEqual({(subject, value) for subject, scheme, value, _plugin in evidence if scheme == "share_class_figi"},
                          {(f"security:figi:{SAP_SHARE}", SAP_SHARE), ("security:figi:BBG000TYSCX0", "BBG000TYSCX0")})
+
+    def test_two_plugins_stating_the_same_cgs_area_isin_give_one_subject_in_either_order(self):
+        first, second = (source(name, introduces={"listing": ["cgs_isin"], "security": ["cgs_isin"]}) for name in ("a", "b"))
+        apple = ("isin", "US0378331005")
+        subjects, evidence = self.both_orders(
+            (first, record(first, "AAPL", apple, operating_mic="XNAS", currency="USD", name="Apple")),
+            (second, record(second, "AAPL.O", apple, operating_mic="XNAS", currency="USD", name="Apple Inc.")))
+        self.assertEqual(subjects, [("listing:cgs_isin:US0378331005:XNAS:USD", "security:cgs_isin:US0378331005"),
+                                    ("security:cgs_isin:US0378331005", None)])
+        self.assertEqual({plugin for _subject, scheme, _value, plugin in evidence if scheme == "isin"}, {"a", "b"})  # both kept
 
 
 class LifecycleTest(IngestTest):
@@ -400,6 +423,35 @@ class CryptoKeyTest(IngestTest):
         done = self.ingest(tokens, record(tokens, "usdc", ("caip19", usdc), name="USDC on Sui"))
         [placed] = done["subjects"]
         self.assertEqual((placed.split(":")[:2], done["introduced"]), (["listing", "caip19"], 1))
+
+    def test_a_single_chain_token_keys_itself_by_its_own_caip19_and_a_bridge_claim_merges_nothing(self):
+        # A DeFi source's Sui token states its own coin type; no edit to canonical_assets.json gives it a portable key.
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        coins = source("coins", level="security", introduces={"security": ["native", "caip19"]})
+        native = "sui:mainnet/coin:0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+        bridged = "sui:mainnet/coin:0x" + "ab" * 32 + "::coin::COIN"
+        sui_native, sui_bridged = f"security:caip19:{SUI_USDC}", "security:caip19:" + bridged.replace("::", "%3A%3A")
+        ends = lambda name: {"provider": "coins", "native_scope": "ref", "native_id": name}  # noqa: E731
+        done = self.ingest(  # all three are "USDC" to it; the Sui coin also lists Ethereum's USDC on a platform list
+            coins, record(coins, "usdc", ("caip19", USDC, "self"), name="USDC", asset_class="crypto", kind="token"),
+            record(coins, "sui-usdc", ("caip19", native, "self"), ("caip19", USDC, "unqualified"), name="USDC",
+                   asset_class="crypto", kind="token"),
+            record(coins, "sui-wusdc", ("caip19", bridged, "self"), name="USDC", asset_class="crypto", kind="token"),
+            relation(coins, "wraps", ends("sui-wusdc"), ends("usdc")),
+            relation(coins, "bridged_from", ends("sui-usdc"), ends("usdc")), world=world)
+        eth = f"security:caip19:{USDC}"
+        self.assertEqual([self.placed(coins, name, world) for name in ("usdc", "sui-usdc", "sui-wusdc")],
+                         [(eth, "introduced"), (sui_native, "introduced"), (sui_bridged, "introduced")])
+        self.assertEqual((done["introduced"], done["joined"], done["conflicts"], done["unmatched"]), (3, 2, 0, 0))
+        # Three subjects that share a name stay three; the platform-list value joined nothing.
+        self.assertEqual(sorted(row[0] for row in world.identity.select("SELECT id FROM subjects")),
+                         sorted([eth, sui_native, sui_bridged]))
+        # The bridge claims show as the plugin's labelled evidence, between the two subjects, and fold nothing.
+        self.assertEqual({(item["id"], item["type"], item["direction"], item["source"], item.get("contested", False))
+                          for item in world.subject(eth)["view"]["related"]},
+                         {(sui_bridged, "wraps", "from", "coins", False), (sui_native, "bridged_from", "from", "coins", False)})
+        self.assertEqual(world.subject(sui_bridged)["ids"][identity.Level.SECURITY], sui_bridged)
+        self.assertEqual({row["type"] for row in world.identity.select("SELECT type FROM relations")}, {"wraps", "bridged_from"})
 
 
 class IntroductionTest(IngestTest):

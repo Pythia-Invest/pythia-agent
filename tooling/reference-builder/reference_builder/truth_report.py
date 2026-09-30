@@ -122,6 +122,7 @@ ATTENTION = (
     ("issuer_split_lei_cik", ("flags",), "CIK-only issuers named like a LEI issuer (one company split in two?)"),
     ("cik_link_suspect", ("flags",), "CIK links whose SEC title shares no word with the LEI's names"),
     ("issuer_identity_name_candidate", ("questions",), "CIK-only issuers whose name matches one LEI issuer: open questions"),
+    ("source_corrections_unplaced", ("schema",), "source corrections on a record the package cannot place: the original is not in the package"),
     ("applied", ("source_corrections",), "source corrections applied (source_corrections.json)"),
     ("stale", ("source_corrections",), "source corrections the source has since fixed: retire the entry"),
     ("absent", ("source_corrections",), "source corrections whose record this build did not read: retire or check the entry"),

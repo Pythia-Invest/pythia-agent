@@ -126,8 +126,8 @@ one is not a row.
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
 | A question | `queue` | `plugins` (`reference` first where the build or core's own conflict check asked, then the plugins whose statements it is about) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
 | An answer | `verdicts` | `resolver`, `plugin`, `model` | `item_id`, `chosen_id` | `created_at` | `rule_id`, `user_turn`, `authority`, `outcome` |
-| A correction of a source's own error | `claims` (`attributes.corrections` in the `claim` JSON); `ref.source_corrections` | the `plugin`, or the build's `source` | `subject_id`, `field` (the source's own field for the build's) | as the record's own provenance; `retrieved_at` of the build | `original` and `reason`; always `source_asserted` |
-| A correction | `corrections` | the investor (`user_turn`), or the agent that proposed it (`proposed_by`) | `subject_id`, `scheme`, `value` | `created_at`, `decided_at`, `ended_at` | `state`; `replaces` names the one it took the place of |
+| A source correction | `claims` (`attributes.source_corrections` in the `claim` JSON); `ref.source_corrections` | the `plugin`, or the build's `source` | `subject_id`, `field` (the source's own field for the build's) | as the record's own provenance; `retrieved_at` of the build | `original` and `reason`; always `source_asserted` |
+| A user catalogue correction | `corrections` | the investor (`user_turn`), or the agent that proposed it (`proposed_by`) | `subject_id`, `scheme`, `value` | `created_at`, `decided_at`, `ended_at` | `state`; `replaces` names the one it took the place of |
 
 `authority` is the kind of evidence, never where it came from: `source_asserted`
 (a source's own record), `rule_confirmed` (a named rule), `user_attested` (the
@@ -448,7 +448,7 @@ plugin or adapter then states the corrected value in the record and keeps what
 the source said and why that is wrong (`SourceCorrection`: `field`, `original`,
 `reason`). The authority stays `source_asserted`: the value is still that source's
 record as its adapter reads it, and the original stays readable beside it. A
-plugin's corrections are in its record's `attributes.corrections` in the `claim`
+plugin's corrections are in its record's `attributes.source_corrections` in the `claim`
 JSON of `claims`; the reference build's are in `ref.source_corrections`, which a
 package built before it lacks (then the query fails with "no such table": leave
 its second half out). `value` is what the record states now (empty for a retraction, where the source's statement is
@@ -468,12 +468,34 @@ SELECT 'device' AS store, c.plugin AS who, c.subject_id, json_extract(f.value, '
                  WHERE json_extract(i.value, '$.scheme') = json_extract(f.value, '$.field')
                    AND coalesce(json_extract(i.value, '$.role'), 'self') = 'self')) AS value,
        json_extract(f.value, '$.reason') AS reason
-FROM claims c, json_each(c.claim, '$.attributes.corrections') f
+FROM claims c, json_each(c.claim, '$.attributes.source_corrections') f
 WHERE c.subject_id IN (SELECT value FROM json_each(:family))
 UNION ALL
 SELECT 'reference', source, subject_id, field, original, value, reason
 FROM ref.source_corrections WHERE subject_id IN (SELECT value FROM json_each(:family));
 ```
+
+## How open questions get resolved (decided, not built)
+
+Today an open question stays open until the investor answers it, and the page
+shows an open data conflict linked to its repair where the held-back fact would
+be. The direction for resolving the rest is decided in
+[ADR 0044](../decisions/0044-product-direction.md#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest) and none of it is built yet, so every
+query above still describes what the stores hold:
+
+- **The plugin that owns the data fixes it.** A misread is a plugin bug, a known
+  error in a source becomes a labelled source correction inside that source's plugin
+  with the original value kept visible and the error reported to the source, and
+  a missing fact is fixed by the plugin stating more. One plugin never patches
+  another's data.
+- **The device agent judges what is left, one question type at a time,** each
+  with a prompt, a gold set and a calibrated threshold. A verdict at or above the
+  threshold will apply for read-only use (search, pages, research), labelled and
+  undoable in one click, and cite its evidence. Below the threshold, or for
+  anything that touches real money, it stays a suggestion the investor confirms.
+  The verdict ledger will record the facts each decision used.
+- **Repeated decisions become plugin rules,** and opt-in reports carrying
+  identifiers and reasoning, never positions, go to the plugin's maintainer.
 
 ## What is not stored
 

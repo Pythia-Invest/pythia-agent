@@ -74,7 +74,7 @@ class DocFixture(unittest.TestCase):
         self.world.plugins = [pricing, other, *underlying, self.tidepool]
         self.world.resolve(pricing, TOYOTA, record(pricing, "7203.T", ("isin", TOYOTA_ISIN)))
         contesting = record(other, "TM", ("figi", "BBG000TYTKY0"), ("isin", "US0378331005"))  # contests the ISIN
-        contesting["attributes"] = {"name": "Toyota Motor Corp.", "corrections": [  # and states a name it corrected
+        contesting["attributes"] = {"name": "Toyota Motor Corp.", "source_corrections": [  # and states a name it corrected
             {"field": "name", "original": "TOYOTA MOTOR CORP (TEST)", "reason": FIX_REASON}]}
         self.world.ingest(other, contesting)
         self.unplaced = record(pricing, "7203.XV", ("figi", "BBG000TYHNX8"), ("isin", TOYOTA_ISIN))  # no line to put it on

@@ -121,7 +121,7 @@ class AuditTest(unittest.TestCase):
         result = truth_report.build_report(self.path, ("ES",), logged.append, audit)
         self.assertEqual(result["attention"], {"requested_in_eea_listed_outside": 3, "securities_without_primary": 2,
                                                "issuer_unknown_venue_lei": 4, "registrant_join@1": 6, "receipt_name_disagrees": 3, "issuer_split_lei_cik": 0, "cik_link_suspect": 1,
-                                               "issuer_identity_name_candidate": 0, "applied": 2, "stale": 1, "absent": 1, "skipped_ticker_mic": 5})
+                                               "issuer_identity_name_candidate": 0, "source_corrections_unplaced": 0, "applied": 2, "stale": 1, "absent": 1, "skipped_ticker_mic": 5})
         self.assertIn("       5  rejected by the schema: ticker_mic", logged)
         self.assertIn("       3  primary unknown: an EEA request beside a line outside the EEA", logged)
         self.assertTrue(any(line.startswith("       4  live securities whose only issuer claim is a venue operator's LEI")

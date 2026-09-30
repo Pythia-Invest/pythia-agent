@@ -41,7 +41,6 @@ def _core():
 identity = _core()
 DDL = identity.schema_sql(identity.Store.REFERENCE)
 SCHEMA_VERSION = int(importlib.import_module("pythia_core_identity.store").REFERENCE_SCHEMA_VERSION)
-source_corrections = importlib.import_module("pythia_core_identity.source_corrections")  # the stale rule and the table the adapters read
 # Curated short venue labels (Pythia-authored), by operating MIC or by a segment that
 # investors name on its own (growth markets, ETF segments). A segment without its own
 # label takes its operator's; other venues keep their ISO 10383 name.

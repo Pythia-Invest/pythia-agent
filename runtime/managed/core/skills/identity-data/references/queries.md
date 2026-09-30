@@ -293,7 +293,7 @@ plugin or adapter then states the corrected value in the record and keeps what
 the source said and why that is wrong (`SourceCorrection`: `field`, `original`,
 `reason`). The authority stays `source_asserted`: the value is still that source's
 record as its adapter reads it, and the original stays readable beside it. A
-plugin's corrections are in its record's `attributes.corrections` in the `claim`
+plugin's corrections are in its record's `attributes.source_corrections` in the `claim`
 JSON of `claims`; the reference build's are in `ref.source_corrections`, which a
 package built before it lacks (then the query fails with "no such table": leave
 its second half out). `value` is what the record states now (empty for a retraction, where the source's statement is
@@ -313,7 +313,7 @@ SELECT 'device' AS store, c.plugin AS who, c.subject_id, json_extract(f.value, '
                  WHERE json_extract(i.value, '$.scheme') = json_extract(f.value, '$.field')
                    AND coalesce(json_extract(i.value, '$.role'), 'self') = 'self')) AS value,
        json_extract(f.value, '$.reason') AS reason
-FROM claims c, json_each(c.claim, '$.attributes.corrections') f
+FROM claims c, json_each(c.claim, '$.attributes.source_corrections') f
 WHERE c.subject_id IN (SELECT value FROM json_each(:family))
 UNION ALL
 SELECT 'reference', source, subject_id, field, original, value, reason

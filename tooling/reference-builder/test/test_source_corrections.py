@@ -1,4 +1,4 @@
-"""A source adapter corrects its own source's error (ADR 0044, amendment "plugins fix their own source's data"): the claim
+"""A source adapter corrects its own source's error (ADR 0044, amendment "a source adapter corrects its own source"): the claim
 states the corrected value and carries the original and the reason, the build decides from the corrected value, the
 package keeps the original in `source_corrections`, and an entry the source has since fixed is counted stale."""
 
@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from reference_builder import assemble, claims, firds, mic, schema, writer
+from reference_builder.source_corrections import Table
 from reference_builder.config import SOURCE_CORRECTIONS, Scope
 from reference_builder.pipeline import build_snapshot
 
@@ -19,7 +20,6 @@ from .fixtures import ASML_ISIN, ASML_LEI, MIC_CSV, NN_LEI, FakeOpenFigi, firds_
 from .test_claims import admissions
 from .test_pipeline import OPENFIGI, gleif_fetch
 
-Table = schema.source_corrections.Table
 REASON = "FIRDS states another company's LEI for this ISIN; the company's own filing names the right one (test)"
 ENTRY = {"source": firds.SOURCE, "key": f"isin:{ASML_ISIN}", "field": "Issr", "original": NN_LEI, "value": ASML_LEI,
          "reason": REASON}
@@ -73,7 +73,7 @@ class AdapterTest(unittest.TestCase):
         [issuer] = [c for c in found if c.source_field == "Issr"]
         self.assertEqual((issuer.value, issuer.correction), (None, (NN_LEI, REASON)))
         loaded = claims.load(found, table)
-        self.assertIsNone(loaded.one(ASML_ISIN, schema.identity.SourceMeaning.ISSUER_OR_VENUE_OPERATOR_LEI))
+        self.assertEqual(loaded.isins[ASML_ISIN][schema.identity.SourceMeaning.ISSUER_OR_VENUE_OPERATOR_LEI], set())
         self.assertEqual(loaded.corrected, {(f"isin:{ASML_ISIN}", "Issr"): (firds.SOURCE, NN_LEI, None, REASON)})
         self.assertEqual(loaded.corrections["applied"], 1)
         passed, table = read(ASML_LEI, retraction)  # the source now states another LEI: it passes through, the entry is stale
@@ -84,15 +84,13 @@ class AdapterTest(unittest.TestCase):
 
 
 class BuildTest(unittest.TestCase):
-    def test_the_build_decides_from_the_corrected_value_and_the_package_keeps_the_original(self):
-        found, table = read(NN_LEI)
-        firds_found = admissions(fulins([firds_record(ASML_ISIN, "XAMS", NN_LEI)]))
+    def build(self, entry, stated=NN_LEI):
+        found, table = read(stated, entry)
+        firds_found = admissions(fulins([firds_record(ASML_ISIN, "XAMS", stated)]))
         inputs = assemble.Inputs(date(2026, 9, 25), Scope(mics=("XAMS",), sec=False), mic.parse(MIC_CSV.encode()),
                                  firds_found, None, [], {"XAMS"}, firds_claims=claims.load(found, table))
         with mock.patch("urllib.request.urlopen", side_effect=AssertionError("network access in a test")):
             snap = build_snapshot(inputs, gleif_fetch, FakeOpenFigi(OPENFIGI))
-        self.assertEqual(snap.securities[f"isin:{ASML_ISIN}"].issuer_id, f"lei:{ASML_LEI}")
-        self.assertEqual(snap.audit["source_corrections"]["applied"], 1)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "reference-20260925.sqlite3"
             counts = writer.write(snap, path, {"build_id": "reference-20260925"}, [])
@@ -100,7 +98,22 @@ class BuildTest(unittest.TestCase):
                 [row] = db.execute("SELECT c.source, c.field, c.original, c.value, c.reason, s.issuer_id FROM source_corrections c"
                                    " JOIN securities s ON s.id = c.subject_id").fetchall()
         self.assertEqual(counts["source_corrections"], 1)
+        return snap, row
+
+    def test_the_build_decides_from_the_corrected_value_and_the_package_keeps_the_original(self):
+        snap, row = self.build(ENTRY)
+        issuer = snap.issuers[f"lei:{ASML_LEI}"]
+        self.assertEqual(snap.securities[f"isin:{ASML_ISIN}"].issuer_id, f"lei:{ASML_LEI}")
+        # GLEIF is asked for the corrected LEI, not the raw one: the issuer takes GLEIF's name and no false flag is raised.
+        self.assertEqual((issuer.source, issuer.name), ("gleif", "ASML Holding N.V."))
+        self.assertNotIn("lei_not_in_gleif", {flag.flag for flag in snap.flags})
+        self.assertEqual(snap.audit["source_corrections"]["applied"], 1)
         self.assertEqual(row, (firds.SOURCE, "Issr", NN_LEI, ASML_LEI, REASON, f"issuer:lei:{ASML_LEI}"))
+
+    def test_a_retraction_leaves_the_security_without_an_issuer_and_the_original_in_the_package(self):
+        snap, row = self.build({**ENTRY, "value": None})
+        self.assertIsNone(snap.securities[f"isin:{ASML_ISIN}"].issuer_id)
+        self.assertEqual(row, (firds.SOURCE, "Issr", NN_LEI, None, REASON, None))
 
 
 if __name__ == "__main__":

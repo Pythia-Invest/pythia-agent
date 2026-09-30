@@ -91,15 +91,15 @@ class RecordAttributes:
     status: SubjectStatus | None = None
     aliases: tuple[str, ...] = ()
     rank: Mapping[str, float] = field(default_factory=dict)  # rank signals, e.g. {"market_cap_usd": 2.6e11}
-    corrections: tuple[SourceCorrection, ...] = ()  # the plugin's fixes of its own source's errors in this record
+    source_corrections: tuple[SourceCorrection, ...] = ()  # the plugin's fixes of its own source's errors in this record
 
     def __post_init__(self) -> None:
         _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
         _require(isinstance(self.aliases, (list, tuple)), "record attributes: aliases are a list of names")
         object.__setattr__(self, "aliases", tuple(self.aliases))
-        _require(isinstance(self.corrections, (list, tuple)), "record attributes: corrections are a list")
-        object.__setattr__(self, "corrections", tuple(
-            item if isinstance(item, SourceCorrection) else SourceCorrection(**item) for item in self.corrections))
+        _require(isinstance(self.source_corrections, (list, tuple)), "record attributes: source corrections are a list")
+        object.__setattr__(self, "source_corrections", tuple(
+            item if isinstance(item, SourceCorrection) else SourceCorrection(**item) for item in self.source_corrections))
         checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
                   (self.country, COUNTRY))
         _require(all(value is None or bool(pattern.match(value)) for value, pattern in checks),
@@ -182,7 +182,7 @@ class RecordClaim:
         return [item.value for item in self.identifiers if item.role is IdentifierRole.SELF and item.scheme == field]
 
     def _check_corrections(self) -> None:
-        found = self.attributes.corrections
+        found = self.attributes.source_corrections
         _require(len(found) <= MAX_CORRECTIONS and len({item.field for item in found}) == len(found),
                  f"record: at most {MAX_CORRECTIONS} corrections, one per field")
         for item in found:
