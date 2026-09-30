@@ -25,7 +25,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from . import Store, device, evidence as weighing, relations, schema_sql
+from . import Store, corrections, device, evidence as weighing, relations, schema_sql
 from .ranking import logrank, notability
 from .schemes import IdentifierError, Kind, normalize_identifier
 from .search import Directory, classify, directory as cached
@@ -70,8 +70,9 @@ def directory(path: Path | None, store: IdentityStore, plugins: Iterable) -> Dir
 def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterable) -> Additions:
     """What the enabled plugins add to the directory of the reference `ref` (an empty one when none is installed)."""
     plugins = list(plugins)
-    active, out = device.enabled(plugins), Additions()
-    if not active:
+    active, out, corrected = device.enabled(plugins), Additions(), corrections.identifier_values(store)
+    if not active:  # the investor's corrections apply whatever plugins are on
+        out.ids = _weighed(ref, [], corrected) if corrected else {}
         return out
     marks = json.dumps(sorted(active))
     claims = store.select("SELECT subject_id, plugin, name, state FROM claims WHERE subject_id IS NOT NULL AND plugin IN"
@@ -87,7 +88,7 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
     for row in stated:
         if row["scheme"] == "ticker_mic" and row["role"] == "self" and row["state"] != "conflict":
             out.tickers.setdefault(row["subject_id"], []).append(row["value"].rsplit("@", 1)[0])
-    out.ids = _weighed(ref, [row for row in stated if row["role"] == "self" and row["scheme"] in SEARCHED])
+    out.ids = _weighed(ref, [row for row in stated if row["role"] == "self" and row["scheme"] in SEARCHED], corrected)
     every = {row["id"]: {**dict(row), "attributes": json.loads(row["attributes"])}
              for row in store.select("SELECT * FROM subjects")}
     out.issuers = {subject: (row["name"], row["attributes"].get("country")) for subject, row in every.items()
@@ -162,11 +163,13 @@ def _own(row: Mapping[str, Any], kind: Kind) -> tuple[tuple, float | None]:
     return line, notability(attributes.get("rank"))
 
 
-def _weighed(ref: sqlite3.Connection, rows: list[dict]) -> dict[str, list[str]]:
+def _weighed(ref: sqlite3.Connection, rows: list[dict],
+             corrected: Mapping[str, Mapping[str, str | None]]) -> dict[str, list[str]]:
     """The identifiers of each subject the enabled plugins state some for, weighed with the reference's: the value its
     evidence gives each scheme (a source's several reference values stay, as a German line's two composite FIGIs), and
-    none for a contested one (#109's marker)."""
-    stated: dict[str, list] = {}
+    none for a contested one (#109's marker). The investor's corrections (`corrections`) have the last word: a value
+    replaces the evidence's, and a removed one is none."""
+    stated: dict[str, list] = {subject: [] for subject in corrected}
     for row in rows:
         stated.setdefault(row["subject_id"], []).append((device._assertion(row), True))
     held: dict[str, list] = {}
@@ -178,6 +181,11 @@ def _weighed(ref: sqlite3.Connection, rows: list[dict]) -> dict[str, list[str]]:
     for subject, found in stated.items():
         own = held.get(subject, [])
         weighed = weighing.weigh_each([*((_assertion(row), True) for row in own), *found])
+        for scheme, value in corrected.get(subject, {}).items():
+            if value is None:
+                weighed["values"].pop(scheme, None)
+            else:
+                weighed["values"][scheme] = value
         values = []
         for scheme, value in weighed["values"].items():
             kept = [row["value"] for row in own if row["scheme"] == scheme]

@@ -9,12 +9,15 @@ provides_tools:
   - pythia_identity_resolve
   - pythia_identity_queue
   - pythia_identity_verdict
+  - pythia_identity_correction
+  - pythia_identity_corrections
   - pythia_find
   - pythia_instrument
   - pythia_prices
   - pythia_filings
   - pythia_identity_questions
   - pythia_answer_identity_question
+  - pythia_propose_identity_correction
   - pythia_reference_status
   - pythia_filings_combined
   - pythia_market_overview

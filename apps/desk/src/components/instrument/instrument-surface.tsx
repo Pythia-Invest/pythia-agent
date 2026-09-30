@@ -15,6 +15,7 @@ import {
 import { Button, cn, InstrumentPeriodSelector } from "@pythia/ui";
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
+import { type CorrectFn, useCorrect } from "@/client/corrections";
 import {
   useResolvedSections,
   useSectionRead,
@@ -41,6 +42,7 @@ import {
   SectionRead,
   SourcesLine,
 } from "./section-status";
+import { usePricePin } from "./price-pin";
 import { ProfileView } from "./section-views";
 
 /** Canonical price presentations of the market-data feature: the price
@@ -99,6 +101,7 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
     subjectId,
     page.data?.sections ?? [],
   );
+  const correct = useCorrect();
   if (page.isPending) return <InstrumentPageSkeleton />;
   if (page.isError)
     return (
@@ -132,13 +135,18 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
       aria-label={header.subject.name}
       className="@container mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 min-[600px]:px-6"
     >
-      <InstrumentHeader page={header} subjectId={subjectId} />
+      <InstrumentHeader
+        page={header}
+        subjectId={subjectId}
+        onCorrect={correct}
+      />
       <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
         {pageBlocks(view.sections).map((block) => (
           <PageCard
             key={block.key}
             block={block}
             page={view}
+            correct={correct}
             retry={block.sections
               .map((section) => resolved.failed.get(section))
               .find(Boolean)}
@@ -170,11 +178,13 @@ export function InstrumentSurface({ subjectId }: { subjectId: string }) {
 function PageCard({
   block: original,
   page,
+  correct,
   retry,
   price,
 }: {
   block: PageBlock;
   page: SubjectPage;
+  correct: CorrectFn;
   retry: (() => void) | undefined;
   /** The chosen listing's price state, when it replaces a price block. */
   price: ReactNode;
@@ -198,6 +208,7 @@ function PageCard({
     block.sections[0] as SubjectSection,
     read.data ? filingsOrNull(read.data) : null,
   );
+  const pin = usePricePin(page, correct, block.type, () => setPick(null));
   return (
     <section
       aria-label={block.title}
@@ -239,8 +250,16 @@ function PageCard({
           onUse={(plugin) =>
             setPick(plugin ? { plugin, subject: page.subject.id } : null)
           }
+          onAlways={pin.onAlways}
+          pinned={pin.isPinned}
+          onUnpin={pin.onUnpin}
         />
       )}
+      {pin.error ? (
+        <p role="alert" className="text-error text-xs">
+          {pin.error}
+        </p>
+      ) : null}
     </section>
   );
 }

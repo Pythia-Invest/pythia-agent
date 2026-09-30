@@ -14,7 +14,7 @@ stale silently.
 
 | File | Holds | Written by |
 | --- | --- | --- |
-| `<data>/store/identity.sqlite3` | What this device added to the reference or decided about it: plugin records and identifiers, subjects plugins introduced, plugin relations, bindings, questions and the user's answers | Core, while Pythia runs |
+| `<data>/store/identity.sqlite3` | What this device added to the reference or decided about it: plugin records and identifiers, subjects plugins introduced, plugin relations, bindings, questions, the user's answers and the user's corrections | Core, while Pythia runs |
 | The installed reference package's database, `<data>/store/reference/packages/<build>-<checksum>/reference-<date>.sqlite3` | The open identifiers and subjects a build read from public sources | The reference builder; core installs it and never writes it |
 
 `<data>` is the `PYTHIA_DATA_ROOT` the lifecycle gives Hermes (`just dev-paths`
@@ -93,6 +93,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | `bindings` | Which subject a plugin's own reference (a symbol, a FIGI, a pool ID) belongs to; only confirmed rows route reads |
 | `queue` | Questions the data leaves open: a record core could not place, or contradicting evidence |
 | `verdicts` | Every answer to a question, the user's included; a user's resolved answer is the local override |
+| `corrections` | The investor's own fixes (an identifier set or removed, a pinned price source) and the agent's proposals waiting for them; the state says which apply |
 | `resolve_misses` | A plugin's lookup found nothing: why a section stays unresolved, until the row expires |
 | `read_checks` | What a price source stated about itself when read, against the reference |
 
@@ -109,6 +110,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
 | A question | `queue` | `plugins` (`reference` first where the build or core's own conflict check asked, then the plugins whose statements it is about) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
 | An answer | `verdicts` | `resolver`, `plugin`, `model` | `item_id`, `chosen_id` | `created_at` | `rule_id`, `user_turn`, `authority`, `outcome` |
+| A correction | `corrections` | the investor (`user_turn`), or the agent that proposed it (`proposed_by`) | `subject_id`, `scheme`, `value` | `created_at`, `decided_at`, `ended_at` | `state`; `replaces` names the one it took the place of |
 
 `authority` is the kind of evidence, never where it came from: `source_asserted`
 (a source's own record), `rule_confirmed` (a named rule), `user_attested` (the
@@ -351,6 +353,37 @@ WHERE q.state = 'open'
 ORDER BY q.opened_at;
 ```
 
+### Which corrections apply?
+
+A correction is a fix the investor made on purpose when a source is wrong and
+they keep using it: an identifier set or removed (`kind = 'identifier'`, a NULL
+`value` is a removal), or a plugin pinned as the price source of a line or a
+security (`kind = 'price_source'`, `value` is the plugin's contract name). Only
+rows whose `state` is `active` apply: they win over the reference, every plugin
+and the answers above, on every read, and change no row of the stores the
+sources wrote, so a sync does not revive what one overrode. A `proposed` row is
+the agent's suggestion and applies to nothing until the investor confirms it in
+Repairs; an `undone` row was undone, declined or replaced (`replaces` on the
+newer row names it) and stays as history. The kinds `parent` and `detach` are
+reserved and not read yet.
+
+A correction marks a plugin or source issue worth investigating. Each one stays
+visible in the raw data so it can be reviewed and retired once the plugin is
+fixed.
+
+```sql
+-- example: corrections
+SELECT id, kind, subject_id, scheme, value, state, proposed_by, note, decided_at, ended_at, replaces
+FROM corrections
+WHERE subject_id IN (SELECT value FROM json_each(:family))
+ORDER BY created_at;
+```
+
+A correction follows its subject when a release or a better key re-keys it, so
+`:family` holds the current ID. The identifier shown on the subject's page cites
+the correction: `pythia_instrument`'s `provenance` has `plugin = 'user'` and the
+correction's `id`.
+
 ## What is not stored
 
 Some explanations are computed or implicit, and the stores do not record them:
@@ -376,17 +409,13 @@ Some explanations are computed or implicit, and the stores do not record them:
   bindings made before `decided_at` keep NULL: the time is not recoverable.
   Those columns are added to an existing store the next time core opens it
   (they are additive, so an older Pythia still reads the store).
-- **The user's catalogue corrections.** Answers to questions are recorded;
-  corrections the user makes directly (setting an identifier, moving a listing)
-  are a later change and will need their own rows, which this page will then
-  document.
 
 ## Keeping this true
 
 `runtime/test/python/test_identity_data.py` builds a device (a reference
-package, plugins, a binding, a contested identifier and a user's answer), runs
-the snippet and each example above against it, and checks that the tables named
-here are the tables the stores have. A schema change that adds a table or
+package, plugins, a binding, a contested identifier, a user's answer and
+corrections), runs the snippet and each example above against it, and checks
+that the tables named here are the tables the stores have. A schema change that adds a table or
 column needs its row here and its comment in `identity/sql/`.
 
 The agent reads the same queries from `references/queries.md` of its

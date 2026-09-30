@@ -10,6 +10,7 @@
 import type { PluginTransport } from "@pythia/widget-sdk";
 import { z } from "zod";
 import { contributorSchema } from "./contributors";
+import { correctionViewSchema } from "./corrections";
 import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
 
@@ -124,6 +125,8 @@ export const relatedSubjectSchema = z.object({
 });
 export type RelatedSubject = z.infer<typeof relatedSubjectSchema>;
 
+export { type CorrectionView, correctionViewSchema } from "./corrections";
+
 const contestedValue = z.object({ value: text, sources: z.array(text) });
 
 export const subjectPageSchema = z.object({
@@ -155,6 +158,8 @@ export const subjectPageSchema = z.object({
   security: z.object({ id: text, name: text, isin: optionalText }).nullish(),
   listings: z.array(subjectListingSchema).default([]),
   related: z.array(relatedSubjectSchema).default([]),
+  /** The investor's corrections to this family and the agent's waiting proposals. */
+  corrections: z.array(correctionViewSchema).default([]),
   /** The plugins behind the subject: a device subject's names the one that
    * introduced it, whose status its page shows. */
   contributors: z.array(contributorSchema).default([]),

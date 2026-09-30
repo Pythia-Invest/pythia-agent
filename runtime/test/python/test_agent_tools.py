@@ -562,6 +562,19 @@ class ConceptToolTest(AgentToolFixture):
         self.assertEqual(result["data"], {"outcome": "refused"})
         self.assertEqual(submit.call_args.kwargs["resolver"], queue_ops.questions.ResolverKind.AGENT)
 
+    def test_the_agents_correction_is_a_proposal_that_applies_to_nothing(self):
+        result = self.call(agent_tools.propose, kind="identifier", subject_id="security:isin:NL0010273215",
+                           scheme="isin", value="US0378331005", note="the filing says so")
+        self.assertEqual(result["data"]["outcome"], "proposed")
+        [row] = identity_ops.CURRENT.store.select("SELECT state, proposed_by, user_turn FROM corrections")
+        self.assertEqual(tuple(row), ("proposed", "agent", None))
+        view = self.call(agent_tools.instrument, subject_id=ASML)["data"]  # the agent sees it waiting, and no change
+        self.assertEqual(([(item["state"], item["value"]) for item in view["corrections"]], view["identifiers"]["isin"]),
+                         ([("proposed", "US0378331005")], "NL0010273215"))
+        properties = agent_tools.propose_schema()["parameters"]["properties"]
+        self.assertFalse({"action", "id"} & set(properties))  # confirming and declining are not the agent's
+        self.assertEqual(properties["kind"]["enum"], ["identifier", "price_source"])
+
 
 if __name__ == "__main__":
     unittest.main()
