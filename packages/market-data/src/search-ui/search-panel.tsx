@@ -154,6 +154,7 @@ export function SearchPanel(props: SearchPanelProps) {
               {filter !== "all"
                 ? "Other types may still match."
                 : "Check the spelling, or try a ticker or ISIN."}
+              {props.includeDelisted ? "" : " Delisted results are hidden."}
             </p>
             {filter !== "all" ? (
               <Button

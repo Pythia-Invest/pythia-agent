@@ -32,15 +32,9 @@ export function lookupKinds(schemes: readonly string[]) {
 }
 
 /** Whether the plugin answered anything core kept; "no match" is all zeros. */
-function stored({ rejected, ...counts }: LookupSummary) {
-  return (
-    rejected +
-      counts.joined +
-      counts.introduced +
-      counts.conflicts +
-      counts.unmatched >
-    0
-  );
+function stored(summary: LookupSummary) {
+  const { joined, introduced, conflicts, unmatched, rejected } = summary;
+  return joined + introduced + conflicts + unmatched + rejected > 0;
 }
 
 /** A plugin's own lookup, on its row in Settings → Data → Data sources: one

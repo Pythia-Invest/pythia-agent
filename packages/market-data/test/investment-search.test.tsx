@@ -472,6 +472,15 @@ describe("investment search", () => {
       include_delisted: false,
     });
     expect(toggle()?.getAttribute("aria-pressed")).toBe("false");
+    // With delisted lines hidden, an empty answer says so.
+    await type("milkiland");
+    await answer("milkiland", []);
+    await until(() =>
+      expect(
+        document.querySelector('[data-slot="investment-search-no-results"]')
+          ?.textContent,
+      ).toContain("Delisted results are hidden."),
+    );
   });
 
   it("shows a security that has no ticker as one row marked so, with no ticker text", async () => {

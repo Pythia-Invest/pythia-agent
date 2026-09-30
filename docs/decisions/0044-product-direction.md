@@ -378,7 +378,7 @@ central curator exists.
   takes it, from the form on that plugin's row there. Search calls no plugin
   and offers no lookup. There is no scheduler.
 - **Search answers from local data, delisted lines included.** A delisted line
-  (its security or listing is inactive) is found by name, ticker and
+  (its own status is inactive, as the price guards read it) is found by name, ticker and
   identifier, marked "Delisted" and ranked below live lines; an "Include
   delisted" toggle in the search panel hides them. Its page still gets no live
   price through the ticker. A security none of whose lines has a ticker is
@@ -773,7 +773,8 @@ name nor by ISIN, although its page opens by id and the reference holds it.
 
 - **Search never calls a plugin.** It offers no lookup, in the background or
   from its interface. A plugin's own function lives on that plugin's own
-  place: a plugin with a `resolve` gets a small lookup form on its row in
+  place: any plugin that declares a `resolve` (not only OpenFIGI) gets the same
+  small, generic lookup form on its row in
   Settings → Data → Data sources (an identifier in; the counts of records
   joined, introduced, in conflict or unmatched, and the subjects they were
   placed on, out). The form calls `identity-lookup`, which calls exactly that
@@ -781,8 +782,12 @@ name nor by ISIN, although its page opens by id and the reference holds it.
 - **No plugin page framework.** The existing Data sources row is the place;
   nothing else is built. A plugin's widgets (ADR 0032) remain the way to give
   it a richer surface.
-- **Delisted lines are found.** A line is delisted when its listing or its
-  security is inactive, whatever the source. Search finds it by name, ticker
+- **Delisted lines are found.** A line is delisted when its own status is
+  inactive, whatever the source: the rule the page's price guards use, so a row
+  marked delisted is exactly a row that gets no live price. An active line under
+  an inactive security (54 in the 2026-09-28 build, such as AvePoint) is live
+  and unmarked; it stays out of the page's listing selector and price pick as
+  it always did (the security's status keeps it out of those, not out of search). Search finds it by name, ticker
   and identifier like any other line, marks it `delisted`, and ranks it below
   live lines: a group with a live line before a group with only delisted lines,
   and within a group, live lines first (also as the line that represents a
@@ -797,8 +802,10 @@ name nor by ISIN, although its page opens by id and the reference holds it.
   selector or the line a security page prices through.
 - **A way to hide them.** Search takes `include_delisted` (default true), and the
   search panel has an "Include delisted" toggle, on by default, kept for the
-  session only: Desk has no per-viewer preference mechanism for a plugin's
-  widget, and this one is cheap to set again.
+  session only, so a reload shows delisted lines again: Desk has no per-viewer
+  preference mechanism for a plugin's widget, and this one is cheap to set
+  again. When they are hidden and nothing else matches, the empty state says
+  "Delisted results are hidden".
 - **Pages and prices are unchanged.** The instrument page's listing selector and
   the line a security page prices through leave delisted lines out, as before,
   and a delisted ticker still addresses no price source (tickers get reused).

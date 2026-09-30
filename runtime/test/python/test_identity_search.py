@@ -371,6 +371,22 @@ class SearchTest(Fixture):
         self.assertEqual(directory.search("SHLD", limit=5, delisted=False)["groups"], [])
         self.assertEqual(directory.search("milkiland", limit=5, delisted=False)["groups"][0]["rows"][0]["id"], self.MILK_LINE)
 
+    def test_delisted_is_the_lines_own_status_so_a_live_line_under_an_inactive_security_is_not_marked(self):
+        # AvePoint's shape in the 2026-09-28 build: an active line under a security the builder marked inactive. The
+        # page's price guards read the line alone, so search marks a line delisted by its own status alone.
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank) VALUES"
+                       " ('security:avept', NULL, 'AvePoint', 'equity', 'ordinary', 'inactive', 1)")
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, status) VALUES"
+                       " ('listing:avept', 'security:avept', 'XNYS', 'XNYS', 'AVPT', 'USD', 'active')")
+        directory = search.Directory(self.ref)
+        for query in ("avpt", "avepoint"):
+            group = directory.search(query, limit=3)["groups"][0]
+            self.assertEqual([(row["id"], "delisted" in row) for row in group["rows"]], [("listing:avept", False)])
+        self.assertEqual(directory.search("avepoint", limit=3, delisted=False)["groups"][0]["rows"][0]["id"], "listing:avept")
+        # It ranks as a live line, and the page's lines and price pick leave it out as they always did.
+        self.assertEqual(directory.instrument_listings("security:avept"), [])
+
     def test_a_delisted_line_never_joins_the_pages_lines_or_their_pick(self):
         directory = self.delist()
         # The page lists and prices only live lines: a delisted security has none, and a delisted Frankfurt line of

@@ -171,7 +171,7 @@ of a query; `limit` does not apply) answers the same shape with its listings,
 up to 500, for "All N listings", each opened group being its own read. A row carries the listing's subject `id`, its `instrument` (the
 security the page is; a receipt's is the share it folds into), ticker, the
 listed security's own name and kind, MIC, short venue label, venue country and
-currency; `delisted: true` marks a line its source says no longer trades (the
+currency; `delisted: true` marks a line whose own status is inactive, which the page never prices (the
 key is absent on a live line) and `no_ticker: true` marks the one row of a
 security none of whose lines has a ticker (`ticker` is then null; ranked below
 lines that have one). Core orders the rows (see ADR 0037: a listing the query names, else

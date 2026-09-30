@@ -50,6 +50,8 @@ export const syncSchema = z.object({
   introduced: z.number().int(),
   conflicts: z.number().int(),
   unmatched: z.number().int(),
+  /** Records core refused; a lookup's answer can be all of them. */
+  rejected: z.number().int().default(0),
   not_seen: z.number().int().default(0),
   partial: z.boolean().default(false),
 });
@@ -57,7 +59,6 @@ export type SyncSummary = z.infer<typeof syncSchema>;
 
 /** What one lookup stored: the counts of a sync, and the subjects placed. */
 export const lookupSchema = syncSchema.extend({
-  rejected: z.number().int().default(0),
   subjects: z.array(z.string()),
 });
 export type LookupSummary = z.infer<typeof lookupSchema>;
@@ -73,6 +74,7 @@ export function placedLine(summary: SyncSummary) {
     `${summary.introduced} new`,
     count(summary.conflicts, "conflict", "conflicts"),
     `${summary.unmatched} unmatched`,
+    ...(summary.rejected ? [`${summary.rejected} rejected`] : []),
     ...(summary.not_seen ? [`${summary.not_seen} no longer offered`] : []),
   ].join(", ");
 }

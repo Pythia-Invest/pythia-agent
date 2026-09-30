@@ -392,8 +392,8 @@ version 1):
   US dollars (keys ending `_usd`, such as `market_cap_usd` or `tvl_usd`) set
   their notability. A line under a known security takes the security's kind.
   A subject its source marks inactive is found too, flagged delisted and ranked
-  below live ones. Search never calls a plugin: a plugin that declares a
-  `resolve` gets a lookup form on its own row in Settings → Data → Data sources
+  below live ones. Search never calls a plugin: any plugin that declares a
+  `resolve` (not only OpenFIGI) gets a generic lookup form on its own row in Settings → Data → Data sources
   (an identifier in, how the records it stored were placed out;
   `identity-lookup`), not a button in search
   ([ADR 0044](../decisions/0044-product-direction.md), amendment of

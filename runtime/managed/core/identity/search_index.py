@@ -30,12 +30,13 @@ DOC = """CREATE TABLE doc (
   ticker TEXT, tnorm TEXT, name TEXT, names TEXT, isin TEXT, lei TEXT, cik TEXT, figis TEXT, mic TEXT,
   venue TEXT, country TEXT, currency TEXT, prim INTEGER, home INTEGER, otc INTEGER, deriv INTEGER, fund INTEGER,
   dr INTEGER, fus INTEGER, size REAL, inst TEXT, ikind TEXT, reg INTEGER, liq INTEGER, source TEXT, line TEXT,
-  delisted INTEGER, tickerless INTEGER)"""
+  delisted INTEGER, tickerless INTEGER, dormant INTEGER)"""
 DOC_COLUMNS = ("id listing security issuer grp kind crypto ticker tnorm name names isin lei cik figis mic venue country "
-               "currency prim home otc deriv fund dr fus size inst ikind reg liq source line delisted tickerless").split()
+               "currency prim home otc deriv fund dr fus size inst ikind reg liq source line delisted tickerless dormant").split()
 LINE = ("SELECT l.id, l.security_id, l.composite_id, l.mic, l.operating_mic, l.ticker, l.trading_currency, l.chain,"
         " l.is_primary, s.issuer_id, s.name, s.kind, s.asset_class, s.rank, l.most_liquid,"
-        " l.status = 'inactive' OR s.status = 'inactive' FROM {} JOIN securities s ON s.id = l.security_id")
+        " l.status = 'inactive', l.status = 'inactive' OR s.status = 'inactive' FROM {} JOIN securities s"
+        " ON s.id = l.security_id")
 JOIN = LINE.format("listings l")  # every line of the reference
 # The lines a subject the device states something about is, or holds, found through the reference's indexes.
 HELD = {"listing": "SELECT value FROM json_each(?)",
@@ -102,7 +103,7 @@ class Index:
         lines = list(ref.execute(JOIN))
         self.reps = _tickerless(lines)
         docs = self._docs(ref, lines, None)
-        live = [doc for doc in docs if not doc["delisted"] and not doc["tickerless"]]  # only these are units others fold into
+        live = [doc for doc in docs if not doc["dormant"] and not doc["tickerless"]]  # only these are units others fold into
         self.kinds = {doc["security"]: doc["kind"] for doc in live}
         self.issuers_of = {doc["security"]: doc["issuer"] for doc in live}
         self._fold(docs)
@@ -137,7 +138,7 @@ class Index:
         docs = []
         for index, row in enumerate(rows, 1):  # the device's lines are ranked as the reference's
             (listing, security, composite, mic, operating, ticker, currency, _chain, primary, issuer, name, kind,
-             asset_class, rank, liquid, delisted) = row
+             asset_class, rank, liquid, delisted, dormant) = row
             own, stated = lines.get(listing), tickers.get(listing, [])
             ticker = ticker or next(iter(stated), None)  # a plugin's ticker makes a ticker-less line findable
             if not ticker and own is None and listing not in self.reps:  # a tickerless line: its security's one row, or none
@@ -169,7 +170,8 @@ class Index:
                 int(op == "OTCM"), int(kind == "other"), int(kind in ("fund", "etf")), int(kind == "depositary_receipt"),
                 int(foreign_us), logrank(rank) if own is None else own["size"],
                 security, kind, int(mic in self.regulated or op in self.regulated & set(US_LISTED)), int(bool(liquid)),
-                own and own["source"], listing, int(bool(delisted)), int(not ticker and own is None)))))
+                own and own["source"], listing, int(bool(delisted)), int(not ticker and own is None),
+                int(bool(dormant))))))
         return docs
 
     def _fold(self, docs: list[dict]) -> None:
@@ -177,12 +179,12 @@ class Index:
         folds into its share (`inst`, the page's listings). A unit that is an interest in its issuer
         (vocabulary.ISSUER_INTERESTS) groups under the issuer's company (`grp`, search's company groups); a fund, an ETF
         or a crypto asset is its own group, and so is a pool or a protocol."""
-        live = [doc for doc in docs if not doc["delisted"] and not doc["tickerless"]]
+        live = [doc for doc in docs if not doc["dormant"] and not doc["tickerless"]]
         kinds = ChainMap({doc["security"]: doc["kind"] for doc in live}, self.kinds)
         issuers_of = ChainMap({doc["security"]: doc["issuer"] for doc in live}, self.issuers_of)
         for doc in docs:
             unit = self.units.get(doc["security"])
-            # A unit outside the directory folds nothing in, and neither does a delisted or tickerless one: a live
+            # A unit outside the directory folds nothing in, and neither does a dormant or tickerless one: a live
             # receipt of a delisted share stays its own instrument, as before such lines were searchable. Such a
             # line still joins a live unit it folds into, or stands as its own.
             unit = unit if unit in kinds else doc["security"]

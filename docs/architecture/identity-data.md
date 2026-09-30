@@ -82,12 +82,14 @@ saved ID can be older than the data: `id_aliases` (reference) and
 
 Search's index is built from these tables once per reference file, with the
 device's subjects laid over it. A security or listing whose `status` is
-`inactive` (a delisted line) is in the index, marked `delisted`: it is found by
+`inactive` is in the index, and one whose own status is `inactive` (a delisted line,
+as the price guards read it) is marked `delisted`; an active line under an inactive
+security is live and unmarked, and stays out of the page's lines. It is found by
 name, ticker and identifier, ranked below live lines (a company with a live line
 before one with only delisted lines, and within a company its live lines first),
 and hidden only when a search asks for `include_delisted: false`. The page's
-listing selector and the line a security page prices through leave delisted
-lines out, as before. A security none of whose lines has a ticker is in the index
+listing selector and the line a security page prices through leave out delisted
+lines and lines under an inactive security, as before. A security none of whose lines has a ticker is in the index
 as one row through its primary line (else the first by id), marked `no_ticker`,
 found by name and identifier and ranked below lines that have a ticker; it too
 stays out of the page's listings. A line with no ticker of a security that has

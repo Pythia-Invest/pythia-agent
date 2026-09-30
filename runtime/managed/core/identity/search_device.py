@@ -134,7 +134,8 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
     the reference's), else its own record's."""
     attributes, parent = row["attributes"], row["parent_id"]
     security = every.get(parent) if parent else None
-    delisted = row["status"] == "inactive" or (security is not None and security["status"] == "inactive")
+    delisted = row["status"] == "inactive"  # the line's own status, as the page's price guards read it
+    dormant = delisted or (security is not None and security["status"] == "inactive")
     if security is not None:
         issuer, name, size = security["parent_id"], security["name"], notability(security["attributes"].get("rank"))
         kind, asset_class = security["attributes"].get("kind"), security["attributes"].get("asset_class")
@@ -142,7 +143,7 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
         found = ref.execute("SELECT issuer_id, name, kind, asset_class, rank, status FROM securities WHERE id = ?",
                             (parent,)).fetchone() if parent else None
         issuer, name, kind, asset_class, rank, status = found or (None,) * 6
-        delisted = delisted or status == "inactive"
+        dormant = dormant or status == "inactive"
         size = logrank(rank)
     # Under a known security, its kind and class are the security's: a plugin's line never regroups it.
     asset_class = asset_class or attributes.get("asset_class")
@@ -150,7 +151,7 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
     operating, ticker = attributes.get("operating_mic") or attributes.get("mic"), attributes.get("ticker")
     line = (row["id"], parent or row["id"], None, attributes.get("mic") or operating, operating, ticker,
             attributes.get("currency"), None, 0, issuer, name or row["name"] or ticker or row["id"], kind, asset_class,
-            None, 0, int(delisted))
+            None, 0, int(delisted), int(dormant))
     return line, size if size is not None else notability(attributes.get("rank"))
 
 
@@ -159,7 +160,7 @@ def _own(row: Mapping[str, Any], kind: Kind) -> tuple[tuple, float | None]:
     attributes = row["attributes"]
     line = (row["id"], row["id"], None, None, None, attributes.get("ticker"), attributes.get("currency"), None, 1, None,
             row["name"] or row["id"], str(kind) if kind in NAMED_KINDS else "other", attributes.get("asset_class"),
-            None, 0, int(row["status"] == "inactive"))
+            None, 0, *[int(row["status"] == "inactive")] * 2)
     return line, notability(attributes.get("rank"))
 
 

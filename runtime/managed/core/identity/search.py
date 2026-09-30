@@ -30,7 +30,8 @@ PREFERENCES = ("primary", "EU", "US")
 KINDS = ("ordinary", "preferred", "depositary_receipt", "etf", "fund", "bond", "index", "fx", "coin", "token", "other",
          "market", "protocol")
 SHOWN = 3  # relevant listing rows a search group carries
-LIVE = "delisted = 0 AND tickerless = 0"  # a line the page lists and prices through: neither weak kind
+# A line the page lists and prices through: not dormant (its line or its security is inactive) and not a tickerless row.
+LIVE = "dormant = 0 AND tickerless = 0"
 GROUP_ROWS = 500  # listings one group read ("all listings") carries at most
 
 ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -159,7 +160,7 @@ class Directory(Index):
             rows = self.db.execute(
                 "SELECT inst, names, ikind, listing, ticker, mic, venue, currency, size FROM doc d JOIN"
                 f" (SELECT grp, inst AS own FROM doc WHERE security = ? AND {LIVE} LIMIT 1) me ON d.grp = me.grp"
-                " AND d.inst <> me.own WHERE d.crypto = 0 AND d.delisted = 0 AND d.tickerless = 0"
+                " AND d.inst <> me.own WHERE d.crypto = 0 AND d.dormant = 0 AND d.tickerless = 0"
                 " ORDER BY d.inst, d.security <> d.inst, -d.prim, d.fus, d.otc, -d.home, -d.liq, d.mic, d.listing",
                 (security,)).fetchall()
         seen: dict[str, tuple] = {}

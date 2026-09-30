@@ -269,6 +269,23 @@ it("sends the typed identifier to that plugin alone and shows how its records we
   expect(answer?.querySelector("a")?.getAttribute("href")).toBe(
     "/instrument/listing%3Afigi%3ABBG000A",
   );
+  // A lookup whose every record was refused says so, not "Stored: 0 ...".
+  state.found = {
+    summary: lookupSchema.parse({
+      joined: 0,
+      introduced: 0,
+      conflicts: 0,
+      unmatched: 0,
+      rejected: 2,
+      subjects: [],
+    }),
+    issue: null,
+  };
+  await act(async () => root.render(<DataSourceSettings />));
+  expect(
+    host.querySelector('[data-slot="source-lookup"] [role="status"]')
+      ?.textContent,
+  ).toBe("Stored: 0 joined, 0 new, 0 conflicts, 0 unmatched, 2 rejected.");
   // No match is an answer with no counts, and says why.
   state.found = {
     summary: lookupSchema.parse({
