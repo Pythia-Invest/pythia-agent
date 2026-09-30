@@ -285,6 +285,40 @@ WHERE subject_id IN (SELECT value FROM json_each(:family))
 ORDER BY created_at;
 ```
 
+## Which values did a plugin correct, and what did its source originally say?
+
+A source is sometimes wrong in a way its own plugin or builder adapter can
+show: a depositary receipt carrying another company's LEI, a name with a typo. The
+plugin or adapter then states the corrected value in the record and keeps what
+the source said and why that is wrong (`SourceCorrection`: `field`, `original`,
+`reason`). The authority stays `source_asserted`: the value is still that source's
+record as its adapter reads it, and the original stays readable beside it. A
+plugin's corrections are in its record's `attributes.corrections` in the `claim`
+JSON of `claims`; the reference build's are in `ref.source_corrections`, which a
+package built before it lacks (then the query fails with "no such table": leave
+its second half out). `value` is what the record states now, and `original` is
+what the source stated, exactly as the source wrote it, so it can be reported. A
+correction applies only while the source still states the original; when the
+source fixes its error the raw value passes through and the build counts the
+entry as stale in its manifest, the signal to retire it. The page's `source_corrected` list shows the same
+rows.
+
+```sql
+-- example: source-corrections
+SELECT 'device' AS store, c.plugin AS who, c.subject_id, json_extract(f.value, '$.field') AS field,
+       json_extract(f.value, '$.original') AS original,
+       coalesce(json_extract(c.claim, '$.attributes.' || json_extract(f.value, '$.field')),
+                (SELECT json_extract(i.value, '$.value') FROM json_each(c.claim, '$.identifiers') i
+                 WHERE json_extract(i.value, '$.scheme') = json_extract(f.value, '$.field')
+                   AND coalesce(json_extract(i.value, '$.role'), 'self') = 'self')) AS value,
+       json_extract(f.value, '$.reason') AS reason
+FROM claims c, json_each(c.claim, '$.attributes.corrections') f
+WHERE c.subject_id IN (SELECT value FROM json_each(:family))
+UNION ALL
+SELECT 'reference', source, subject_id, field, original, value, reason
+FROM ref.source_corrections WHERE subject_id IN (SELECT value FROM json_each(:family));
+```
+
 ## What the stores do not record
 
 - Which source serves now, and a derived address: computed on every read from

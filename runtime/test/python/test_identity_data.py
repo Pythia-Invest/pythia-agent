@@ -20,6 +20,7 @@ DOC = Path(__file__).parents[3] / "docs/architecture/identity-data.md"
 AGENT = Path(__file__).parents[2] / "managed/core/skills/identity-data/references/queries.md"  # what the skill ships
 TOYOTA, TOYOTA_ISIN = "listing:isin:JP3633400001:XJPX:JPY", "JP3633400001"
 REASON = "venue code XV is a trade report (Cboe Europe BOTC), not an order book"
+FIX_REASON = "the source names the wrong company's LEI; the company's own filing names the right one"
 POOL_ID = "00000002-0000-4000-8000-000000000000"
 POOL = f"market:provisional:tidepool:pool:{POOL_ID}"
 OLD_ID = identity.provisional_id("listing", "vendor", "line", "OLD1")
@@ -68,9 +69,14 @@ class DocFixture(unittest.TestCase):
                            " source, plugin, adapter_version, retrieved_at) VALUES (?, ?, ?, ?, ?, ?,"
                            " 'source_asserted', ?, ?, '1', ?)", (f"ev:{value}", subject, level, scheme, value, ended,
                                                                 source, source, NOW))
+            db.execute("INSERT INTO source_corrections VALUES ('security:isin:JP3633400001', 'esma_firds', 'Issr',"
+                       " '5493000ORIGINALISSUER', '5493000CORRECTEDISSUR', ?)", (FIX_REASON,))  # illustrative LEIs
         self.world.plugins = [pricing, other, *underlying, self.tidepool]
         self.world.resolve(pricing, TOYOTA, record(pricing, "7203.T", ("isin", TOYOTA_ISIN)))
-        self.world.ingest(other, record(other, "TM", ("figi", "BBG000TYTKY0"), ("isin", "US0378331005")))  # contests the ISIN
+        contesting = record(other, "TM", ("figi", "BBG000TYTKY0"), ("isin", "US0378331005"))  # contests the ISIN
+        contesting["attributes"] = {"name": "Toyota Motor Corp.", "corrections": [  # and states a name it corrected
+            {"field": "name", "original": "TOYOTA MOTOR CORP (TEST)", "reason": FIX_REASON}]}
+        self.world.ingest(other, contesting)
         self.unplaced = record(pricing, "7203.XV", ("figi", "BBG000TYHNX8"), ("isin", TOYOTA_ISIN))  # no line to put it on
         self.unplaced["attributes"] = {"provider_venue": "XV", "venue_note": REASON}
         self.world.ingest(pricing, self.unplaced)
@@ -205,6 +211,15 @@ class ExampleTest(DocFixture):
                          [("identifier", "security:isin:JP3633400001", "US0378331005", "active", None),
                           ("price_source", TOYOTA, "vendor", "proposed", "agent")])
         self.assertTrue(rows[0]["decided_at"] and rows[1]["decided_at"] is None)
+
+    def test_a_corrected_value_is_listed_with_what_its_source_originally_said_and_why(self):
+        rows = self.run_examples()["source-corrections"]
+        self.assertEqual({(row["store"], row["who"], row["subject_id"], row["field"], row["original"], row["value"])
+                          for row in rows},
+                         {("device", "other", TOYOTA, "name", "TOYOTA MOTOR CORP (TEST)", "Toyota Motor Corp."),
+                          ("reference", "esma_firds", "security:isin:JP3633400001", "Issr", "5493000ORIGINALISSUER",
+                           "5493000CORRECTEDISSUR")})
+        self.assertEqual({row["reason"] for row in rows}, {FIX_REASON})
 
     def test_a_plugins_relation_keeps_where_it_was_stated(self):
         found = self.run_examples()

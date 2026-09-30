@@ -19,7 +19,7 @@ import functools
 import json
 import os
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
@@ -39,6 +39,16 @@ class Claim(NamedTuple):
     meaning: Meaning
     as_of: str | None  # the source file's publication date
     record_digest: str | None  # of the source record's bytes
+    correction: tuple[str, str] | None = None  # (original, reason) where the adapter corrected its source's error: `value` is the corrected one
+
+
+def corrected(found: Iterable[Claim], table) -> Iterator[Claim]:
+    """An adapter's claims with its source's own errors corrected: where `table` (a `source_corrections.Table`) holds a
+    fix for a claim's record and field and the source still states the original, the claim states the corrected value
+    and carries the original and the reason. The adapter itself reads the source as it is and patches nothing."""
+    for claim in found:
+        value, fix = table.apply(claim.source, claim.subject_key, claim.source_field, claim.value)
+        yield claim._replace(value=value, correction=fix) if fix else claim
 
 
 def record_path(out_dir: Path, source: str, stamp: str) -> Path:
@@ -98,6 +108,8 @@ class Claims:
     admissions: dict[str, dict[str, dict[str, str]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(dict)))
     convention: set[str] = field(default_factory=set)  # segments whose field 8 is true on every record
     digests: dict[str, str] = field(default_factory=dict)  # ISIN -> a source record's digest, cited as evidence
+    corrected: dict[tuple[str, str], tuple] = field(default_factory=dict)  # (key, source field) -> source, original, value, reason
+    corrections: dict = field(default_factory=dict)  # `source_corrections.Table.report`: applied, stale and absent entries
     count: int = 0
 
     def one(self, isin: str, meaning: str) -> str | None:
@@ -125,10 +137,15 @@ class Claims:
         return {isin: leis for isin, leis in found.items() if leis}
 
 
-def load(claims: Iterable[Claim]) -> Claims:
+def load(claims: Iterable[Claim], table=None) -> Claims:
+    """The claims the build decides from. `table` is the `source_corrections.Table` the adapter read them through: its
+    report says which entries applied, which are stale and which found no record."""
     found = Claims()
     for claim in claims:
         found.count += 1
+        if claim.correction:
+            original, reason = claim.correction
+            found.corrected[(claim.subject_key, claim.source_field)] = (claim.source, original, claim.value, reason)
         if claim.meaning not in KEPT:
             continue
         isin, _, segment = claim.subject_key.removeprefix("isin:").partition("@")
@@ -142,6 +159,7 @@ def load(claims: Iterable[Claim]) -> Claims:
         for segment, admission in segments.items():
             answers[segment][admission.get(Meaning.ISSUER_REQUESTED_ADMISSION, "missing")] += 1
     found.convention = {segment for segment, c in answers.items() if set(c) == {"true"} and c["true"] >= CONVENTION_MIN}
+    found.corrections = table.report() if table is not None else {}
     return found
 
 

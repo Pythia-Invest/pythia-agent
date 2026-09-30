@@ -79,6 +79,7 @@ saved ID can be older than the data: `id_aliases` (reference) and
 | `id_aliases` | An earlier subject ID and the one it is now |
 | `venues` | ISO 10383 venues |
 | `chains` | Blockchains crypto deployments name |
+| `source_corrections` | Where the build stated a value instead of what its source states, because the source is wrong: the original and the reason (a package built before it has no such table) |
 
 Search's index is built from these tables once per reference file, with the
 device's subjects laid over it. A security or listing whose `status` is
@@ -125,6 +126,7 @@ one is not a row.
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
 | A question | `queue` | `plugins` (`reference` first where the build or core's own conflict check asked, then the plugins whose statements it is about) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
 | An answer | `verdicts` | `resolver`, `plugin`, `model` | `item_id`, `chosen_id` | `created_at` | `rule_id`, `user_turn`, `authority`, `outcome` |
+| A correction of a source's own error | `claims` (`attributes.corrections` in the `claim` JSON); `ref.source_corrections` | the `plugin`, or the build's `source` | `subject_id`, `field` (the source's own field for the build's) | as the record's own provenance; `retrieved_at` of the build | `original` and `reason`; always `source_asserted` |
 | A correction | `corrections` | the investor (`user_turn`), or the agent that proposed it (`proposed_by`) | `subject_id`, `scheme`, `value` | `created_at`, `decided_at`, `ended_at` | `state`; `replaces` names the one it took the place of |
 
 `authority` is the kind of evidence, never where it came from: `source_asserted`
@@ -437,6 +439,40 @@ A correction follows its subject when a release or a better key re-keys it, so
 `:family` holds the current ID. The identifier shown on the subject's page cites
 the correction: `pythia_instrument`'s `provenance` has `plugin = 'user'` and the
 correction's `id`.
+
+### Which values did a plugin correct, and what did its source originally say?
+
+A source is sometimes wrong in a way its own plugin or builder adapter can
+show: a depositary receipt carrying another company's LEI, a name with a typo. The
+plugin or adapter then states the corrected value in the record and keeps what
+the source said and why that is wrong (`SourceCorrection`: `field`, `original`,
+`reason`). The authority stays `source_asserted`: the value is still that source's
+record as its adapter reads it, and the original stays readable beside it. A
+plugin's corrections are in its record's `attributes.corrections` in the `claim`
+JSON of `claims`; the reference build's are in `ref.source_corrections`, which a
+package built before it lacks (then the query fails with "no such table": leave
+its second half out). `value` is what the record states now, and `original` is
+what the source stated, exactly as the source wrote it, so it can be reported. A
+correction applies only while the source still states the original; when the
+source fixes its error the raw value passes through and the build counts the
+entry as stale in its manifest, the signal to retire it. The page's `source_corrected` list shows the same
+rows.
+
+```sql
+-- example: source-corrections
+SELECT 'device' AS store, c.plugin AS who, c.subject_id, json_extract(f.value, '$.field') AS field,
+       json_extract(f.value, '$.original') AS original,
+       coalesce(json_extract(c.claim, '$.attributes.' || json_extract(f.value, '$.field')),
+                (SELECT json_extract(i.value, '$.value') FROM json_each(c.claim, '$.identifiers') i
+                 WHERE json_extract(i.value, '$.scheme') = json_extract(f.value, '$.field')
+                   AND coalesce(json_extract(i.value, '$.role'), 'self') = 'self')) AS value,
+       json_extract(f.value, '$.reason') AS reason
+FROM claims c, json_each(c.claim, '$.attributes.corrections') f
+WHERE c.subject_id IN (SELECT value FROM json_each(:family))
+UNION ALL
+SELECT 'reference', source, subject_id, field, original, value, reason
+FROM ref.source_corrections WHERE subject_id IN (SELECT value FROM json_each(:family));
+```
 
 ## What is not stored
 

@@ -222,6 +222,21 @@ segment grew from 1,846 to 8,305 records, all but two answering field 8 false.
 | Underlying superseded or outside the build | 116 receipts (local build) whose underlying is in the build but inactive | — | FIRDS keeps the old ISIN | Keep the edge by global identifier and follow `successor_of` | Open |
 | `NOISIN` underlying placeholder | 203 records on 40 receipt ISINs in the audit scope (238 on 44 in all): the receipts without an underlying | `US00689A1051` Adimmune GDS states `NOISINFOUND9` | ESMA's placeholder for "no ISIN found" | No claim, counted (`underlying_placeholder`). The receipt is read as stating none: its issuer's one live share would be its underlying, and none of the 40 has one in the build (39 have no share of the issuer, 1 has two classes), so they stay asked | Counted |
 
+### Source corrections
+
+Where FIRDS is wrong and the builder can show it, the adapter states the corrected
+value in a labelled source correction (`tooling/reference-builder/source_corrections.json`),
+and the package keeps FIRDS' original beside it (`source_corrections` in the reference
+file, [identity data](../architecture/identity-data.md)). A correction is FIRDS' own
+record as the adapter reads it; it is never another source's value and never a rule.
+It applies only while FIRDS still states the original: a build counts an entry FIRDS has
+fixed as stale, and the entry is retired. Every entry is reported to ESMA by a maintainer;
+the last column says whether that happened.
+
+| Record | Field | FIRDS states | Corrected to | Evidence | Reported upstream | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `US2062772049`, Concord Medical Services' ADR (FRAB and FRAV) | `Issr` (field 5) | `529900Z57DVJXUBLHX66`, which GLEIF registers to China Medical System Holdings Limited (Cayman, a company with shares of its own) | Concord Medical Services Holdings' own LEI | The record's name is Concord's; field 8 is false; field 26 repeats the receipt's own ISIN; the LEI's GLEIF names share no word with the receipt's. The 2026-09-28 build found it through the `receipt_name_disagrees` review flag: the name vetoed China Medical System's one share as the receipt's underlying, and the receipt is asked | Not yet | Not entered: Concord's LEI is in none of the cached sources (FIRDS, GLEIF, OpenFIGI, SEC tickers), so the correction needs one GLEIF lookup by name, with its source recorded in the entry's reason |
+
 ## 4. Judgement cases
 
 | Question type | Why code can't decide it | Question set | Development check | Gold set and threshold, or suggest-only |

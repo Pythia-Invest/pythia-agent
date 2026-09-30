@@ -126,6 +126,18 @@ CREATE TABLE relations (  -- typed edges between two subjects (a receipt and its
 CREATE INDEX relations_from ON relations (from_id, type);
 CREATE INDEX relations_to ON relations (to_id, type);
 
+-- Where the build corrected its own source's error (docs/sources/<source>.md lists each). An additive table: a package
+-- built before it has none, and core reads it only when it exists.
+CREATE TABLE source_corrections (  -- a value the build states instead of what its source states, because the source is wrong: the original stays here
+  subject_id TEXT NOT NULL,        -- the subject the corrected value is about
+  source TEXT NOT NULL,            -- the source that states the original, as in assertions.source (esma_firds)
+  field TEXT NOT NULL,             -- the source's own field as the adapter reads it (for esma_firds an element path: Issr)
+  original TEXT NOT NULL,          -- what the source states, exactly
+  value TEXT NOT NULL,             -- what the build states instead: the rows about the subject carry it (an issuer LEI is the one securities.issuer_id points to)
+  reason TEXT NOT NULL CHECK (length(reason) <= 400),  -- what is wrong and the evidence
+  PRIMARY KEY (subject_id, source, field)
+);
+
 -- Other names a subject is searched by (former names, brands, symbols).
 CREATE TABLE names (  -- search names beside a subject's display name; never identifiers
   subject_id TEXT NOT NULL,        -- the subject it names

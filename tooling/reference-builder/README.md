@@ -382,7 +382,7 @@ rule change bumps it with a line here:
 ## Claims, questions and the FIRDS adapter
 
 `firds.claims()` turns every FIRDS field the builder reads into a `Claim`
-`(subject_key, value, source, source_field, meaning, as_of, record_digest)`,
+`(subject_key, value, source, source_field, meaning, as_of, record_digest, correction)`,
 in the one meaning RTS 23 gives it: `firds.FIELDS` maps each field to core's
 `SourceMeaning` vocabulary (`runtime/managed/core/identity/vocabulary.py`). The
 adapter picks no winner and reads no other source; a missing element or a
@@ -413,6 +413,31 @@ manifest carries the same report under `firds`. `just reference-audit` prints
 the FIRDS section: drift alarms against the previous good build's record, the
 odd cases with examples, field 8 per segment, how FIRDS securities got their
 primary line, and the open questions.
+
+### Source corrections
+
+When a source is wrong in a way the builder can show, its adapter states a
+labelled correction of that source's own value: never another source's, and never
+a rule. `source_corrections.json` lists each one by source, record key (for FIRDS,
+`isin:<ISIN>`), the source's own field (`Issr`), the `original` the source states, the
+`value` to use, and a `reason` of at most 400 characters that says what is wrong and
+cites the evidence. The adapter itself reads its source as it is; the build passes
+its claims through `claims.corrected` with core's `source_corrections.Table`, which
+sets `Claim.correction = (original, reason)` on each corrected claim. That claim's
+value is the corrected one, so the build decides from it.
+`Claims.corrected` keeps them; the writer puts each into the reference's
+`source_corrections` table (`subject_id`, `source`, `field`, `original`, `value`,
+`reason`), so the source's original stays readable
+([identity data](../../docs/architecture/identity-data.md)). The table is additive:
+no format bump, and a package built before it has none.
+
+A correction applies only while the source still states `original`. If the source
+fixes its error the raw value passes through and the entry is counted stale; an
+entry whose record the build did not read is counted absent. The manifest's
+`audit.source_corrections` and the build counts list `applied`, `stale` and
+`absent` with the entries to retire under `retire`. Each entry is a maintainer's
+to report to the source (the lists of entries and what was reported are in
+`docs/sources/<source>.md`); a build without FIRDS reads none.
 
 ### FIRDS field semantics
 

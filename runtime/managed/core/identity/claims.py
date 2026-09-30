@@ -26,6 +26,10 @@ from .vocabulary import (
 )
 
 MAX_BATCH_CLAIMS = 5000
+REASON_LENGTH = 400      # a source correction's reason
+MAX_CORRECTIONS = 8      # per record
+CORRECTABLE = ("name", "issuer_name", "ticker", "mic", "operating_mic", "provider_venue", "currency", "country",
+               "asset_class", "kind", "status")  # the record attributes a correction may name
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}\Z")
 _DEPTH = {Level.ISSUER: 0, Level.SECURITY: 1, Level.COMPOSITE: 2, Level.LISTING: 3}
 
@@ -52,6 +56,24 @@ class IdentifierValue:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceCorrection:
+    """A plugin's correction of its own source's error in one field of a record it emits (docs/architecture/plugins.md,
+    "Correcting your own source"). The record states the corrected value; this keeps what the source said (`original`,
+    the source's raw text, so it can be reported) and why that is wrong (`reason`: the evidence, at most 400 characters).
+    A plugin corrects only what its own source states, and only while the source still states `original`."""
+
+    field: str     # an identifier scheme the record states as `self`, or a descriptive attribute it states
+    original: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        _require(all(isinstance(text, str) for text in (self.field, self.original, self.reason)),
+                 "source correction: field, original and reason are text")
+        _require(0 < len(self.field) <= 64 and 0 < len(self.original) <= 512 and 0 < len(self.reason) <= REASON_LENGTH,
+                 f"source correction: the reason is at most {REASON_LENGTH} characters and the original is required")
+
+
+@dataclass(frozen=True, slots=True)
 class RecordAttributes:
     """Descriptive fields of a source record. None means the source did not say."""
 
@@ -69,11 +91,15 @@ class RecordAttributes:
     status: SubjectStatus | None = None
     aliases: tuple[str, ...] = ()
     rank: Mapping[str, float] = field(default_factory=dict)  # rank signals, e.g. {"market_cap_usd": 2.6e11}
+    corrections: tuple[SourceCorrection, ...] = ()  # the plugin's fixes of its own source's errors in this record
 
     def __post_init__(self) -> None:
         _coerce(self, asset_class=AssetClass, kind=InstrumentKind, status=SubjectStatus)
         _require(isinstance(self.aliases, (list, tuple)), "record attributes: aliases are a list of names")
         object.__setattr__(self, "aliases", tuple(self.aliases))
+        _require(isinstance(self.corrections, (list, tuple)), "record attributes: corrections are a list")
+        object.__setattr__(self, "corrections", tuple(
+            item if isinstance(item, SourceCorrection) else SourceCorrection(**item) for item in self.corrections))
         checks = ((self.ticker, TICKER), (self.mic, MIC), (self.operating_mic, MIC), (self.currency, CURRENCY),
                   (self.country, COUNTRY))
         _require(all(value is None or bool(pattern.match(value)) for value, pattern in checks),
@@ -146,6 +172,25 @@ class RecordClaim:
         own = [item.scheme for item in self.identifiers
                if item.role is IdentifierRole.SELF and item.scheme in SINGLE_VALUED]
         _require(len(own) == len(set(own)), "record: one self value per single-valued scheme")
+        self._check_corrections()
+
+    def stated(self, field: str) -> list[str]:
+        """What the record states in `field`: an attribute it sets, or its `self` values of an identifier scheme."""
+        if field in CORRECTABLE:
+            value = getattr(self.attributes, field)
+            return [] if value is None else [str(value)]
+        return [item.value for item in self.identifiers if item.role is IdentifierRole.SELF and item.scheme == field]
+
+    def _check_corrections(self) -> None:
+        found = self.attributes.corrections
+        _require(len(found) <= MAX_CORRECTIONS and len({item.field for item in found}) == len(found),
+                 f"record: at most {MAX_CORRECTIONS} corrections, one per field")
+        for item in found:
+            _require(item.field in CORRECTABLE or item.field in {str(scheme) for scheme in Scheme},
+                     f"record: {item.field} is neither an identifier scheme nor a record attribute")
+            states = self.stated(item.field)
+            _require(bool(states) and item.original not in states,
+                     f"record: a correction of {item.field} needs the record to state the corrected value, not the original")
 
 
 def _endpoint(value: Any) -> IdentifierValue | ProviderRef:

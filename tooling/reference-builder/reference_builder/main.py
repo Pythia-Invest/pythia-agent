@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import claims, fetch, firds, firds_audit, manifest, mic, schema, sec, source_drift, truth_report, writer
 from .assemble import Inputs
-from .config import BUILDER_VERSION, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
+from .config import BUILDER_VERSION, SOURCE_CORRECTIONS, USER_AGENT, BuildConfig, Scope, load_openfigi_key, load_sec_identity, parse_mics
 from .fetch import Downloader, log, utc_now
 from .gleif import GleifClient
 from .openfigi import MAPPING_URL, OpenFigi
@@ -73,7 +73,9 @@ def run(config: BuildConfig) -> int:
         deltas = [firds.download(downloads, "esma_firds", d) for d in delta_docs]
         admissions, record_counts = firds.load_admissions(full, deltas, config.scope.cfi_prefixes, fingerprint)
     stamp = config.as_of.strftime("%Y%m%d")
-    firds_claims = claims.load(firds.claims(admissions))  # the claims the build decides from
+    table = schema.source_corrections.Table.read(SOURCE_CORRECTIONS.read_text(encoding="utf-8")) if config.scope.firds \
+        else schema.source_corrections.Table()  # the fixes of FIRDS' own errors; a build without FIRDS reads none
+    firds_claims = claims.load(claims.corrected(firds.claims(admissions), table), table)  # the claims the build decides from
     if config.scope.firds:
         firds.measure(fingerprint, firds_claims.isins)
     log(f"claims: {firds_claims.count} FIRDS claims")

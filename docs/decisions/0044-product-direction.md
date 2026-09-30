@@ -858,3 +858,81 @@ without crowding live lines.
 - **Persisting the toggle in browser storage.** Desk has no shared mechanism for
   a plugin widget's preference, and a second ad hoc one is not worth it for a
   filter.
+
+## Amendment (2026-09-30): a source adapter corrects its own source
+
+### Context
+
+The judgement amendment (J1) rules that a plugin fixes a known error in its own
+source as a labelled source correction, with the original value visible beside it,
+and that for the reference sources the builder's adapters are that plugin. Three
+cases showed the need: FIRDS states China Medical System's LEI on Concord
+Medical's ADR (found by the `receipt_name_disagrees` review flag), and SEC's
+state code is wrong for Theravance and ioneer. Until now each would be a hand
+list in a rule, or a question every device answers again.
+
+### Ruling
+
+- **One correction is `(field, original, reason)`.** The corrected value is not
+  repeated: it is the value the record or claim already states in that field, so
+  each fact is stated once with the source's original beside it. `original` is
+  the source's raw text, so it can be reported upstream. `reason` is at most 400
+  characters and says what is wrong and the evidence.
+- **It applies only while the source still states `original`.** If the source
+  fixes its error the raw value passes through and the entry is counted stale,
+  the signal to retire it.
+- **The authority stays `source_asserted`.** A corrected value is still that
+  source's own record as its adapter reads it, so there is no new authority
+  value and a conflict with another source is raised as before. One plugin never
+  corrects another's data.
+- **Runtime plugins** carry it in `RecordAttributes.corrections` (validated
+  against the fields the record states: an identifier scheme it states as
+  `self`, or a descriptive attribute; one per field, at most eight). The claim
+  JSON already stored by `claims` holds it, so no table or migration is added.
+  `identity/source_corrections.py` lists a subject family's corrections for the
+  page (`view["source_corrected"]`, beside `view["corrections"]`, which stays the
+  investor's own).
+- **The builder's adapters** have their claims passed through
+  `tooling/reference-builder/source_corrections.json` (by source, record key and
+  field) with the same module, so an adapter patches nothing itself. A corrected `Claim`
+  carries `correction`, the build decides from its value, and the reference file
+  gets an additive `source_corrections` table (subject, source, field, original,
+  value, reason). The build report counts applied, stale and absent entries.
+- **Reporting stays a maintainer's act.** `docs/sources/<source>.md` lists each
+  entry and whether it was reported upstream. Nothing is stored or sent for it.
+
+### Rationale
+
+- A labelled, reported correction is the accepted form of J1: the original is
+  visible, the source's owner can fix it for every installation, and the entry
+  stops applying when they do. A hand-coded exception passes as the source's own
+  words.
+- Stating the value once and keeping the original beside it makes the raw-data
+  question "which values did a plugin correct, and what did the source originally
+  say?" one query ([identity data](../architecture/identity-data.md)).
+- A new `Authority` value would change a closed vocabulary with checks in both
+  store schemas for something that is not a new kind of evidence.
+
+### Consequences
+
+- `corrections` is a new key of every wire record, so the first sync after the
+  upgrade finds each stored claim different from the re-emitted one and places it
+  once more to the same result, as `venue_note` did.
+- The reference format does not change: the table is additive, a package built
+  before it has none and core reads it only when it exists.
+- The SEC cases (Theravance's and ioneer's state codes) wait for the builder to
+  emit incorporation; they are recorded in `docs/sources/sec.md`. The Concord
+  Medical entry waits for that company's LEI, which no cached source holds
+  (`docs/sources/firds.md`).
+- No Desk surface is added beyond the view list.
+
+### Rejected alternatives
+
+- **Repeating the corrected value in the correction.** Two copies of one fact
+  can disagree.
+- **A `source_corrected` authority.** A closed vocabulary change for no new kind
+  of evidence.
+- **A `reported` status field.** The reason can say "reported to SEC on <date>",
+  and the maintainer's list is a document.
+- **Patching across sources**, and a network reporting step or report record: the
+  second would be a query over a verdict ledger that does not exist yet.
