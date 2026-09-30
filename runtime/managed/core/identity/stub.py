@@ -29,4 +29,4 @@ def view(store: IdentityStore, subject_id: str, plugins: Iterable, issue: str) -
     return {"subject": {"id": subject_id, "level": subject_kind(subject_id), "name": named[0][0] if named else subject_id,
                         "kind": None, "listing": None, "description": issue},
             "identifiers": {scheme: values[scheme] for scheme in SHOWN if scheme in values},
-            "listings": [], "related": [], "other_securities": [], "sections": [], "queue": [], "flags": []}
+            "listings": [], "related": [], "other_securities": [], "sections": [], "queue": [], "withheld": [], "flags": []}

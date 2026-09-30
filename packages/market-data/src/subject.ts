@@ -13,6 +13,7 @@ import { contributorSchema } from "./contributors";
 import { correctionViewSchema } from "./corrections";
 import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
+import { withheldFactSchema } from "./withheld";
 
 /** Core plugin id; feature query keys start with the serving plugin (ADR 0036). */
 export const SUBJECT_PLUGIN = "pythia";
@@ -77,6 +78,8 @@ export const subjectSectionSchema = z.object({
    * underlying_identifier);
    * absent when the source found no match. */
   queued: text.nullish(),
+  /** The open question (queue item) that holds this section back. */
+  question: text.nullish(),
   /** When a read of the serving address last agreed with the reference
    * (core's read check), or why it did not ("currency differs"); it still serves. */
   verified_at: text.nullish(),
@@ -147,6 +150,7 @@ export const subjectPageSchema = z.object({
   /** Identifiers whose sources disagree, by scheme: core
    * applies neither value, so each is listed with the sources stating it. */
   contested: z.record(z.string(), z.array(contestedValue)).default({}),
+  withheld: z.array(withheldFactSchema).default([]),
   issuer: z
     .object({
       id: text,

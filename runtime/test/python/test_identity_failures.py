@@ -73,6 +73,7 @@ class ReceiptTest(FailureTest):
         self.assertEqual((item.kind, item.reason, item.candidate_ids), ("residual", "underlying_identifier", (ERIC_B,)))
         quote = self.world.compose(ERIC_B, [by_isin])["quote"]
         self.assertEqual((quote["status"], quote["queued"]), ("unresolved", "underlying_identifier"))
+        self.assertEqual(quote["question"], item.id, "the page names the queued question that holds the section back")
         # The record's own ISIN binds. A source that cannot tell (`unqualified`, EODHD's ISIN field) still binds: a
         # known gap, only labelled by read checks.
         for role in ("self", "unqualified"):

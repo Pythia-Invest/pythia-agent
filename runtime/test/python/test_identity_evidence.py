@@ -187,6 +187,7 @@ class AnswerTest(BuildQuestionFixture):
                          {"id": ISSUER, "lei": LEI, "authority": "user_attested",
                           "inherited_from": {"security": SECURITY, "verdict": verdict}})
         self.assertEqual(self.open(), [], "asked neither about the receipt's issuer nor about the release's venue issuer")
+        self.assertEqual(view["withheld"], [], "an inherited issuer is not a fact the page holds back")
         self.assertNotIn("inherited_from", self.page(ASML)["issuer"], "the share's own answer is not inherited")
 
     def test_an_open_receipt_question_is_withdrawn_and_returns_when_the_underlyings_answer_is_reopened(self):
