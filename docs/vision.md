@@ -357,10 +357,11 @@ Today:
   search finds them, and a saved reference keeps resolving while its plugin
   is off or after it stops offering the subject, naming its source;
 - a catalogue is read, or one identifier looked up, only when the user asks,
-  from Settings or search; Settings has a switch per source that pauses it at
-  once, without a restart, and shows first which subjects only it supplies and
-  which saved entries name them; a paused source counts as disabled for data,
-  and its subjects and saved references keep resolving, labelled as paused;
+  from Settings (search calls no plugin); Settings has a switch per source that
+  pauses it at once, without a restart, and shows first which subjects only it
+  supplies and which saved entries name them; a paused source counts as disabled for data,
+  and the subjects only it supplies are hidden from search and selection, while a saved
+  reference still opens, labelled as paused;
   enabling a plugin stays Hermes's command;
 - reference sources are builder adapters: a build can leave out any of them
   except the ISO 10383 venue codes and core's curated crypto table, and lists
@@ -369,7 +370,23 @@ Today:
   subjects, and two that disagree on a single-valued fact leave it contested,
   with the user's answer deciding it on their device;
 - questions are queued only when an instrument is opened, watched or used by
-  the agent, not yet when it is held or forecast.
+  the agent, not yet when it is held or forecast; while one is open, the page
+  shows an open data conflict linked to its repair where the held-back fact
+  would be, never a blank;
+- search is a read of what the device holds: it calls no plugin, and it finds
+  delisted lines (marked, ranked below live ones) and securities without a
+  ticker;
+- the investor can correct the catalogue from an instrument's page, setting or
+  removing an identifier or pinning the source that prices it; the correction
+  applies above every source until undone, and the agent can only propose one;
+- a plugin or a builder adapter can state a known error in its own source as a
+  labelled source correction, with the source's original kept beside it; it
+  fixes that source's data and no other's;
+- the stores record who stated each identifier, binding, relation and answer,
+  and the `pythia:identity-data` skill teaches the agent to read them with SQL,
+  so there is no explanation panel;
+- DeFiLlama and NAVI each introduce their own pools or reserves and protocols and share
+  the tokens both name; the pools of different sources stay separate subjects.
 
 This is roadmap stage 0 ([ADR 0044](decisions/0044-product-direction.md),
 amendment A1 to A8); that amendment's Today section lists what it leaves open.

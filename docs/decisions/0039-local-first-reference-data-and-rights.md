@@ -27,6 +27,12 @@ on them. Refreshes run in the background inside the existing market-data
 backend process, not in a new daemon. Search and pages use the last completed
 build and never wait on a refresh or contact a source while the investor types.
 
+*Amended on 2026-09-30: nothing refreshes in the background. The investor runs the
+builder (`just reference-snapshot`) and installs the package, and a plugin's
+catalogue is read only when the investor asks for it in Settings → Data → Data
+sources ([ADR 0044](0044-product-direction.md), "Today"). Search never contacts a
+source, as before.*
+
 **Fetching respects each source's terms and load.** Every request to the SEC
 declares a User-Agent with a contact. That contact is the investor's configured
 identity. Pythia ships no default contact, so SEC stages wait until the investor

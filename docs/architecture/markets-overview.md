@@ -29,8 +29,10 @@ quote time; the sparkline's hover names the source and its delay
 ("Yahoo Finance · 15 min delayed"). A currency pair shows four decimals. When a read fails, retained values are marked stale, and the card
 shows what failed and a Retry, as the September blocks did. A subject that
 cannot be read keeps a name: core's overview read returns the curated names
-from `markets.json` and `canonical_assets.json`, otherwise the card names the
-subject's kind ("Crypto asset", "Listing"); it never shows a subject ID.
+from `markets.json` and `canonical_assets.json`, else the label of a subject a
+plugin introduced (kept on the device while that plugin is off), otherwise the
+card names the subject's kind ("Crypto asset", "Listing"); it never shows a
+subject ID.
 Without installed reference data the card says so and how to install it. The watchlist shows
 its rows as placeholders until their quotes answer. Each group's heading names the sources core chose
 for its cards. A subject no source can serve keeps its card, with core's

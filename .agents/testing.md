@@ -9,7 +9,7 @@ process, filesystem, loopback HTTP, or native-tool boundaries, and live in a
 `test/integration` directory: the directory chooses the layer, never a
 hand-kept file list. Qualification tests own assembled cross-workspace,
 installation, and update behavior, and run nightly outside the ordinary
-pull-request loop ([ADR 0037](../docs/decisions/0037-one-required-ci-gate.md)).
+pull-request loop ([ADR 0046](../docs/decisions/0046-one-required-ci-gate.md)).
 A guided local runbook under `.private/plans/<branch>/test-plan.md` is reserved
 for a representative workflow or user judgment that automation cannot supply,
 when explicitly requested. Ordinary tests and previews do not require a
