@@ -183,6 +183,14 @@ def _enum(kind: type[StrEnum], value: Any, path: str) -> Any:
         raise ManifestError(f"{path}: expected one of {', '.join(kind)}") from None
 
 
+def _instrument_schemes(value: Any, path: str) -> tuple[Scheme, ...]:
+    """Identifier schemes a resolve takes or echoes: an instrument's (the open schemes key markets and protocols)."""
+    items = _enums(Scheme, value, path)
+    if any(item not in SCHEME_LEVEL for item in items):
+        raise ManifestError(f"{path}: only an instrument's identifier schemes")
+    return items
+
+
 def _enums(kind: type[StrEnum], value: Any, path: str) -> tuple[Any, ...]:
     if not isinstance(value, list):
         raise ManifestError(f"{path}: list required")
@@ -366,8 +374,8 @@ def validate_manifest(document: Any) -> Manifest:
     if "resolve" in body:
         entry = _object(body["resolve"], "resolve", {"operation", "input_schemes", "echoes"})
         resolve = Resolve(_match(OPERATION, entry["operation"], "resolve.operation"),
-                          _enums(Scheme, entry["input_schemes"], "resolve.input_schemes"),
-                          _enums(Scheme, entry["echoes"], "resolve.echoes"))
+                          _instrument_schemes(entry["input_schemes"], "resolve.input_schemes"),
+                          _instrument_schemes(entry["echoes"], "resolve.echoes"))
     declared = declarations(version, body, addressing, native)
     for index, item in enumerate(native):
         # A kind outside the hierarchy (a market) takes its refs from `subjects`, or introduces them (version 2).

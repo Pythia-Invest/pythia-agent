@@ -9,7 +9,8 @@ adopt later.
 ## Context
 
 [ADR 0044](0044-product-direction.md) A1 says any plugin can extend the universe
-on equal terms, and A3 says a new kind or key scheme is a core decision. To test
+on equal terms, and A3 says core owns the identifier rules and new kinds are a rare
+core addition (so a new key scheme is a core change). To test
 both against real data, the experiment represented Sui DeFi (10 protocols, 340
 tokens, 759 markets) from one chain plugin, three protocol-API plugins and
 DeFiLlama. The founder wants Sui in the repository as a reference for integrating
@@ -38,7 +39,8 @@ installed and are marked "on `exp-sui`".
 
 ## How to integrate a crypto source
 
-These are the rules the experiment used and the evidence for each.
+Rules 1 to 4 and 7 to 9 describe what the code in this tree does, with the evidence
+for each. Rules 5 and 6 are proposals (candidate 2 below), not adopted.
 
 1. **Identity is by chain-native key, never by name.** A token is a `listing`
    keyed by CAIP-19 (`sui:mainnet/coin:<type>`, native SUI as `slip44:784`). A
@@ -46,8 +48,10 @@ These are the rules the experiment used and the evidence for each.
    a pool, a reserve, an order book or a vault, by its object id (`sui_object`).
    Names, symbols and "same protocol and same coin" never join: a coin has up to
    nine NAVI reserves, and three USDT coin types make three pools named
-   "USDT/USDC". A plugin states identifiers in the form core joins on, through
-   `pythia_platform.identifiers`, and keeps no copy of core's profile.
+   "USDT/USDC". The plugin states its CAIP-19 keys in the
+   form core joins on, through `pythia_platform.identifiers`; it still keeps its
+   own tolerant reader for Sui addresses (`chain.address`, which also accepts hex
+   without `0x`, as Cetus writes it), and core normalises whatever it states.
 2. **State keys only for what the source names.** A source that names no object
    states none (DeFiLlama) and introduces its own subject; a coin type core cannot
    key (a generic receipt type, or one past CAIP-19's 128 characters) gets a
@@ -63,14 +67,15 @@ These are the rules the experiment used and the evidence for each.
    not know the role states none.
 5. **One plugin per source.** A plugin is one provider endpoint family with its own
    terms, limits, failure mode and opt-in. The protocol category (lending, DEX) is
-   never a boundary, and neither is sharing code. A protocol-API plugin earns its
-   place only by supplying what the chain plugin cannot get with comparable effort:
-   a filtered or ranked catalogue (Cetus: 306 pools of 44,480), figures the
-   protocol computes (NAVI's rates), or curation with a meaning (Suilend's listed
-   markets).
-6. **Test the split with the effect line.** Run the plugin's sync beside the chain
-   plugin and read core's `plugin_effect`, the subjects only that plugin supplies.
-   A line of zero states nothing new, and the plugin should not ship separately.
+   never a boundary, and neither is sharing code.
+6. **Proposed, not adopted: the effect-line test.** The maintainers would not ship
+   a separate protocol-API plugin that supplies nothing the chain plugin cannot get
+   with comparable effort (a filtered or ranked catalogue, as Cetus's 306 pools of
+   44,480; figures the protocol computes, as NAVI's rates; curation with a meaning,
+   as Suilend's listed markets). The check is to run its sync beside the chain plugin
+   and read core's `plugin_effect`, the subjects only that plugin supplies: a line of
+   zero states nothing new. This guidance is for what Pythia bundles. It is not a gate
+   on contributors, and any plugin may still contribute evidence under A1.
 7. **Source quirks stay in the plugin.** The chain plugin's dust floor (a DeepBook
    pool needs 8 resting orders, because the chain has no price) and its list of
    ten protocols with original packages live in the plugin. DeFiLlama's fee labels,
@@ -82,8 +87,10 @@ These are the rules the experiment used and the evidence for each.
    stays on `exp-sui`.
 9. **What stays separate stays separate, and is shown adjacent.** DeFiLlama's 127
    protocols and 287 pools join nothing on chain: it states no package or object
-   id, and matching by protocol and token set would be a join by attributes, which
-   A3 forbids (for Cetus, 58 of 95 pools match uniquely, 17 ambiguously and 20 not
+   id, and matching by protocol and token set would be a join by attributes. A3 joins by
+   identifier agreement and leaves ambiguous links unresolved, so core does not do it
+   (J4 would have the device agent judge such a link and show it, never join it by a
+   core rule; for Cetus, 58 of 95 pools match uniquely, 17 ambiguously and 20 not
    at all). Its 73 of 130 tokens do join, because a coin type is a key.
 
 ## What was measured
@@ -140,7 +147,7 @@ v1, additive and the same for every plugin, and no base plugin. It would hold a
 mapping to the envelope), `envelope` and `issue`, the drift-alarm renderer, the
 `register` handler with the access-scope check, the `definition` marker builder,
 cursor paging, and builders for record, relation and provenance wire forms.
-Six catalogue plugins now exist (three copies was the point at which this was to
+Six catalogue plugins exist on `exp-sui` (this tree has three: DeFiLlama, NAVI and Sui; three copies was the point at which this was to
 be reconsidered), and an API plugin would drop to roughly 75 to 110 lines.
 Plugins still never import each other ([ADR 0045](0045-plugin-platform-interface.md)).
 
@@ -154,6 +161,7 @@ Plugins still never import each other ([ADR 0045](0045-plugin-platform-interface
 | Bridge provenance | 11 chain and 19 NAVI token names say "(Wormhole...)" or "(Sui Bridge)"; `bridged_from` links securities only | Allow `bridged_from` from a listing, with the bridge as provenance |
 | Supply | 35 tokens have a supply, but `rank.supply` shows on 10 subjects | A typed attribute or a token metric row, not `rank` |
 | Fee tier | Cetus's 306 pools carry the tier only in the name; DeFiLlama labels the same pool "25%" for 0.25% | A `fee_tier` market metric with its own definition id |
+| Stale roles | `relations.keep` has no sweep of relations a source stops stating, and evidence ids include the role: if a source drops or changes a role (AlphaLend `collateral`), the old row stays and the asset shows under two roles | Sweep a plugin's unstated relations on a complete scope, or key the row without the role |
 | Protocol and DeFiLlama | 10 chain protocols against 16 name-matching DeFiLlama protocols, one to many; DeFiLlama states no package id | A curated protocol table plus `part_of` between protocols (a core decision under A3) |
 | Metric level | A concept entry has one `level`, so NAVI cannot also serve a protocol aggregate and a chain-keyed NAVI protocol has no tool | One entry per level, or a level per operation |
 | Tool budget | 22 tools, 18,877 of 19,000 characters on `exp-sui` | One generic metrics tool for any subject instead of one per source |
@@ -198,8 +206,20 @@ still follow the plugin that introduced it: issue #154.
 - Joins are by key at the record's own scope: zero wrong merges in this run and an
   identical subject set in both orders. A source that adds nothing is cheap to
   detect and remove.
-- `pythia-sui` and the two keys stay in the tree, off by default. They cost install
-  size and test time, and nothing in the product depends on them.
+- `pythia-sui` and NAVI's chain keys are off by default, but merging commits every
+  install to some always-on changes, which stay even if the experiment is dropped:
+  - `pythia_platform.identifiers` is added to platform v1. [ADR 0045](0045-plugin-platform-interface.md)
+    says a version only gains names and removing one makes v2, so this export is
+    permanent: a one-way door the founder accepts by asking for the merge.
+  - `relations.role` is a new nullable column on every install's identity store,
+    added to existing stores on open.
+  - The open schemes, `on_chain` as a fundamentals basis and the protocol and market
+    kinds on the fundamentals concept are in core's vocabulary, claims, joins and
+    ingest for every install.
+  Install size and test time grow too.
+- "In development" is carried by the docs, the plugin's description in `plugin.yaml`
+  and its disabled default; neither `plugin.yaml` nor `contract.json` has a status
+  field the code could read.
 - The measurements are one machine on one day. Unmeasured: the Cetus id check
   covered 60 of 306 pools, NAVI's `updated_at` lag was not read, the DeepBook
   indexer's value while GraphQL is down is unknown, and no Desk rendering of DeFi
@@ -210,8 +230,8 @@ still follow the plugin that introduced it: issue #154.
 - **One plugin per protocol category.** Category is not a platform unit.
 - **A chain base plugin other plugins import.** [ADR 0045](0045-plugin-platform-interface.md)
   forbids plugins importing each other.
-- **Joining DeFiLlama to chain subjects by name or token set.** A3 forbids a join
-  by attributes, and it is ambiguous for 13 to 17 matches per protocol.
+- **Joining DeFiLlama to chain subjects by name or token set.** A3 joins by identifier
+  agreement, not by attributes, and the match is ambiguous for 13 to 17 pools per protocol.
 - **One agent tool per source.** The budget allows no more.
 - **Bringing every experiment plugin and the metric rows into the tree now.** The
   founder wants one small, clean reference; the rest stays on `exp-sui`.

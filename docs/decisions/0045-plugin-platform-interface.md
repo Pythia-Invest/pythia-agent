@@ -68,8 +68,8 @@ reach core.
   - `process`: `run_worker`, `WorkerError`;
   - `identifiers`: `normalize_identifier`, `IdentifierError`. A plugin states an
     identifier in the form core joins on (a Sui coin type as CAIP-19, a Sui
-    package or object ID in 64-digit lowercase form) instead of keeping a copy
-    of core's profile; no Sui-specific helper is exported (the profile is core's,
+    package or object ID in 64-digit lowercase form) for the forms core
+    joins on, rather than copying core's profile; no Sui-specific helper is exported (the profile is core's,
     ADR 0037).
 - **Versioning is one integer.** Names and members are only added within a
   version. Removing either or changing its meaning makes version 2. A plugin

@@ -56,9 +56,11 @@ def validate(store: IdentityStore, ref: sqlite3.Connection | None, plugins: Iter
         return {"kind": kind, "subject_id": current, "scheme": None, "value": _pin(plugins, found, value)}
     try:
         name = Scheme(scheme)
-        level = SCHEME_LEVEL[name]
     except ValueError:
         raise Refused(f"Unknown identifier scheme '{scheme}'.") from None
+    level = SCHEME_LEVEL.get(name)  # the open schemes (a Sui object) key no instrument
+    if level is None:
+        raise Refused(f"A {name} identifies no instrument; only a listing, security or issuer identifier is corrected.")
     if name is Scheme.TICKER_MIC:
         raise Refused("A ticker is not corrected here.")
     if level != found:

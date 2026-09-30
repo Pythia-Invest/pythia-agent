@@ -48,6 +48,18 @@ class SchemeTest(unittest.TestCase):
                 identity.registered_kind(wrong)
         self.assertEqual(identity.IdentifierValue("sui_object", "0x2").level, identity.Kind.MARKET)
 
+    def test_a_resolve_takes_and_echoes_instrument_schemes_only(self):
+        def manifest(inputs, echoes):
+            return identity.validate_manifest({
+                "contract_version": 2, "plugin": "r", "provider": "r",
+                "addressing": {"native": [{"native_scope": "ref", "level": "listing"}]},
+                "resolve": {"operation": "resolve", "input_schemes": inputs, "echoes": echoes},
+                "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "grandfathered"}})
+        manifest(["isin"], ["isin"])
+        for inputs, echoes in ((["sui_object"], []), (["isin"], ["sui_package"])):
+            with self.subTest(inputs=inputs, echoes=echoes), self.assertRaises(identity.ManifestError):
+                manifest(inputs, echoes)
+
     def test_a_record_states_only_its_own_kinds_open_identifier(self):
         info = source("a")
         for level, scheme in (("market", "sui_package"), ("protocol", "sui_object"), ("listing", "sui_object")):
