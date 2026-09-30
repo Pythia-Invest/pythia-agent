@@ -74,8 +74,11 @@ def _protocol(item):
     if not (_text(item.get('id'), 120) and _text(item.get('slug'), 200) and _text(item.get('name'), 2000)
             and isinstance(names, list) and all(isinstance(name, str) for name in names)):
         return None
+    tvl, category = item.get('tvl'), item.get('category')
     return {'id': item['id'], 'slug': item['slug'], 'name': item['name'][:512], 'chains': names,
-            'inactive': bool(item.get('deadFrom')) or item.get('deprecated') is True}
+            'inactive': bool(item.get('deadFrom')) or item.get('deprecated') is True,
+            'category': category if _text(category, 120) else None,
+            'tvl': tvl if type(tvl) in (int, float) and 0 <= tvl < float('inf') else None}  # the metrics read's figure
 
 
 def _pool(item):

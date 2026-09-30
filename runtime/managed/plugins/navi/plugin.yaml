@@ -1,8 +1,10 @@
 name: pythia-navi
 version: 0.1.0
-description: NAVI Protocol lending reserves on Sui as subjects, linked to the Sui coin types they hold; keyless, personal use
+description: NAVI Protocol lending reserves on Sui as subjects, linked to the Sui coin types they hold, with their supplied, borrowed, utilisation and rates; keyless, personal use
 license: Apache-2.0
 requires_plugins:
   - pythia
 provides_tools:
   - pythia_navi_catalogue
+  - pythia_navi_metrics
+  - navi_reserve_metrics

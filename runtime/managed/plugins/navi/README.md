@@ -5,8 +5,9 @@ subjects, with links to the Sui coin types they hold. It needs no key and has
 no worker process. It depends on Pythia core alone and reads through core's
 connector toolkit.
 
-It is identity and catalogue only: no rates, caps, LTVs, positions or vaults.
-Reserve detail comes later, as a read operation rather than identity claims.
+It is identity and catalogue, plus one read of a reserve's supplied, borrowed,
+utilisation and rates (below): no caps, LTVs, positions or vaults. Further
+reserve detail comes later, as read operations rather than identity claims.
 
 ## Opt-in
 
@@ -40,6 +41,26 @@ it, and a validated projection is kept for an hour. A page holds at most 2,000
 claims, and `next_cursor` is the last Pool object id a page emitted. The
 connector allows two concurrent reads and 30 a minute; that is a local ceiling,
 not a published quota.
+
+## Reserve metrics
+
+The `metrics` operation takes a reserve reference and is the plugin's
+`fundamentals.metrics` for a market (experiment, branch `exp-sui`), offered to
+the agent as `navi_reserve_metrics`. It reads the same `/api/navi/pools` answer
+fresh (reused for a minute, projected apart from the catalogue's) and finds the
+reserve by its Pool object id. Every row is `as_reported` (NAVI's own API) and
+`as_of` the read; the result's `reserve.updated_at` is the reserve's last on-chain
+update.
+
+| Metric | Worked from | Definition id |
+| --- | --- | --- |
+| `supplied`, `borrowed` | `totalSupplyAmount`, `borrowedAmount` (1e-9 of the coin, interest accrued) x `oracle.price`, USD | `at_oracle_price` |
+| `utilisation` | borrowed over supplied; none for an unsupplied reserve | `borrowed_over_supplied` |
+| `supply_rate`, `borrow_rate` | `currentSupplyRate`, `currentBorrowRate` (ray, 1e27 is 100%) as a yearly percent, before incentives | `base_apr` |
+
+A figure NAVI leaves out makes no row. `oracle.valid` is false for every reserve
+measured, so it is not a gate. A reserve outside the `navi_markets` setting is
+unknown here.
 
 ## Subjects and keys
 

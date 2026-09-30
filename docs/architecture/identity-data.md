@@ -76,8 +76,38 @@ key once it states it (two open keys never merge). A `market_asset` relation may
 carry a `role` (`base`, `quote`, `collateral`, `debt`, `supply`, `borrow`), a column
 on `relations`; one asset under two roles is two rows. A plugin may declare
 `fundamentals.metrics` for the `protocol` and `market` kinds, with basis `on_chain`
-as well as `as_reported` and `standardized`; core does not yet define the metric
-rows, so each source states its own definition, source and as-of beside a figure.
+as well as `as_reported` and `standardized`; the metric row is core's (next paragraph).
+
+**Experiment: metric rows (Sui, slice E4).** `identity/defi_metrics.py` is core's
+row for `fundamentals.metrics` of a protocol or a market. It reuses the SEC figure's
+names (`metric`, `value` as a decimal string, `unit`, `period.kind`, `source_url`)
+and adds `as_of`, `basis` and a `definition` (`id` and `text`):
+
+| Level | Metrics (unit) |
+| --- | --- |
+| Protocol | `tvl` (USD, instant), `fees`, `revenue`, `volume` (USD, a trailing `24h`, `7d` or `30d` window) |
+| Market | `supplied`, `borrowed`, `liquidity` (USD), `utilisation` (ratio), `supply_rate`, `borrow_rate` (percent), `volume_24h` (USD over 24h) |
+
+Core lists the `definition` ids each metric may carry (for `tvl`: `gross_supplied`,
+`net_of_borrowed`, `pool_reserves`, `held_assets`), so a plugin cannot emit a TVL
+without saying which TVL; a definition a source needs that core lacks is a core
+change, like a statement line. Rows with different definitions are kept side by
+side, never blended or averaged; one result may not repeat a metric, definition
+and period. Period is `instant` or a trailing window ending at `as_of` (DeFi
+sources publish rolling windows, unlike a filing's fixed dates). A plugin does
+not state its own identity: core checks every row of a `metrics` read at the
+agent boundary (`agent_depth.checked_metrics`: vocabulary, kind, unit, period,
+UTC time, https link, and the bases its contract claims), refuses the whole answer
+on the first bad row (none of its figures are shown) and stamps each accepted row
+with `source` (`plugin`, `provider`, `label`). A plugin that serves metrics is
+found for a protocol or market subject as it is for an issuer (the financials
+section now also resolves through `metrics`), and a concept entry serves only
+the kind it declares. Gaps: a concept entry has one
+`level`, so a plugin with protocol and market metrics (a DEX API) cannot yet
+declare both; DeFiLlama's protocol joins no `sui_package` protocol, so its rows
+live on its own protocol subject; nothing reads metrics history, and no Desk
+section shows them.
+
 Four protocol-API plugins use them: `pythia-navi` (reserves by `sui_object`, the protocol by `sui_package`),
 `pythia-cetus` (pools over US$1,000 of liquidity, base and quote roles),
 `pythia-deepbook` (order books, base and quote roles) and `pythia-suilend` (a

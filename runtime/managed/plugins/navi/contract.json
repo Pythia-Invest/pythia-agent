@@ -35,6 +35,27 @@
       "caip19"
     ]
   },
+  "concepts": {
+    "fundamentals": {
+      "level": "market",
+      "via": "market",
+      "operations": {
+        "metrics": "metrics"
+      },
+      "qualities": {
+        "metrics": {
+          "basis": [
+            "as_reported"
+          ]
+        }
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
+      }
+    }
+  },
   "catalogue": {
     "mode": "bulk",
     "operation": "catalogue",

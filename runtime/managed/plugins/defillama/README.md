@@ -5,9 +5,9 @@ subjects, with links to the Sui coin types the pools hold. It needs no key and
 has no worker process. It depends on Pythia core alone and reads through core's
 connector toolkit.
 
-It is identity and catalogue only: no APY, TVL history, protocol metrics,
-profile or search. The Sui stable-yield monitor that reads pool data comes
-later.
+It is identity and catalogue, plus one read of a protocol's current TVL, fees,
+revenue and volume (below): no APY, TVL history, profile or search. The Sui
+stable-yield monitor that reads pool data comes later.
 
 ## Opt-in
 
@@ -31,6 +31,8 @@ attributions yet.
 | --- | --- | --- |
 | `catalogue` | `scope`: `protocols` or `pools`; optional `cursor` from the previous page | One page of a `ClaimBatch` in core's wire form (ADR 0038) as `data`, and `next_cursor` (null on the last page, which is `complete`) |
 
+| `metrics` | `native_ref`: a `protocol` reference | The protocol's metric rows (`fundamentals.metrics`, core's row in `core/identity/defi_metrics.py`), its `limitations` and its issues |
+
 Core's identity sync, which stage 0's ingest work adds, is to page the scopes
 in the order the contract declares them, `protocols` then `pools`, so a pool's
 protocol is known when the pool arrives, and ingest each batch. Until then the
@@ -44,6 +46,29 @@ between pages never makes a sync skip a record both versions hold. The
 connector allows two concurrent reads and 30 a minute; that is a local ceiling,
 not a published quota. A malformed record is left out and counted in an
 `invalid_reference` warning, never coerced.
+
+## Protocol metrics
+
+The `metrics` operation is the plugin's `fundamentals.metrics` for a protocol
+(experiment, branch `exp-sui`), offered to the agent as
+`defillama_protocol_metrics` for a protocol subject this plugin introduced. Every
+row is `standardized` (DefiLlama's methodology) and `as_of` the time the plugin
+read it.
+
+| Metric | Read from | Definition id |
+| --- | --- | --- |
+| `tvl` | `tvl` in the `/protocols` snapshot (an hour old at most), all chains | `net_of_borrowed` for category Lending, else `held_assets` |
+| `fees` | `/summary/fees/{slug}`, `total24h`, `total7d`, `total30d` | `user_paid` |
+| `revenue` | the same, `dataType=dailyRevenue` | `protocol_kept` |
+| `volume` | `/summary/dexs/{slug}` | `traded` |
+
+DefiLlama answers 400 for a protocol it keeps no such dimension for (NAVI Lending
+has fees but no dexs volume): that metric has no row and the result's
+`limitations` say so; it is never zero. A summary must name the protocol `id` it
+was asked for (`identity_mismatch` otherwise), a dimension that fails on its own
+leaves the others with a warning, and summaries are reused for 15 minutes. The
+figures are DefiLlama's own protocol, not the on-chain package: they do not join
+another source's rows (the `sui_package` bridge is open).
 
 ## Subjects and keys
 
