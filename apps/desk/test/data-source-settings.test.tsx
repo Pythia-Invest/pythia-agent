@@ -75,7 +75,7 @@ it("shows each source's trust level and what disabling it would take away", () =
   expect(html).toContain("DeFiLlama");
   expect(html).toContain("Display only");
   expect(html).toContain(
-    "Disabling it takes 1204 subjects only it supplies out of search and data, one of them on your watchlist or cards (Navi USDC), which keep their name.",
+    "Disabling it takes 1204 subjects only it supplies out of search and data, including one on your watchlist or cards (Navi USDC), which keeps its name.",
   );
   expect(html).toContain("hermes plugins disable pythia-defillama");
   expect(html).toContain("Confirms identity");
@@ -122,7 +122,7 @@ it("lists the saved entries it names, and says when there are more", () => {
     },
   });
   expect(effectLine(source)).toBe(
-    "Disabling it takes 9 subjects only it supplies out of search and data, 7 of them on your watchlist or cards (listing:figi:X, …), which keep their name.",
+    "Disabling it takes 9 subjects only it supplies out of search and data, including 7 on your watchlist or cards (listing:figi:X, …), which keep their names.",
   );
   expect(
     syncLine(

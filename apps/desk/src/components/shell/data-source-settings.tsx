@@ -21,16 +21,18 @@ function count(value: number, one: string, many: string) {
 
 /** What disabling a plugin would take away, before it happens (ADR 0044 A3):
  * the subjects only it supplies leave search and data, and saved ones keep
- * their name. */
+ * their names. */
 export function effectLine({ sole, saved }: DataSource) {
   if (!sole.count) return "No subject on this device comes only from it.";
   const names = saved.sample.map((item) => item.name ?? item.id).join(", ");
   const more = saved.count > saved.sample.length ? ", …" : "";
+  const kept =
+    saved.count === 1
+      ? `, including one on your watchlist or cards (${names}), which keeps its name`
+      : `, including ${saved.count} on your watchlist or cards (${names}${more}), which keep their names`;
   return `Disabling it takes ${count(sole.count, "subject", "subjects")} only it supplies out of search and data${
-    saved.count
-      ? `, ${saved.count === 1 ? "one" : saved.count} of them on your watchlist or cards (${names}${more}), which keep their name.`
-      : "."
-  }`;
+    saved.count ? kept : ""
+  }.`;
 }
 
 export function syncLine(summary: SyncSummary) {

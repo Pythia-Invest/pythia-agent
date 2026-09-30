@@ -84,5 +84,5 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     return {"plugin": info.key, "label": info.label, "enabled": info.enabled,
             "level": DISPLAY if info.manifest.unaudited else CONFIRM,
             "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "resolve": info.manifest.resolve is not None,
-            "sole": {"count": len(sole), "sample": [{"id": key, "name": name} for key, name in list(sole.items())[:SAMPLE]]},
+            "sole": {"count": len(sole), "sample": [{"id": key, "name": sole[key]} for key in list(sole)[:SAMPLE]]},
             "saved": {"count": len(named), "sample": named[:SAMPLE]}}
