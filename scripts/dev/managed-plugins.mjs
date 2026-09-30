@@ -229,6 +229,23 @@ export const MANAGED_PLUGINS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    name: "pythia-defillama",
+    install: true,
+    // Opt-in: unsigned (display), and DefiLlama's terms allow personal,
+    // non-commercial use only. Keyless; no worker process.
+    enabledByDefault: false,
+    doctor: false,
+    source: "plugins/defillama",
+    files: Object.freeze([
+      "__init__.py",
+      "contract.json",
+      "plugin.yaml",
+      "README.md",
+      "definition.py",
+      "catalogue.py",
+    ]),
+  }),
+  Object.freeze({
     name: "pythia-eodhd",
     install: true,
     // Makes no provider request until its declared configuration

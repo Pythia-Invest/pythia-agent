@@ -270,10 +270,12 @@ CoinGecko's addressing, abridged:
 }
 ```
 
-A DeFi source that keys pools and protocols by its own references and names
-token deployments by CAIP-19 would declare
+The DefiLlama plugin keys pools and protocols by its own references and names
+token deployments by CAIP-19, so it declares
 `"introduces": {"market": ["native"], "protocol": ["native"], "listing": ["caip19"]}`
-beside native scopes at `market` and `protocol`.
+beside native scopes at `market` and `protocol`. Its protocol scope uses
+DefiLlama's protocol id rather than its slug, because a rename changes the slug
+([source record](../sources/defillama.md)).
 
 - **`addressing.subjects`** maps a subject core keys, by an open identifier
   or a Pythia key, to the plugin's own reference for it. The native scope must

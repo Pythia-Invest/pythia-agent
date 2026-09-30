@@ -1,0 +1,57 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-defillama",
+  "provider": "defillama",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "pool",
+        "level": "market",
+        "asset_classes": [
+          "crypto"
+        ]
+      },
+      {
+        "native_scope": "protocol",
+        "level": "protocol"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "caip19"
+      ]
+    }
+  },
+  "introduces": {
+    "market": [
+      "native"
+    ],
+    "protocol": [
+      "native"
+    ],
+    "listing": [
+      "caip19"
+    ]
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "protocols",
+      "pools"
+    ]
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false,
+    "attribution": {
+      "text": "Data from DefiLlama",
+      "url": "https://defillama.com"
+    }
+  },
+  "signoff": {
+    "status": "unsigned",
+    "record": "docs/sources/defillama.md"
+  }
+}
