@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from . import evidence as weighing
 from .model import IdentifierAssertion
 from .schemes import INSTRUMENT_KINDS, Level, subject_kind, subject_level
-from .vocabulary import RELATIONS, Grouping, stored_authority
+from .vocabulary import RELATIONS, Grouping
 
 
 def current_id(ref: sqlite3.Connection, subject_id: str, declared: Mapping[str, str] = {}) -> str:
@@ -124,10 +124,9 @@ def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, A
 
 
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
-    """A stored assertion, its authority read as the kind of evidence it is (`stored_authority`)."""
+    """A stored assertion; its authority is the kind of evidence it is (reference.sql admits kinds only)."""
     return IdentifierAssertion(
-        subject_id=row["subject_id"], scheme=row["scheme"], value=row["value"],
-        authority=stored_authority(row["authority"], row["source_record"]),
+        subject_id=row["subject_id"], scheme=row["scheme"], value=row["value"], authority=row["authority"],
         provenance={"plugin": row["plugin"], "source": row["source"], "adapter_version": row["adapter_version"],
                     "retrieved_at": row["retrieved_at"], "source_record": row["source_record"]},
         validity={"valid_from": row["valid_from"], "valid_to": row["valid_to"]})

@@ -150,10 +150,10 @@ The reference builder:
   identifier. **Open:** the builder emits no typed SEC claims yet. Each
   meaning is carried in names and types: a CIK is the issuer's, an exchange
   label an operating MIC.
-- [ ] Only direct field values carry `snapshot` authority. **Open:** a CIK
+- [ ] Only direct field values are `source_asserted`. **Open:** a CIK
   attached to a LEI issuer is a rule's output (`isin_exch_us`,
   `share_class_figi`, the rule in `source_record`). It is
-  written with `snapshot` authority, not `rule_confirmed`.
+  written as `source_asserted`, not `rule_confirmed`.
 - [x] The adapter picks no winner and reads no other source. The parse keeps
   the first of two rows naming one ticker; none occur, and the fingerprint
   counts them.
@@ -306,7 +306,8 @@ the companyfacts gap for foreign issuers is an accepted limit covered by the
 stale alarm. What remains before sign-off:
 
 - [ ] **Typed claims for the CIK to LEI links.** The builder writes a CIK on a
-  LEI issuer as a rule output (`rule_confirmed` with its rule), not `snapshot`.
+  LEI issuer as a rule output (`rule_confirmed` with its rule), not
+  `source_asserted`.
   Owner: the builder's claims migration.
 - [ ] **The judgement questions** of section 4 written, passed through
   `decide()` and checked on a sampled build, suggest-only.

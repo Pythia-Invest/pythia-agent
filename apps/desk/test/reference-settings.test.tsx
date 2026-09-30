@@ -77,6 +77,25 @@ it("shows a refused package beside the build that stays in use", () => {
   expect(html).toContain("Checksum mismatch for reference-20260929.sqlite3.");
 });
 
+it("says plainly when the installed package is too old for this Pythia", () => {
+  const problem =
+    "Reference package reference-20260928 is format 5, too old for this Pythia, which reads format 6. Rebuild it.";
+  state.body = {
+    schema_version: 1,
+    outcome: "ok",
+    data: {
+      installed: { ...summary, format_version: 5, compatible: false, problem },
+      refused: null,
+    },
+    issues: [{ code: "empty", message: problem }],
+  };
+  const html = renderToStaticMarkup(<ReferenceSettings />);
+  expect(html).toContain(
+    "This Pythia cannot read the installed reference package.",
+  );
+  expect(html).toContain("is format 5, too old for this Pythia");
+});
+
 it("says when an earlier copy of the store is still beside the current one", () => {
   const earlier =
     "An earlier copy of Pythia's store is still present: /old/identity.sqlite3 (98304 bytes).";

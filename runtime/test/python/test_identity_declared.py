@@ -14,6 +14,7 @@ from test_identity_contracts import PROVENANCE, YAHOO, identity, load, load_refe
 from test_reference_package import make_package
 # The loaded core's modules, the same objects TrustCase patches.
 from test_identity_trust import PLUGINS, TrustCase, access, harness, identity_ops, page, reference_package, trust
+from test_identity_trust import identity as core
 
 markets = identity_ops.markets
 
@@ -146,7 +147,7 @@ def installed(**directories: Path) -> list[page.PluginInfo]:
 
 class DeclaredAddressTest(TrustCase):
     """A device whose reference package holds the curated crypto assets but no provider coin ids or aliases: the
-    coin plugins' own contracts address them (the package format that drops those tables)."""
+    coin plugins' own contracts address them (package format 6)."""
 
     def setUp(self):
         super().setUp()
@@ -155,8 +156,6 @@ class DeclaredAddressTest(TrustCase):
             db.executescript(identity.schema_sql("reference"))
             for name in ("asml.json", "crypto.json"):
                 load_reference(db, load(name))
-            db.execute("DELETE FROM canonical_assets")
-            db.execute("DELETE FROM provider_chains")
         reference_package.install(make_package(self.root / "package", source=path), self.root / "data", trust.CONFIRM)
         self.ops = identity_ops.Identity(types.SimpleNamespace(), data_dir=self.root / "data")
         self.addCleanup(lambda: self.ops.store.db.close())
@@ -198,6 +197,25 @@ class DeclaredAddressTest(TrustCase):
         with mock.patch.object(identity_ops, "installed", lambda: [coingecko]):
             self.assertEqual(self.ops.price_sources(SAVED_BTC)["refs"],
                              [{"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}])
+
+    def test_a_row_saved_under_a_provisional_coin_id_follows_a_confirm_level_contract_on_the_releases_first_read(self):
+        """Lifecycle A re-points stored rows through a confirm-level contract's declared alias, as it did through the
+        package's alias before the package stopped naming providers; a display-level declaration moves nothing."""
+        self.ops.store.put_binding(core.Binding(
+            provider_ref={"provider": "coingecko", "native_id": "bitcoin", "native_scope": "coin"}, subject_id=SAVED_BTC,
+            status="confirmed", authority="user_attested", evidence_ids=("ev:" + "0" * 64,), plugin="pythia-coingecko"))
+        [display] = installed(coins=self.copy("coins", PLUGINS / "coingecko"))  # no grant: display
+        with mock.patch.object(identity_ops, "installed", lambda: [display]):
+            self.ops.reference_path()
+        self.assertEqual(len(self.ops.store.bindings([SAVED_BTC])), 1)
+        shipped = self.copy("pythia-coingecko", PLUGINS / "coingecko")
+        self.ship(pythia_coingecko=shipped)
+        [coingecko] = installed(pythia_coingecko=shipped)
+        with mock.patch.object(identity_ops, "installed", lambda: [coingecko]):
+            self.ops.reference_path(again=True)  # rows written under an older ID, carried again
+        self.assertEqual((self.ops.store.bindings([SAVED_BTC]), [row["provider"] for row in self.ops.store.bindings([BTC])]),
+                         ([], ["coingecko"]))
+        self.assertEqual(identity_ops.lifecycle.vanished(self.ops.store), [])
 
     def test_a_saved_provisional_market_id_resolves_through_a_confirm_level_contract(self):
         yahoo = self.copy("pythia-yahoo-discovery", PLUGINS / "yahoo-discovery")

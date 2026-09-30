@@ -98,6 +98,11 @@ def read_subject(identity: Identity, arguments: dict, **context: Any) -> str:
     return identity.subject(arguments, **context)
 
 
+def no_reference(data_dir) -> str:
+    """Why no reference data is read: a package this Pythia cannot read says so and what to do, never "none"."""
+    return reference_package.unreadable(data_dir) or NO_REFERENCE
+
+
 def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
     """identity-queue: open questions (and on request settled ones), or one in full. Asked about one subject (the
     agent), the build's questions about it are queued first."""
@@ -109,7 +114,7 @@ def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
         _path, ref = identity.reference()
         if ref is None:  # an earlier store left beside this one is still worth saying (Repairs shows the notice)
             earlier = location.both_present(identity.data_dir)
-            return _envelope("empty", {"notice": earlier} if earlier else None, issue=NO_REFERENCE)
+            return _envelope("empty", {"notice": earlier} if earlier else None, issue=no_reference(identity.data_dir))
         try:
             if arguments.get("item_id"):
                 view = questions.inspect(identity.store, ref, str(arguments["item_id"]))
@@ -144,7 +149,7 @@ def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
     settle(identity, [])
     path, ref = identity.reference()
     if ref is None:
-        return _envelope("empty", None, issue=NO_REFERENCE)
+        return _envelope("empty", None, issue=no_reference(identity.data_dir))
     try:
         result = questions.submit(
             identity.store, ref, item_id=str(arguments.get("item_id") or ""), relation=arguments.get("relation"),

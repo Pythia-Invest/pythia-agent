@@ -32,7 +32,7 @@ else:  # run as a script (`python -P`): no package, so the sibling is loaded fro
     trust.__spec__.loader.exec_module(trust)
 
 FORMAT = "pythia-reference-package"
-FORMAT_VERSION = 5       # the one number core checks: package layout and the SQLite's release.schema_version
+FORMAT_VERSION = 6       # the one number core checks: package layout and the SQLite's release.schema_version
 PACKAGE_FILE = "package.json"
 INSTALLED_FILE = "installed.json"  # which package under packages/ is installed; packages/ is the installer's own
 REFUSED_FILE = "refused.json"      # the last package the installer refused, until one installs
@@ -95,7 +95,7 @@ def status(data_dir: Path) -> dict:
     root = reference_dir(data_dir)
     found, pointer = _installed(root), _pointer(root) or {}
     installed = {**_summary(found[1]), "installed_at": pointer.get("installed_at"), "trust": trust.package_level(found[1]),
-                 "compatible": found[1]["format_version"] == FORMAT_VERSION} if found else None
+                 "compatible": found[1]["format_version"] == FORMAT_VERSION, "problem": mismatch(found[1])} if found else None
     try:
         refused = json.loads((root / REFUSED_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -110,6 +110,12 @@ def _summary(manifest: dict) -> dict:
     return {"build_id": manifest["build_id"], "format_version": manifest["format_version"], "built_at": manifest["built_at"],
             "as_of": manifest["as_of"], "bytes": manifest["database"]["bytes"], "sha256": manifest["database"]["sha256"],
             "included_sources": manifest.get("included_sources"), "sources": sources, "notices": notices}
+
+
+def unreadable(data_dir: Path) -> str | None:
+    """Why this core reads no reference data although a package is installed (`mismatch`), or None."""
+    found = _installed(reference_dir(data_dir))
+    return mismatch(found[1]) if found else None
 
 
 def _installed(root: Path) -> tuple[Path, dict] | None:
@@ -180,14 +186,23 @@ def read_manifest(package: Path) -> dict:
     return manifest
 
 
-def _compatible(manifest: dict) -> None:
+def mismatch(manifest: dict) -> str | None:
+    """In plain words, why this Pythia cannot read a package of another format and what to do; None when it can."""
     version = manifest["format_version"]
     if version == FORMAT_VERSION:
-        return
-    remedy = "Update Pythia to read it." if version > FORMAT_VERSION else \
-        "Rebuild it with this checkout's builder (`just reference-snapshot`)."
-    raise PackageError(f"Reference package {manifest['build_id']} is format {version}; this Pythia reads format "
-                       f"{FORMAT_VERSION}. {remedy} Nothing was installed.")
+        return None
+    if version > FORMAT_VERSION:
+        return (f"Reference package {manifest['build_id']} is format {version}, newer than the format {FORMAT_VERSION} "
+                f"this Pythia reads. Update Pythia to read it.")
+    return (f"Reference package {manifest['build_id']} is format {version}, too old for this Pythia, which reads format "
+            f"{FORMAT_VERSION}. Rebuild it with this checkout's builder (`just reference-snapshot`) and install the new "
+            f"build (`just reference-install`).")
+
+
+def _compatible(manifest: dict) -> None:
+    problem = mismatch(manifest)
+    if problem:
+        raise PackageError(f"{problem} Nothing was installed.")
 
 
 def _copy_verified(source: Path, target: Path, manifest: dict) -> None:

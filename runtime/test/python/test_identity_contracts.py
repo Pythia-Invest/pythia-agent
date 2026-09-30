@@ -74,17 +74,10 @@ def assertion_row(item):
             "adapter_version": provenance.adapter_version, "retrieved_at": provenance.retrieved_at}
 
 
-def stored(row):
-    """A fixture row typed as core reads it: a format-5 package's `snapshot` or `curated` as the kind it is."""
-    return {**row, "authority": identity.stored_authority(row["authority"], row["provenance"].get("source_record"))}
-
-
 def load_reference(db, fixture):
-    """Construct every fixture record through the types, then store it under the DDL's checks, with the authority
-    the fixture gives (a format-5 package's `snapshot` and `curated` included)."""
-    for table in ("chains", "provider_chains", "canonical_assets"):
-        for row in fixture.get(table, []):
-            insert(db, table, row)
+    """Construct every fixture record through the types, then store it under the DDL's checks."""
+    for row in fixture.get("chains", []):
+        insert(db, "chains", row)
     for row in fixture.get("issuers", []):
         issuer = model.Issuer(**row)
         insert(db, "issuers", {"id": issuer.id, "name": issuer.name, "country": issuer.country,
@@ -106,15 +99,15 @@ def load_reference(db, fixture):
                                 "chain": listing.chain, "is_primary": int(listing.primary), "status": listing.status.value})
     evidence = {}
     for row in fixture["assertions"]:
-        item = model.IdentifierAssertion(**stored(row))
-        insert(db, "assertions", {**assertion_row(item), "authority": row["authority"]})
+        item = model.IdentifierAssertion(**row)
+        insert(db, "assertions", assertion_row(item))
         evidence[(item.subject_id, item.scheme.value)] = item.evidence_id
     for row in fixture.get("relations", []):
-        relation = model.Relation(**stored(row))
+        relation = model.Relation(**row)
         insert(db, "relations", {
             "evidence_id": relation.evidence_id,
             "type": relation.type.value, "from_id": relation.from_id, "to_id": relation.to_id, "ratio": relation.ratio,
-            "authority": row["authority"], "source": relation.provenance.source,
+            "authority": relation.authority.value, "source": relation.provenance.source,
             "plugin": relation.provenance.plugin, "adapter_version": relation.provenance.adapter_version,
             "retrieved_at": relation.provenance.retrieved_at})
     return evidence
@@ -141,12 +134,16 @@ class StoreSchemaTest(unittest.TestCase):
         wrong = copy.deepcopy(fixture["assertions"][2])  # the ordinary share's ISIN
         wrong["subject_id"] = "listing:isin:NL0010273215:XAMS:EUR"
         with self.assertRaisesRegex(ValueError, "cannot identify a listing"):
-            model.IdentifierAssertion(**stored(wrong))
+            model.IdentifierAssertion(**wrong)
         db = database("reference")
         load_reference(db, fixture)
-        row = assertion_row(model.IdentifierAssertion(**stored(fixture["assertions"][2])))
+        row = assertion_row(model.IdentifierAssertion(**fixture["assertions"][2]))
         with self.assertRaises(sqlite3.IntegrityError):
             insert(db, "assertions", {**row, "evidence_id": "ev:wrong-level", "subject_id": "listing:isin:NL0010273215:XAMS:EUR", "level": "listing"})
+        # A reference row states the kind of evidence it is, never where it came from (format 6).
+        for origin in ("snapshot", "curated"):
+            with self.subTest(origin=origin), self.assertRaises(sqlite3.IntegrityError):
+                insert(db, "assertions", {**row, "evidence_id": f"ev:{origin}", "authority": origin})
 
     def test_identifier_check_digits(self):
         for scheme, value in (("isin", "NL0010273216"), ("lei", "724500Y6DUVHQD6OXN28"), ("figi", "BBG000C1HT48")):
@@ -226,14 +223,14 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(spaced, identity.provisional_id("listing", "ibkr", "contract", "BRK B"))
         self.assertIs(identity.subject_level(spaced), identity.Level.LISTING)
 
-    def test_coins_bind_only_through_the_curated_table(self):
-        fixture, db = load("crypto.json"), database("reference")
-        evidence = load_reference(db, fixture)
-        for binding in bindings(fixture, evidence):
+    def test_coins_bind_where_their_plugins_contract_declares_its_coin_id(self):
+        fixture = load("crypto.json")
+        for binding in bindings(fixture, load_reference(database("reference"), fixture)):
             ref = binding.provider_ref
-            (caip19,) = db.execute("SELECT caip19 FROM canonical_assets WHERE provider=? AND native_scope=? AND native_id=?",
-                                   (ref.provider, ref.native_scope, ref.native_id)).fetchone()
-            self.assertEqual(identity.subject_id("security", {"caip19": caip19}), binding.subject_id)
+            contract = PACKAGE.parents[1] / "plugins" / ref.provider / "contract.json"
+            declared = identity.validate_manifest(json.loads(contract.read_text(encoding="utf-8"))).subjects
+            self.assertEqual((declared[binding.subject_id].native_scope, declared[binding.subject_id].native_id),
+                             (ref.native_scope, ref.native_id))
 
     def test_fixture_bindings_fit_the_identity_store(self):
         state = database("identity")
@@ -460,14 +457,6 @@ class ResolutionTest(unittest.TestCase):
             with self.subTest(claimed=claimed):
                 self.assertIs(self.decide(self.verdict(), claimed, both), outcome.CONFIRMED)
         self.assertIs(self.decide(user, "BBG000BDTBL9", both, threshold=None), outcome.BLOCKED)  # one source, unanimous
-
-    def test_a_format_5_packages_authorities_are_read_as_kinds_of_evidence(self):
-        read = identity.stored_authority
-        self.assertEqual([read("snapshot", "share_class_figi"), read("snapshot", "firds_underlying_isin"),
-                          read("snapshot", "receipt_issuer_share@1"), read("curated", "canonical_assets@1"),
-                          read("source_asserted"), read("user_attested")],
-                         ["source_asserted", "source_asserted", "rule_confirmed", "source_asserted", "source_asserted",
-                          "user_attested"])
 
     def test_a_receipt_is_never_the_same_security_as_its_underlying(self):
         outcome = identity.VerdictOutcome

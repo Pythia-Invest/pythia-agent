@@ -28,7 +28,7 @@ Relevant unread fields, and announced specification changes:
   identifier.
 - [ ] The adapter picks no winner and reads no other source.
 - [ ] An empty answer is recorded as absence.
-- [ ] Only direct field values carry `snapshot` authority.
+- [ ] Only direct field values are `source_asserted`.
 - [ ] Unexpected input is counted, never coerced.
 - [ ] A structural break fails the stage and keeps the last good build.
 - [ ] Network-free tests use synthetic fixtures that cite the specification.

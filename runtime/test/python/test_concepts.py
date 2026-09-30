@@ -129,7 +129,7 @@ APPLE = {
     "listings": [{"id": "listing:isin:US0378331005:XNAS:USD", "security_id": "security:isin:US0378331005",
                   "composite_id": "composite:isin:US0378331005:US", "ticker": "AAPL", "mic": "XNGS",
                   "operating_mic": "XNAS", "currency": "USD", "primary": True}],
-    "assertions": [{"subject_id": subject, "scheme": scheme, "value": value, "authority": "snapshot",
+    "assertions": [{"subject_id": subject, "scheme": scheme, "value": value, "authority": "source_asserted",
                     "provenance": {"plugin": "fixture", "source": "fixture", "adapter_version": "1",
                                    "retrieved_at": "2026-09-28T00:00:00Z", "source_record": value}}
                    for subject, scheme, value in (("issuer:lei:HWUPKR0MPOU8FGXBT394", "lei", "HWUPKR0MPOU8FGXBT394"),

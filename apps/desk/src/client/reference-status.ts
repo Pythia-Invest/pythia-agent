@@ -26,6 +26,8 @@ export const referenceStatusSchema = z.object({
           format_version: z.number().int(),
           installed_at: optionalText,
           compatible: z.boolean(),
+          /** Why this Pythia cannot read it (too old: rebuild it; newer: update Pythia), in core's words. */
+          problem: optionalText,
           sources: z
             .array(
               z.object({
