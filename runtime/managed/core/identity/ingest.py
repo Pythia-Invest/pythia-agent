@@ -107,6 +107,8 @@ class _Ingest:
         settled = before is not None and (before["state"] in ("joined", "introduced") or (
             before["state"] in PLACED and not self.fresh))
         if settled and json.loads(before["claim"]) == raw and self.batch.scope in (None, before["scope"]):
+            if before["state"] in ("joined", "introduced"):
+                self._name(before["subject_id"])  # the order or the plugins that count may have changed since
             self._count(before["state"], before["subject_id"])  # unchanged: nothing to write
             return
         db = self.store.db
@@ -118,10 +120,9 @@ class _Ingest:
             state, subject = self._place(claim, native, before["subject_id"] if before is not None else None, kept)
             device.place_claim(self.store, self.plugin, native, subject, state)
             row = device.subject_row(self.store, subject) if subject else None
-            if state in ("joined", "introduced", "conflict"):
+            if state in ("joined", "introduced"):
                 self.arrived |= pending.record_names(self.plugin, ((str(item.scheme), item.value) for item in self._stated(claim)),
                                                      {"native_scope": native.native_scope, "native_id": native.native_id})
-            if row is not None and state in ("joined", "introduced") and not self._in_reference(subject):
                 self._name(subject)  # whoever introduced it, the name follows the investor's source order
             if row is not None and row["kind"] in device.PARENT and not self._in_reference(subject):  # its parent, settled
                 self.store.db.execute("UPDATE subjects SET parent_id = ? WHERE id = ?",
@@ -311,7 +312,8 @@ class _Ingest:
                            parent_id=parent, attributes=attributes, status=status, seen=self.now)
 
     def _name(self, subject: str) -> None:
-        name = naming.display_name(self.store, subject, self.plugins, self.order, self.joins.counts)
+        name = naming.display_name(self.store, subject, self.plugins, self.order, self.joins.counts) \
+            if self.store.select("SELECT 1 FROM subjects WHERE id = ?", (subject,)) else None  # the reference's is not ours
         if name:
             self.store.db.execute("UPDATE subjects SET name = ? WHERE id = ? AND name IS NOT ?", (name, subject, name))
 
@@ -344,10 +346,15 @@ class _Ingest:
 
     def retry(self) -> None:
         """Place the waiting relations (any plugin's) whose end a subject of this batch now names: one indexed query."""
-        for plugin, raw in pending.due(self.store, self.arrived) if self.arrived else ():
-            manifest = next((info.manifest for info in self.plugins if info.manifest.plugin == plugin), None)
-            if manifest is not None:
+        for plugin, relation, raw in pending.due(self.store, self.arrived) if self.arrived else ():
+            manifest = next((info.manifest for info in self.plugins if info.manifest.plugin == plugin and info.enabled
+                             and not info.paused), None)  # a disabled or paused plugin's claims wait for its next sync
+            if manifest is None:
+                continue
+            try:
                 self.changed = pending.place(self.store, self.ref, self.joins, manifest, RelationClaim(**raw), raw)[1] or self.changed
+            except (ValueError, TypeError):  # a claim this core no longer accepts must not stop another plugin's batch
+                pending.forget(self.store, plugin, relation)
 
     def not_seen(self, seen: set[tuple[str, str]]) -> None:
         """The scope's last page: its records no page carried are no longer offered. Their subjects and bindings stay."""

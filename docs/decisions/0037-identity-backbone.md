@@ -2117,19 +2117,34 @@ is not placed again. And 34 of 1,235 subjects showed a different name by order
   subject yet (or several) is kept, as the plugin emitted it, in
   `pending_relations`, under the end it waits for (an identifier as
   `scheme:value`, the plugin's own record as its reference). When a batch
-  places a record (joined, introduced or conflict), ingest asks that one
-  indexed table for the waiting claims, of any plugin, whose end the record
-  states, and places those whose ends now resolve. A claim that places, or that
-  its plugin states again and places, leaves the table; one stated again while
-  still waiting keeps only its latest statement. Nothing is scanned: the query
-  is by the ends a batch answers.
+  places a record (joined or introduced), ingest asks that one indexed table
+  for the waiting claims, of any enabled, unpaused plugin, whose end the record
+  states, and places those whose ends now resolve, by the rules a relation
+  placed at once follows. Such an end never resolves through a record placed as
+  a `conflict`: that record contests the subject it sits beside and names no
+  other. A claim that places, or that its plugin states again and places,
+  leaves the table; one stated again while still waiting keeps only its latest
+  statement, and for a one-target type (a pool's protocol) the latest
+  statement of a subject retires an older waiting one, so a stale target cannot
+  win later. A claim this core no longer accepts is dropped. Nothing is
+  scanned: the query is by the ends a batch answers.
 - **A subject's display name follows the investor's `source_order`.** Among the
   records placed on a device subject (joined or introduced) by enabled plugins,
   the name comes from the plugin first in `source_order`, else first by plugin
   id (the order core already ranks sources by, `concepts.ranked`), then by the
-  record's native reference. `subjects.introduced_by` stays history, and may
-  differ by order; nothing reads it as a ranking. A subject a disabled plugin
-  alone names keeps its label.
+  record's native reference. The name is derived again whenever a record is
+  placed on the subject, changed or not, so a changed `source_order` or a
+  plugin that is disabled or paused shows at the next sync of any plugin that
+  states the subject. A subject no enabled plugin names keeps its label.
+- **What still follows the introducer.** `subjects.introduced_by` is whoever
+  arrived first and differs by order. Ingest reads it: only the introducer's
+  own record rewrites a subject's label (its `status` and `attributes`, and its
+  parent where the record states one), and it decides whether a record's
+  placement is an update of the plugin's own subject or a join. So `status`,
+  `attributes` and a device subject's parent can differ by order where plugins
+  state them differently; relations and display names cannot. Making them
+  deterministic too needs a ranking over the records' own attributes, which no
+  case has asked for.
 
 **Rationale.** A result that depends on the order of syncs is a hidden
 priority: the plugin that happened to run first wins, which the rule "every
@@ -2145,8 +2160,11 @@ already owns and core's default tie-break, so no new ranking exists.
   both orders now stores identical relations (2,222 each; 2,202 before for the
   reverse order) and identical names (0 of 1,235 differ; 34 before);
   43 subjects still have another `introduced_by`.
-- A name is chosen when a record is placed on the subject, so a changed
-  `source_order` shows on a subject at the next sync that places a record on it.
+- A disabled or paused plugin's waiting claims wait for its own next sync,
+  like the relations it already placed (kept and shown with their source, not
+  applied while it is off).
+- A relation end a new reference release starts to hold, or a parent a record
+  introduces, is not retried until a record states it; as before this change.
 - A parent a record introduces (an issuer or security a listing record names)
   still takes its first name; only the name of a subject a record is itself
   placed on follows the order.

@@ -103,7 +103,7 @@ one is not a row.
 | `metadata` | Facts about the store itself (schema version, the release last settled against) |
 | `claims` | Each provider record a plugin emitted, as emitted, and where core placed it (`state`, `subject_id`) |
 | `device_assertions` | The identifiers those records state for a subject |
-| `subjects` | Subjects a plugin introduced that the reference lacks: label, kind, `parent_id`, `introduced_by` (who arrived first; the label comes from the enabled plugin first in `source_order`, else by plugin id) |
+| `subjects` | Subjects a plugin introduced that the reference lacks: label, kind, `parent_id`, `introduced_by` (who arrived first; the name comes from the enabled plugin first in `source_order`, else by plugin id, while `status` and `attributes` come from the introducer's own record) |
 | `device_aliases` | A device subject's earlier ID and its better key |
 | `relations` | Typed edges a plugin stated (a pool `part_of` its protocol) |
 | `pending_relations` | Relation claims waiting for an end no subject names yet (a market that points at a token another plugin has not introduced); placed into `relations` when one does, and gone once placed |
@@ -123,6 +123,7 @@ one is not a row.
 | An identifier a plugin stated | `device_assertions` | `plugin` | `native_scope` and `native_id`, which key its `claims` row | `retrieved_at` | always a plugin's own statement |
 | A plugin's record and its placement | `claims` | `plugin` | `native_scope` and `native_id`; the `claim` JSON holds the record's own provenance, `source_record` and `adapter_version` included | `first_seen`, `last_seen` | `state`: joined, introduced, conflict, unmatched or not_seen; for an unmatched record the plugin's own reason, where it gives one, is `attributes.venue_note` in the `claim` JSON. Search reads the record's `attributes.aliases` from it beside `name`: other names for the subject the record is placed on, findable while its plugin is enabled and the record is not a conflict |
 | A plugin relation | `relations` | `plugin`, `source` | `source_record`, `source_version`, `adapter_version` | `retrieved_at` | `authority` |
+| A plugin relation still waiting for an end | `pending_relations` | `plugin` | the `claim` JSON, with the plugin's own provenance, `source_record` included | `retrieved_at` in the `claim` JSON | `waits_for`: the end no subject names yet |
 | A subject a plugin introduced, and its parent | `subjects` | `introduced_by` | its `claims` rows (`subject_id`) | `first_seen`, `last_seen` | the claim's `state` |
 | A binding | `bindings` | `plugin` | `provider`, `native_scope`, `native_id`: the `claims` key | `decided_at` (the current decision), `verified_at` (last write or agreeing read check) | `rule_id` or `verdict_id`, and `authority` |
 | A question | `queue` | `plugins` (`reference` first where the build or core's own conflict check asked, then the plugins whose statements it is about) | `provider_ref`, `evidence_ids` | `opened_at`, `updated_at` | `reason` |
@@ -312,6 +313,17 @@ UNION ALL
 SELECT 'device', type, from_id, to_id, authority, plugin, source_record, retrieved_at
 FROM relations
 WHERE from_id IN (SELECT value FROM json_each(:family)) OR to_id IN (SELECT value FROM json_each(:family));
+```
+
+A relation whose end no subject names yet is not among those edges: it waits, as the plugin
+stated it, until a record names that end (`pending_relations`; ADR 0037, amendment "ingest results do not depend on
+which plugin syncs first"). To see what an edge is waiting for:
+
+```sql
+-- example: waiting-relations
+SELECT plugin, waits_for, json_extract(claim, '$.type') AS type,
+       json_extract(claim, '$.provenance.source_record') AS source_record
+FROM pending_relations WHERE plugin = :plugin ORDER BY waits_for;
 ```
 
 ### Why was this record not placed?

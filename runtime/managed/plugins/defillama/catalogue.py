@@ -38,6 +38,8 @@ _REFERENCE = frozenset('-.' + string.ascii_letters + string.digits)
 # 100% is 1%). Its Bluefin and Turbos labels are right, so no other project is corrected.
 SCALED_TIERS = frozenset({'cetus-clmm'})
 CETUS_LARGEST_TIER = Decimal(4)  # Cetus's largest fee tier, in percent; a pool's fee above it is a scaling error
+# The fee tiers (percent) Cetus's own pool list held for the pools DefiLlama lists, each poolMeta divided by 100.
+MEASURED_TIERS = frozenset(Decimal(tier) for tier in ('0.001', '0.01', '0.05', '0.1', '0.2', '0.25', '1', '2'))
 _TIER = re.compile(r'^(\d+(?:\.\d+)?)%\Z')
 FEE_REASON = ("DefiLlama's poolMeta for a Cetus CLMM pool is the fee tier times 100 (25% for 0.25%, 100% for 1%): Cetus's "
               "own pool list for the same coins states poolMeta / 100 as a fee tier, and Cetus charges no more than 4%.")
@@ -199,11 +201,16 @@ def _tier(meta):
 
 
 def _scaled_projects(pools):
-    """The projects whose pools' `poolMeta` still carries the scaling error: a project in `SCALED_TIERS` with a pool
-    stating a fee above Cetus's largest tier, which a corrected feed never would. A feed that fixes its labels
-    leaves the set empty, and the labels pass through as stated (the correction is then stale and deleted)."""
-    return {row['project'] for row in pools if row['project'] in SCALED_TIERS
-            and (_tier(row['meta']) or 0) > CETUS_LARGEST_TIER}
+    """The projects whose Sui pools' `poolMeta` still carries the scaling error: a project in `SCALED_TIERS` whose
+    pools state a fee above Cetus's largest tier, which a corrected feed never does, and whose every tier divided by
+    100 is one measured against Cetus (`MEASURED_TIERS`). A feed that fixes its labels, or one with a tier nobody
+    measured, leaves the set empty and the labels pass through as stated (the correction is then stale and deleted)."""
+    found = {}
+    for row in pools:
+        if row['project'] in SCALED_TIERS and row['chain'].casefold() == SUI and (tier := _tier(row['meta'])) is not None:
+            found.setdefault(row['project'], []).append(tier)
+    return {project for project, tiers in found.items()
+            if max(tiers) > CETUS_LARGEST_TIER and all(tier / 100 in MEASURED_TIERS for tier in tiers)}
 
 
 def _fee_tier(meta):
@@ -218,7 +225,7 @@ def _pool_claims(row, protocol, emitted, labels, provenance, scaled=frozenset())
     meta = row['meta']
     attributes = {'name': (f"{name} ({meta})" if meta else name)[:512], 'asset_class': 'crypto',
                   'status': 'active', **({'rank': {'tvl_usd': row['tvl']}} if row['tvl'] is not None else {})}
-    if row['project'] in scaled and _tier(meta) is not None:
+    if row['project'] in scaled and row['chain'].casefold() == SUI and _tier(meta) is not None:
         attributes['name'] = f"{name} ({_fee_tier(meta)})"[:512]
         attributes['source_corrections'] = [{'field': 'name', 'original': f"{name} ({meta})"[:512], 'reason': FEE_REASON}]
     held = _held(row)

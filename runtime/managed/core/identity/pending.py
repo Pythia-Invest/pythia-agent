@@ -14,6 +14,7 @@ import json
 from typing import Any, Iterable, Mapping
 
 from . import relations
+from .vocabulary import ONE_TARGET
 
 
 def end_name(plugin: str, end: Mapping[str, Any]) -> str:
@@ -33,6 +34,10 @@ def place(store, ref, joins, manifest, claim, raw: Mapping[str, Any]) -> tuple[s
     """Keep a plugin's relation claim between the subjects its ends name (`relations.keep`), and drop it from the
     waiting; where an end names none (or several) it waits for that end. Returns the outcome (`unmatched` for a
     waiting claim) and whether a row changed."""
+    if claim.type in ONE_TARGET:  # its latest statement stands: an older waiting one must not win later
+        store.db.execute("DELETE FROM pending_relations WHERE plugin = ? AND json_extract(claim, '$.type') = ? AND"
+                         " json_extract(claim, '$.from_key') = json(?) AND relation <> ?",
+                         (manifest.plugin, raw["type"], json.dumps(raw["from_key"], sort_keys=True), _digest(raw)))
     start, end = (joins.end(claim.from_key, manifest), joins.end(claim.to_key, manifest))
     if start and end and start != end:
         drop(store, manifest.plugin, raw)
@@ -53,14 +58,18 @@ def hold(store, plugin: str, raw: Mapping[str, Any], waits_for: Iterable[str]) -
 
 def drop(store, plugin: str, raw: Mapping[str, Any]) -> None:
     """The relation placed (or its plugin's record of it no longer applies): nothing waits any more."""
-    store.db.execute("DELETE FROM pending_relations WHERE plugin = ? AND relation = ?", (plugin, _digest(raw)))
+    forget(store, plugin, _digest(raw))
 
 
-def due(store, names: Iterable[str]) -> list[tuple[str, dict[str, Any]]]:
-    """The pending claims, as (plugin, claim), waiting for any of `names`: one query on the index, never a scan."""
+def forget(store, plugin: str, relation: str) -> None:
+    store.db.execute("DELETE FROM pending_relations WHERE plugin = ? AND relation = ?", (plugin, relation))
+
+
+def due(store, names: Iterable[str]) -> list[tuple[str, str, dict[str, Any]]]:
+    """The pending claims, as (plugin, relation digest, claim), waiting for any of `names`: one query on the index, never a scan."""
     rows = store.select("SELECT DISTINCT plugin, relation, claim FROM pending_relations WHERE waits_for IN (SELECT value"
                         " FROM json_each(?)) ORDER BY plugin, relation", (json.dumps(sorted(names)),))
-    return [(plugin, json.loads(claim)) for plugin, _relation, claim in rows]
+    return [(plugin, relation, json.loads(claim)) for plugin, relation, claim in rows]
 
 
 def _digest(raw: Mapping[str, Any]) -> str:

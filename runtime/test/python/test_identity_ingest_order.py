@@ -1,12 +1,13 @@
 """Plugins extend the universe on equal terms (ADR 0044 A1), so what ingest stores must not depend on which plugin syncs
 first: a link-only plugin's relations are placed once the tokens they name exist, and a subject's display name follows
 the investor's source order or a fixed rule, never who introduced it. Fixture plugins, as test_identity_ingest's."""
+import dataclasses
 import itertools
 import json
 import unittest
 
 from test_identity_ingest import SUI_USDC, IngestTest, record, relation, source
-from pythia_identity_fixture import device
+from pythia_identity_fixture import device, store
 
 
 BRIDGED = "sui:mainnet/coin:0x" + "ab" * 32 + "%3A%3Acoin%3A%3ACOIN"  # two coin types no reference holds
@@ -88,6 +89,82 @@ class RelationOrderTest(IngestTest):
                          (3, {"2026-10-01T00:00:00+00:00"}))
 
 
+class WaitingRulesTest(IngestTest):
+    """A waiting relation places under the rules a relation placed at once follows."""
+
+    def test_an_end_only_a_conflicting_record_names_never_places_a_relation_in_either_order(self):
+        # A stale source states GSK's line FIGI beside Microsoft's ISIN: a conflict on GSK's line, naming no other subject.
+        links = source("links", level="market", introduces={"market": ["native"]})
+        lines = source("lines")
+        end = {"scheme": "isin", "value": "US5949181045"}
+        market = {"provider": "links", "native_scope": "ref", "native_id": "r"}
+        pages = {"links": (links, [record(links, "r", name="R"), relation(links, "market_asset", market, end)]),
+                 "lines": (lines, [record(lines, "GSK.L", ("figi", "BBG000CT5GJ1"), ("isin", "US5949181045"),
+                                          operating_mic="XLON", currency="GBP")])}
+        for order in (("links", "lines"), ("lines", "links")):
+            with self.subTest(order=order):
+                world = self.fresh()
+                for name in order:
+                    self.ingest(pages[name][0], *pages[name][1], world=world)
+                self.assertEqual(self.placed(lines, "GSK.L", world)[1], "conflict")
+                self.assertEqual(edges(world), [])
+
+    def test_restating_a_one_target_relation_retires_the_older_waiting_claim(self):
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        links = source("links", level="market", introduces={"market": ["native"], "protocol": ["native"]},
+                       native=({"native_scope": "proto", "level": "protocol"},))
+        ref = lambda scope, name: {"provider": "links", "native_scope": scope, "native_id": name}  # noqa: E731
+        pool = record(links, "pool", name="Pool")
+        protocol = lambda name: record(links, name, level="protocol", scope="proto", name=name)  # noqa: E731
+        self.ingest(links, pool, relation(links, "part_of", ref("ref", "pool"), ref("proto", "A")), world=world)
+        self.ingest(links, pool, protocol("B"), relation(links, "part_of", ref("ref", "pool"), ref("proto", "B")),
+                    world=world)
+        self.ingest(links, protocol("A"), world=world)  # the protocol the pool no longer says it belongs to
+        self.assertEqual([edge[2] for edge in edges(world)], ["protocol:provisional:links:proto:B"])
+        self.assertEqual(world.identity.select("SELECT 1 FROM pending_relations"), [])
+
+    def test_a_disabled_or_paused_plugins_waiting_relation_is_placed_only_by_its_own_sync(self):
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        links, tokens = self.plugins_for_waiting()
+        self.ingest(links[0], *links[1], world=world)
+        for off in ({"enabled": False}, {"paused": True}):
+            with self.subTest(off=off):
+                world.plugins = [dataclasses.replace(links[0], **off)]
+                self.ingest(tokens[0], *tokens[1], world=world)
+                self.assertEqual(edges(world), [])
+        world.plugins = [links[0]]
+        self.ingest(links[0], *links[1], world=world)  # its own next sync places it
+        self.assertEqual(len(edges(world)), 1)
+
+    def plugins_for_waiting(self):
+        links = source("links", level="market", introduces={"market": ["native"]})
+        tokens = source("tokens", introduces={"listing": ["caip19"]})
+        market = {"provider": "links", "native_scope": "ref", "native_id": "r"}
+        return ((links, [record(links, "r", name="R"),
+                         relation(links, "market_asset", market, {"scheme": "caip19", "value": SUI_USDC})]),
+                (tokens, [record(tokens, "usdc", ("caip19", SUI_USDC), name="USDC", asset_class="crypto")]))
+
+    def test_a_waiting_claim_this_core_no_longer_accepts_is_dropped_and_stops_no_batch(self):
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        links, tokens = self.plugins_for_waiting()
+        self.ingest(links[0], *links[1], world=world)
+        world.identity.db.execute("UPDATE pending_relations SET claim = json_set(claim, '$.type', 'no_such_type')")
+        done = self.ingest(tokens[0], *tokens[1], world=world)
+        self.assertEqual((done["introduced"], edges(world), world.identity.select("SELECT 1 FROM pending_relations")),
+                         (1, [], []))
+
+    def test_a_store_made_before_the_table_gets_it_when_it_is_opened(self):
+        world = self.fresh(("asml.json", "failures.json", "crypto.json"))
+        links, tokens = self.plugins_for_waiting()
+        world.identity.db.execute("DROP TABLE pending_relations")
+        world.identity.db.commit()
+        world.identity.db.close()
+        world.identity = store.IdentityStore(world.tmp / "core")
+        self.ingest(links[0], *links[1], world=world)
+        self.ingest(tokens[0], *tokens[1], world=world)
+        self.assertEqual(len(edges(world)), 1)
+
+
 class NameOrderTest(IngestTest):
     """Two plugins state one deployment under their own names; the name shown does not depend on who arrived first."""
 
@@ -117,6 +194,19 @@ class NameOrderTest(IngestTest):
             with self.subTest(order=order):
                 world = self.sync(order, prefer=("pythia-beta",))
                 self.assertEqual(names(world)[f"listing:caip19:{SUI_USDC}"], "Beta USDC")
+
+    def test_an_unchanged_sync_applies_a_changed_source_order_and_a_disabled_top_plugin(self):
+        world = self.sync(("alpha", "beta"))
+        infos, subject = self.plugins(), f"listing:caip19:{SUI_USDC}"
+
+        def resync(name, **options):
+            claim = record(infos[name], "coin", ("caip19", SUI_USDC), name=f"{name.title()} USDC", asset_class="crypto")
+            world.ingest(infos[name], claim, scope="all", **options)
+        resync("alpha", order=("pythia-beta",))
+        self.assertEqual(names(world)[subject], "Beta USDC")  # the order changed and no record did
+        world.plugins = [infos["alpha"], dataclasses.replace(infos["beta"], enabled=False)]
+        resync("alpha")
+        self.assertEqual(names(world)[subject], "Alpha USDC")  # the plugin ranked first is off
 
     def test_a_plugin_renaming_its_record_changes_the_name_only_if_it_ranks_first(self):
         world = self.sync(("beta", "alpha"))

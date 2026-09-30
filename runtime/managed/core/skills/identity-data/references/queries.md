@@ -189,6 +189,17 @@ FROM relations
 WHERE from_id IN (SELECT value FROM json_each(:family)) OR to_id IN (SELECT value FROM json_each(:family));
 ```
 
+A relation whose end no subject names yet is not among those edges: it waits, as the plugin
+stated it, until a record names that end (`pending_relations`; ADR 0037, amendment "ingest results do not depend on
+which plugin syncs first"). To see what an edge is waiting for:
+
+```sql
+-- example: waiting-relations
+SELECT plugin, waits_for, json_extract(claim, '$.type') AS type,
+       json_extract(claim, '$.provenance.source_record') AS source_record
+FROM pending_relations WHERE plugin = :plugin ORDER BY waits_for;
+```
+
 ## Why was this record not placed?
 
 A plugin's record that core could not place on any subject is kept as `unmatched`.

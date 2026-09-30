@@ -41,13 +41,16 @@ class Joins:
                     else self.holders(scheme, own[scheme], level)
         return list(dict.fromkeys(found))
 
-    def holders(self, scheme: Scheme, value: str, level: Level) -> list[str]:
-        """The subjects at `level` an identifier names."""
+    def holders(self, scheme: Scheme, value: str, level: Level, *, settled: bool = False) -> list[str]:
+        """The subjects at `level` an identifier names; `settled` leaves out what a record placed as a `conflict`
+        states, which contests the subject it sits beside and names no other."""
         found = [row[0] for row in self.ref.execute("SELECT subject_id FROM assertions WHERE scheme = ? AND value = ?"
                                                     " ORDER BY subject_id", (str(scheme), value))] if self.ref else []
         found += [row[0] for row in self.store.select(
-            "SELECT subject_id, plugin FROM device_assertions WHERE scheme = ? AND value = ? AND role = 'self'"
-            " ORDER BY subject_id", (str(scheme), value)) if self.counts(row[1])]
+            "SELECT subject_id, plugin FROM device_assertions a WHERE scheme = ? AND value = ? AND role = 'self' AND NOT"
+            " (? AND EXISTS (SELECT 1 FROM claims c WHERE c.plugin = a.plugin AND c.native_scope = a.native_scope AND"
+            " c.native_id = a.native_id AND c.state = 'conflict')) ORDER BY subject_id",
+            (str(scheme), value, settled)) if self.counts(row[1])]
         key = subject_id(level, {scheme: value})
         found += [key] if key and self.held(key) else []
         current = (device.current_id(self.ref, self.store, item) for item in found)
@@ -66,7 +69,7 @@ class Joins:
                                      " AND state IN ('joined', 'introduced')", (manifest.plugin, key.native_scope, key.native_id))
             found = rows[0][0] if rows else self.declared(key, manifest)
             return device.current_id(self.ref, self.store, found) if found else None
-        named = self.holders(key.scheme, key.value, key.level)
+        named = self.holders(key.scheme, key.value, key.level, settled=True)
         return named[0] if len(named) == 1 else None
 
     def lines(self, isin: str, attributes: RecordAttributes) -> list[str]:

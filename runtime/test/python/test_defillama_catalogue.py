@@ -273,6 +273,15 @@ class Catalogue(unittest.TestCase):
                           if claim.level == 'market'],
                          [('Cetus CLMM USDC-SUI (0.25%)', ()), ('Cetus CLMM USDC-SUI (1%)', ())])
 
+    def test_a_cetus_read_with_a_tier_nobody_measured_passes_through(self):
+        protocols = [*PROTOCOLS, {'id': '9010', 'name': 'Cetus CLMM', 'slug': 'cetus-clmm', 'chains': ['Sui']}]
+        tokens = [NATIVE_USDC, SUI_LONG]
+        rows = [pool(40, 'cetus-clmm', 'USDC-SUI', tokens, meta='25%'), pool(41, 'cetus-clmm', 'USDC-SUI', tokens, meta='50%')]
+        found = claims('pools', protocols=protocols, pools={'status': 'success', 'data': rows})
+        self.assertEqual([(claim.attributes.name, claim.attributes.source_corrections) for claim in records(found)
+                          if claim.level == 'market'],
+                         [('Cetus CLMM USDC-SUI (25%)', ()), ('Cetus CLMM USDC-SUI (50%)', ())])  # 0.5% was never measured
+
     def test_one_sync_reads_each_directory_once(self):
         read, transport = reader()
         with patch.object(catalogue, 'PAGE_CLAIMS', 4):
