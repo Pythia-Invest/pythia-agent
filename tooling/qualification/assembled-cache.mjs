@@ -59,6 +59,17 @@ function artifact(dependency, kind) {
   return match;
 }
 
+/** The pinned Hermes source archive: its fetch-cache file name and digest. */
+export function pinnedHermesArchive(repository = REPOSITORY) {
+  const hermes = JSON.parse(
+    readFileSync(join(resolve(repository), "runtime/versions.json"), "utf8"),
+  ).dependencies.hermes_agent;
+  return {
+    name: `hermes-${hermes.commit}.tar.gz`,
+    sha256: artifact(hermes, "github-tag-source-tarball").sha256,
+  };
+}
+
 function verifyArtifact(path, expected) {
   exactRegularFile(path);
   const actual = sha256(path);

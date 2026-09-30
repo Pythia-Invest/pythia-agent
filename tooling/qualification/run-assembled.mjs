@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   CONTEXT_PASS_TOOLSET,
   CONTEXT_TOOL,
+  pinnedHermesArchive,
   QUALIFICATION_PARENT,
+  sha256,
 } from "./assembled-cache.mjs";
 import {
   instrumentContextProbe,
@@ -23,6 +25,7 @@ import {
   runAssembledCommand,
   seedSyntheticState,
 } from "./assembled-operations.mjs";
+import { resolveStackPaths } from "../../scripts/dev/paths.mjs";
 import { runHermesCapture } from "./hermes-capture.mjs";
 
 const REPOSITORY_ROOT = resolve(
@@ -136,16 +139,34 @@ async function stopOwnedStack(root, stack, child) {
   await waitForExit(child, STOP_TIMEOUT_MS);
 }
 
+/** Keep the verified archive dev-init just downloaded for the next run. */
+function keepHermesArchive(environment, directory) {
+  const pinned = pinnedHermesArchive(REPOSITORY_ROOT);
+  const kept = join(directory, pinned.name);
+  if (existsSync(kept)) return;
+  const downloaded = join(
+    resolveStackPaths({ environment }).fetchCache,
+    pinned.name,
+  );
+  if (!existsSync(downloaded) || sha256(downloaded) !== pinned.sha256) return;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  copyFileSync(downloaded, kept);
+}
+
 export async function runAssembledQualification() {
   mkdirSync(QUALIFICATION_PARENT, { recursive: true, mode: 0o700 });
   const root = join(QUALIFICATION_PARENT, `assembled-${randomUUID()}`);
   let assembled;
   let child;
   try {
-    assembled = prepareAssembledFixture(root);
+    // CI keeps the verified Hermes archive between nightly runs so each run
+    // does not depend on an unauthenticated download.
+    const archiveCache = process.env.PYTHIA_QUALIFICATION_ARCHIVE_CACHE;
+    assembled = prepareAssembledFixture(root, { archiveCache });
     const stack = assembled.stacks.one;
     instrumentContextProbe(root, "one");
     runAssembledCommand(root, "one", ["just", "dev-init"]);
+    if (archiveCache) keepHermesArchive(stack.environment, archiveCache);
     // The fixture has just hydrated the pinned Hermes; compare the committed
     // goldens with a fresh provider-free capture from it (ADR 0020).
     if (
