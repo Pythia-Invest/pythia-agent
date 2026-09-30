@@ -209,6 +209,42 @@ class OpenFigiTest(IngestTest):
         self.assertEqual(outcomes[0], outcomes[1])
         self.assertEqual(outcomes[0][0], TOYOTA)
 
+    def test_a_display_line_under_another_security_never_carries_toyotas_identifiers_there(self):
+        # A display plugin puts the London line under ASML; OpenFIGI answers it for Toyota. In either order the line
+        # sits under Toyota, ASML's security takes none of Toyota's values and asks nothing, and a later Frankfurt
+        # answer still joins the build's one Frankfurt line.
+        asml, london = "security:isin:NL0010273215", "listing:figi:BBG000TYLND5"
+        community = source("community", introduces={"listing": ["figi"]}, display=True)
+        outcomes = []
+        for community_first in (True, False):
+            world = self.world = self.fresh(("toyota.json", "asml.json"))
+            world.plugins = [self.openfigi, community]
+            steps = [lambda: self.ingest(community, record(community, "L", ("figi", "BBG000TYLND5"),
+                                                           ("isin", "NL0010273215"), operating_mic="XLON"), world=world),
+                     lambda: self.answer(("BBG000TYLND5", "LN", "TYT"))]
+            for step in steps if community_first else steps[::-1]:
+                step()
+            on_asml = world.identity.select("SELECT scheme, value, plugin FROM device_assertions WHERE subject_id = ?",
+                                            (asml,))
+            self.assertEqual(([tuple(row) for row in on_asml], world.touch(asml), world.identity.queue_items()),
+                             ([("isin", "NL0010273215", "community")], 0, []))
+            self.assertEqual(world.subject(asml)["view"]["identifiers"]["isin"], "NL0010273215")
+            self.answer(("BBG000TYFRN2", "GF", "TOM"))
+            self.assertEqual(self.placed(self.openfigi, "BBG000TYFRN2", world), (self.line("XFRA"), "joined"))
+            outcomes.append(device.subject_row(world.identity, london)["parent_id"])
+        self.assertEqual(outcomes, [TOYOTA, TOYOTA])
+
+    def test_a_line_with_no_currency_whose_isin_names_two_securities_is_no_line_core_adds(self):
+        # A confirm-level source states Toyota's ISIN for another security too: which security's Frankfurt line is it?
+        world = self.world = self.fresh(("toyota.json", "asml.json"))
+        vendor = source("vendor", level="security")
+        world.plugins = [self.openfigi, vendor]
+        device.put_assertion(world.identity, "security:isin:NL0010273215", "isin", TOYOTA_ISIN, plugin="vendor",
+                             ref=identity.ProviderRef("vendor", "ASML", "ref"))
+        done = self.answer(("BBG000TYFRN2", "GF", "TOM"))
+        self.assertEqual((self.placed(self.openfigi, "BBG000TYFRN2"), done["introduced"]), ((None, "unmatched"), 0))
+        self.assertEqual(world.identity.select("SELECT id FROM subjects"), [])
+
     def test_a_line_on_an_exchange_the_build_lacks_sits_under_the_security_until_a_release_holds_it(self):
         london = "listing:figi:BBG000TYLND5"
         self.answer(("BBG000TYLND5", "LN", "TYT"))
@@ -360,7 +396,8 @@ class OperationFailureTest(OperationFixture):
             else self.ERROR
         body = json.loads(self.ingest_ops.sync(self.ops, {"plugin": info.key}))
         self.assertEqual((body["data"]["pages"], body["data"]["partial"], body["data"]["introduced"]), (1, True, 1))
-        self.assertEqual(body["issues"][0]["message"], "lines's catalogue stopped: the source reported an error")
+        self.assertEqual((body["issues"][0]["code"], body["issues"][0]["message"]),
+                         ("unavailable", "lines's catalogue stopped: the source reported an error"))
         self.answers["lines_resolve"] = lambda _arguments: self.ERROR
         body = json.loads(self.ingest_ops.lookup(self.ops, {"plugin": info.key, "query": "GB00BN7SWP63"}))
         self.assertEqual(body["issues"][0]["message"], "lines lookup failed: the source reported an error")

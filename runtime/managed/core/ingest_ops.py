@@ -107,7 +107,7 @@ def sync(identity: Identity, arguments: dict, **_context: Any) -> str:
                     break
     except (concurrent.futures.TimeoutError, PluginFailed, ValueError, ClaimError, sqlite3.Error, OSError) as error:
         logger.warning("identity sync of %s stopped: %s", info.key, error)
-        return _envelope("ok", {**totals, "partial": True}, issue=f"{info.label}'s catalogue stopped: {_why(error)}")
+        return _stopped({**totals, "partial": True}, f"{info.label}'s catalogue stopped: {_why(error)}")
     return _envelope("ok", totals)
 
 
@@ -170,6 +170,13 @@ def _call(identity: Identity, tool: str, arguments: dict, seconds: float) -> dic
     if not result.get("data"):
         raise LookupError("no records")
     return result
+
+
+def _stopped(data: dict, message: str) -> str:
+    """A sync the source's failure stopped: what it placed, and the failure (`unavailable`, as `_envelope` codes one
+    with no data)."""
+    return json.dumps({"schema_version": 1, "outcome": "ok", "data": data,
+                       "issues": [{"code": "unavailable", "message": message}]}, ensure_ascii=False, separators=(",", ":"))
 
 
 def _why(error: BaseException) -> str:

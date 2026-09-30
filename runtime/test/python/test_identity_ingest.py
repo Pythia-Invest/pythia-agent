@@ -251,6 +251,18 @@ class OrderTest(IngestTest):
         isins = {(subject, value) for subject, scheme, value, _plugin in evidence if scheme == "isin"}
         self.assertEqual(isins, {(f"security:cgs_isin:{stale}", stale), (f"security:cgs_isin:{current}", current)})
 
+    def test_two_confirm_level_records_that_disagree_leave_the_line_without_a_parent_in_either_order(self):
+        first, second = (source(name, introduces={"listing": ["figi"], "security": ["figi"]}) for name in ("a", "b"))
+        subjects, evidence = self.both_orders(
+            (first, record(first, "L", ("figi", SAP_FIGI), ("share_class_figi", SAP_SHARE), operating_mic="XLON",
+                           currency="GBP")),
+            (second, record(second, "L", ("figi", SAP_FIGI), ("share_class_figi", "BBG000TYSCX0"), operating_mic="XLON",
+                            currency="GBP")))
+        self.assertEqual(subjects, [(f"listing:figi:{SAP_FIGI}", None), ("security:figi:BBG000TYSCX0", None),
+                                    (f"security:figi:{SAP_SHARE}", None)])
+        self.assertEqual({(subject, value) for subject, scheme, value, _plugin in evidence if scheme == "share_class_figi"},
+                         {(f"security:figi:{SAP_SHARE}", SAP_SHARE), ("security:figi:BBG000TYSCX0", "BBG000TYSCX0")})
+
 
 class LifecycleTest(IngestTest):
     def test_a_complete_scope_marks_what_it_no_longer_offers_and_keeps_its_binding(self):

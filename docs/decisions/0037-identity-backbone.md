@@ -1302,7 +1302,8 @@ through it.
   security's lines, or one with another FIGI or ticker, or where the answer
   itself has more than one line for that ISIN on that exchange (OpenFIGI's USD
   and EUR lines on one exchange: only one can be the build's, and the answer
-  does not say which). Only lines the reference holds, or that a confirm-level
+  does not say which), or where the ISIN names more than one security. Only
+  lines the reference holds, or that a confirm-level
   plugin (or the ingesting one) introduced, count there. It never joins by issuer, ticker, symbol or name, so a shared issuer
   never makes two instruments one. An `underlying` or `unqualified` value never
   joins, and a value a resolve answer only echoes from its question is not
@@ -1336,9 +1337,12 @@ through it.
   page shows names the plugin that stated it. A record changed by its plugin
   replaces its earlier statements; a conflicting one's are kept beside them. A
   parent's identifier goes onto the subject's parent where it names that
-  parent, or where the parent is the reference's (a differing value then
-  contests the package's), else onto the one subject it names: never onto a
-  device parent it does not name.
+  parent, or where the subject is the reference's, whose parent the package
+  gave (a differing value then contests the package's); else onto the one
+  subject it names. A device subject's parent, whoever chose it, never takes
+  a value that does not name it, so a display plugin's line under another
+  company never carries a confirm-level source's identifiers onto that
+  company.
 - **A plugin conflict is asked when relevant.** Its contested fact is raised by
   `queue_ops.surface`, with the build's questions and the contested facts of
   the evidence amendment, once, when the subject is opened, watched or used.

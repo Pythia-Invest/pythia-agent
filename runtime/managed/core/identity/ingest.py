@@ -271,19 +271,20 @@ class _Ingest:
     def _evidence(self, claim: RecordClaim, native: ProviderRef, subject: dict | None, *, keep: bool) -> None:
         """Write what the record states as device evidence on the subjects it identifies. A joined or introduced
         record's replaces its earlier statements; a conflicting one's is kept beside them and everyone else's. A
-        parent's value goes onto the subject's parent where it names that parent or the parent is the reference's (a
-        differing value then contests the package's), else onto the one subject it names: never onto a device parent
-        it does not name."""
+        parent's value goes onto the subject's parent where it names that parent, or where the subject is the
+        reference's (its parent the package gave, so a differing value contests the package's); else onto the one
+        subject it names. A device subject's parent, whoever chose it, never takes a value that does not name it."""
         if not keep:
             self.store.db.execute("DELETE FROM device_assertions WHERE plugin = ? AND native_scope = ? AND native_id = ?",
                                   (self.plugin, native.native_scope, native.native_id))
         ids = subject["ids"] if subject else {}
+        packaged = subject is not None and self._in_reference(subject["id"])  # the package gave its parents
         for item in self._stated(claim):
             level = SCHEME_LEVEL[item.scheme]
             owner = ids.get(level)
             if claim.level in DEPTH and DEPTH[level] < DEPTH[claim.level]:
                 named = self.joins.holders(item.scheme, item.value, level)
-                if owner not in named and not (owner and self._in_reference(owner)):
+                if owner not in named and not (owner and packaged):
                     owner = named[0] if len(named) == 1 else None
             if owner:
                 device.put_assertion(self.store, owner, item.scheme, item.value, plugin=self.plugin, ref=native,

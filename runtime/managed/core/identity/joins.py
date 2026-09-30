@@ -70,11 +70,12 @@ class Joins:
     def venue_line(self, isin: str, figi: str | None, ticker: str | None, venue: str) -> list[str] | None:
         """For a line record that states no currency (OpenFIGI's): the ISIN's security's one active line on the
         record's exchange, when that line has no FIGI or the record's, and no ticker or the record's. None when there
-        are several, or the one there has another FIGI or ticker: the record is then no line core may add. Empty when
-        the exchange has none. A device line counts only if a confirm-level plugin (or this one) introduced it."""
+        are several, or the one there has another FIGI or ticker, or the ISIN names several securities: the record is
+        then no line core may add. Empty when the exchange has none. A device line counts only if a confirm-level
+        plugin (or this one) introduced it."""
         securities = self.holders(Scheme.ISIN, isin, Level.SECURITY)
         if len(securities) != 1:
-            return []
+            return None if securities else []
         found = [tuple(row) for row in self.ref.execute(
             "SELECT id, ticker FROM listings WHERE security_id = ? AND coalesce(operating_mic, mic) = ? AND"
             " status <> 'inactive' ORDER BY id", (securities[0], venue))] if self.ref else []
