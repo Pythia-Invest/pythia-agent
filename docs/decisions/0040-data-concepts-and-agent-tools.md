@@ -61,7 +61,7 @@ registry is `identity.concepts.REGISTRY`.
 | `market_movers` | `most_active`, `gainers`, `losers` | a market, no subject | first eligible |
 
 `news` has a core item and a core read (see the amendment "Sources work
-together"); the FCA NSM plugin ([record](../sources/nsm.md)), display-level, is the
+together"); the FCA NSM plugin ([record](../sources/nsm.md)) is the
 first bundled contract to declare it. `estimates` and `fundamentals`
 get their read and row shape with their first source's onboarding.
 
@@ -569,13 +569,13 @@ names it; it is core's, never a user setting.
   Selection already takes every eligible source for them; the read and its row
   shape arrive with each concept's first source, defined against that source's
   real data (estimates are per period, each with its own analyst count).
-- **Unaudited sources.** Under `merge` and `side_by_side` an enabled source not
-  yet signed off ([ADR 0042](0042-source-onboarding-standard.md)) contributes like
-  any other: it is a display source ([ADR 0044](0044-product-direction.md)
-  ruling 10), and enabling it is the opt-in. Its items carry `unaudited`, which
-  the Desk shows as "not yet audited". Where one source serves (per authority,
-  or a single-source concept) it still follows every audited source unless the
-  investor names it.
+- **Sources Pythia has not audited.** Under `merge` and `side_by_side` every
+  enabled source contributes like any other, whatever its `signoff` declares,
+  and nothing is labelled "not yet audited" (amended 2026-09-30: installing a
+  plugin means trusting it, [ADR 0044](0044-product-direction.md)). Where one
+  source serves (per authority, or a single-source concept), core's default
+  order names the sources it prefers and any other enabled source follows
+  them unless the investor names it.
 - A failed source is listed as skipped and the result marked partial, as for
   filings. A filing row whose period end is not a date is left out, and the
   list says so (`invalid_rows`) instead of failing the read.

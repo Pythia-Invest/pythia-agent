@@ -59,10 +59,10 @@ class PackageTest(unittest.TestCase):
         self.assertTrue(installer.current(data).is_file())
 
 
-    def test_first_read_carries_a_provisional_coin_through_a_confirm_level_contract_not_the_package(self):
+    def test_first_read_carries_a_provisional_coin_through_a_contract_not_the_package(self):
         """The package names no provider, so none of its aliases is a coin plugin's provisional ID; the coin plugin's
         own declaration carries a row saved under one to the curated asset on the release's first read (Lifecycle A),
-        and only at confirm (ADR 0044 A3)."""
+        while with no plugin installed nothing moves (ADR 0044 A3)."""
         identity, store = schema.identity, importlib.import_module("pythia_core_identity.store")
         lifecycle = importlib.import_module("pythia_core_identity.lifecycle")
         declared = importlib.import_module("pythia_core_identity.declared")
@@ -79,10 +79,10 @@ class PackageTest(unittest.TestCase):
         with contextlib.closing(store.open_reference(path)) as ref:
             self.assertIsNone(ref.execute("SELECT old_id FROM id_aliases WHERE old_id LIKE 'security:provisional:%'"
                                           " AND old_id NOT LIKE '%:esma_firds:%'").fetchone())
-            for level, moved in (("display", 0), ("confirm", 1)):
-                with self.subTest(level=level):
+            for contracts, moved in (([], 0), ([contract], 1)):
+                with self.subTest(plugins=len(contracts)):
                     done = lifecycle.rekey(local, ref, installer.release_key(path), again=True,
-                                           declared=lambda: declared.aliases([identity.vouched(contract, level)]))
+                                           declared=lambda: declared.aliases(contracts))
                     self.assertEqual(done["moved"], moved)
         usdc = "security:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         self.assertEqual(([row["provider"] for row in local.bindings([usdc])], local.bindings([old])), (["coingecko"], []))

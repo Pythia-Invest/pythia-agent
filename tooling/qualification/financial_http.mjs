@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { MANAGED_PLUGINS } from "../../scripts/dev/managed-plugins.mjs";
-import { writeReleaseGrants } from "../../scripts/dev/release-grants.mjs";
 
 // Run with the exact prepared Hermes source/environment; no ambient accounts,
 // provider calls or persistent services. The lifecycle owns the copied files.
@@ -17,12 +16,6 @@ const source = process.argv[2];
 if (!source) throw Error("Pass the prepared pinned Hermes source directory.");
 const root = mkdtempSync(join(tmpdir(), "pythia-financial-http-"));
 try {
-  // Core's payload carries Pythia's release trust grants: generate them first.
-  const managedRoot = resolve("runtime/managed");
-  writeReleaseGrants(
-    { managedRoot, managedCore: join(managedRoot, "core"), profileRoot: root },
-    { python: join(source, ".venv/bin/python") },
-  );
   // Copy the actual release allowlists, including the core platform package.
   // The financial feature's path-derived key needs no duplicate bare-name enable.
   for (const name of ["pythia", "pythia-market-data"]) {

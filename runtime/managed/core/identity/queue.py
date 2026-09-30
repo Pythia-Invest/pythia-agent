@@ -31,7 +31,6 @@ QUESTIONS = {
     "no_key": "{label}'s record {ref} has no identifier that proves which instrument it is.",
     "underlying_identifier": "{label}'s record {ref} quotes its underlying's ISIN; it may be a depositary receipt.",
     "ambiguous": "{label} answered with several records for one instrument.",
-    "unaudited": "{label} is not yet audited; its record {ref} matches the reference identifiers.",
     "identifier": "Two records claim one identifier, or one record claims two values.",
     "binding": "{label}'s record {ref} contradicts the reference identifiers.",
     "bound": "{label}'s record {ref} is already bound to another instrument.",
@@ -119,10 +118,10 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     """Decide and record one agent or user verdict.
 
     The user's confirmed answer binds the record to the chosen reference or device subject (whose device evidence
-    counts at its `plugins`' trust levels), a "not a match" dismisses the question. An answer to a reference
+    counts as the enabled `plugins`' does), a "not a match" dismisses the question. An answer to a reference
     build question binds nothing: its resolved question is the local override reads apply (`build_questions`), in
-    place of the user's earlier answer about the same fact. Only unanimous confirm-level identifier evidence refuses
-    the user (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
+    place of the user's earlier answer about the same fact. Only unanimous identifier evidence refuses the user
+    (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
     open, and nothing changes until the user confirms it."""
     resolver = ResolverKind(resolver)
     user = resolver is ResolverKind.USER

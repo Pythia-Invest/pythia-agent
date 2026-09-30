@@ -1,9 +1,10 @@
-"""Subjects that live on the device (roadmap stage 0; ADR 0037, amendment "device subjects"; ADR 0042 B2).
+"""Subjects that live on the device (roadmap stage 0; ADR 0037, amendment "device subjects"; ADR 0044, amendment of
+2026-09-30).
 
 The identity store's schema 6 keeps every row of a v5 store. A device subject's page composes from the device store
 alone, with no reference package, and keeps its label, identifiers and ID when its source is disabled or removed. A
-re-key re-points every device row. A device assertion counts at its plugin's trust level, and only confirm level
-binds, except a display plugin onto a subject it introduced.
+re-key re-points every device row. An enabled plugin's device assertions count like the package's, and any enabled
+plugin's answer binds, onto a reference or a device subject.
 """
 import json
 import sqlite3
@@ -19,7 +20,7 @@ from pathlib import Path
 from identity_world import AS_OF, NOW, PROVENANCE, World, record, vendor
 from test_identity_contracts import FIXTURES, identity
 from test_identity_queue import load_core
-from pythia_identity_fixture import build_questions, device, page, queue, reference_package, relations, store, trust  # noqa: E402
+from pythia_identity_fixture import build_questions, device, page, queue, reference_package, relations, store  # noqa: E402
 
 SAP_ISIN, GSK_ISIN = "DE0007164600", "GB00BN7SWP63"  # SAP is in no reference here; GSK is in the world's
 SAP, SAP_XETRA = f"security:isin:{SAP_ISIN}", f"listing:isin:{SAP_ISIN}:XETR:EUR"
@@ -28,18 +29,13 @@ ERICSSON = "issuer:lei:549300W9JLPW15XIFM52"
 POOL, PROTOCOL = "market:provisional:poolsource:pool:usdc-navi", "protocol:provisional:poolsource:protocol:navi"
 TOKEN = "eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 USDC = f"listing:caip19:{TOKEN}"
-POOL_SOURCE = {  # a DeFi source core never names: display level, introducing its pools, protocols and tokens
+POOL_SOURCE = {  # a DeFi source core never names, introducing its pools, protocols and tokens
     "contract_version": 2, "plugin": "pool-source", "provider": "poolsource",
     "addressing": {"native": [{"native_scope": "pool", "level": "market"},
                               {"native_scope": "protocol", "level": "protocol"}]},
     "introduces": {"market": ["native"], "protocol": ["native"], "listing": ["caip19"]},
     "concepts": {"market_data": {"level": "market", "via": "market", "operations": {"quote": "latest"}}},
     "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "unsigned"}}
-
-
-def display(info):
-    """The plugin at display level: its files carry no confirm grant, or the user demoted it (ADR 0042)."""
-    return replace(info, manifest=identity.vouched(info.manifest, trust.DISPLAY))
 
 
 def sap(world: World, lister, registry=None) -> None:
@@ -221,15 +217,13 @@ class RekeyTest(DeviceWorld):
 
 
 class EvidenceTest(unittest.TestCase):
-    def test_device_evidence_proves_and_blocks_only_at_confirm_level(self):
-        # The lister states SAP's ISIN. A confirm-level quote source then answers for the Xetra line, once with the
-        # same ISIN and once with another company's.
-        for level, enabled, counts in ((trust.CONFIRM, True, True), (trust.DISPLAY, True, False),
-                                       (trust.CONFIRM, False, False)):  # a disabled plugin's evidence is display
-            with self.subTest(level=level, enabled=enabled), tempfile.TemporaryDirectory() as tmp:
+    def test_an_enabled_plugins_evidence_proves_and_blocks_and_a_disabled_ones_does_not(self):
+        # The lister states SAP's ISIN. Another quote source then answers for the Xetra line, once with the same ISIN
+        # and once with another company's.
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as tmp:
                 world = World(Path(tmp))
-                lister = vendor("isin", name="lister")
-                lister = replace(lister if level == trust.CONFIRM else display(lister), enabled=enabled)
+                lister = replace(vendor("isin", name="lister"), enabled=enabled)
                 world.plugins = [lister]
                 sap(world, lister)
                 quotes = vendor("isin", name="quotes")
@@ -239,49 +233,33 @@ class EvidenceTest(unittest.TestCase):
                 world.close()
                 self.assertEqual(subject["values"]["isin"], SAP_ISIN)  # shown either way, with its source
                 self.assertEqual((bool(subject["evidence"]), [item["source"] for item in subject["view"].get("shown", [])]),
-                                 (True, []) if counts else (False, ["lister"]))
-                self.assertEqual(agreeing is not None, counts)  # proves
-                self.assertEqual((other.kind, other.reason), ("conflict", "binding") if counts else ("residual", "no_key"))
+                                 (True, []) if enabled else (False, ["lister"]))
+                self.assertEqual(agreeing is not None, enabled)  # proves
+                self.assertEqual((other.kind, other.reason), ("conflict", "binding") if enabled else ("residual", "no_key"))
 
 
 class BindingTest(DeviceWorld):
-    """ADR 0042, amendment of 2026-09-30 (B2): only confirm level binds, onto reference or device subjects; a display
-    plugin binds only a subject it introduced itself."""
+    """ADR 0044, amendment of 2026-09-30: any enabled plugin binds, onto reference or device subjects; a plugin's own
+    record binds the subject it introduced."""
 
-    def test_a_confirm_level_answer_binds_a_device_subject_and_a_display_one_waits_for_the_user(self):
+    def test_any_enabled_plugins_answer_binds_a_device_subject(self):
         lister = vendor("isin", name="lister")
         self.world.plugins = [lister]
         sap(self.world, lister)
-        quotes = vendor("isin", name="quotes")
-        binding, item = self.world.resolve(quotes, SAP_XETRA, record(quotes, "SAP.DE", ("isin", SAP_ISIN)))
-        self.assertEqual((binding.subject_id, binding.rule_id, item), (SAP_XETRA, "resolve_answer@1", None))
-        community = display(vendor("isin", name="community"))
-        binding, item = self.world.resolve(community, SAP_XETRA, record(community, "SAP.DE", ("isin", SAP_ISIN)))
-        self.assertIsNone(binding)
-        self.assertEqual((item.reason, item.candidate_ids), ("unaudited", (SAP_XETRA,)))
-        # The user's answer binds it: a device subject is a known target.
-        answer = queue.submit(self.world.identity, self.world.ref, item_id=item.id, resolver="user",
-                              relation="same_listing", chosen_id=SAP_XETRA, now=NOW, as_of=AS_OF,
-                              user_turn="desk:identity-verdict:test", plugins=self.world.plugins)
-        self.assertEqual(answer["outcome"], "confirmed")
-        ref = identity.ProviderRef("community", "SAP.DE", "symbol")
-        self.assertEqual(self.world.identity.bound_subject(ref), SAP_XETRA)
-        self.assertEqual(queue.summary(self.world.identity, self.world.ref, self.world.identity.queue_item(item.id))[
-            "candidates"][0]["name"], "SAP SE")
+        for name in ("quotes", "community"):  # no plugin ranks above another: neither name nor sign-off decides
+            with self.subTest(plugin=name):
+                source = vendor("isin", name=name)
+                binding, item = self.world.resolve(source, SAP_XETRA, record(source, "SAP.DE", ("isin", SAP_ISIN)))
+                self.assertEqual((binding.subject_id, binding.rule_id, item), (SAP_XETRA, "resolve_answer@1", None))
 
-    def test_a_display_plugin_binds_a_subject_it_introduced_and_no_other(self):
-        registry, lister = vendor("isin", name="registry"), display(vendor("isin", name="lister"))
-        self.world.plugins = [registry, lister]
-        sap(self.world, lister, registry)  # the registry introduced the security, the lister its Xetra line
-        binding, item = self.world.resolve(lister, SAP_XETRA, record(lister, "SAP.DE", ("isin", SAP_ISIN)))
-        self.assertEqual((binding.subject_id, item), (SAP_XETRA, None))
-        community = display(vendor("isin", name="community"))
-        _, item = self.world.resolve(community, SAP_XETRA, record(community, "SAP.DE", ("isin", SAP_ISIN)))
-        self.assertEqual(item.reason, "unaudited")
-        # Ingest's rule `introduced@1`: a plugin's own record binds its own subject, whatever its level; never another.
-        own, other = identity.ProviderRef("lister", "SAP.XETRA", "symbol"), identity.ProviderRef("lister", "SAP", "symbol")
+    def test_a_plugins_own_record_binds_the_subject_it_introduced_and_no_other(self):
+        lister = vendor("isin", name="lister")
+        self.world.plugins = [lister]
+        sap(self.world, lister)
+        # Ingest's rule `introduced@1`: a plugin's own record binds its own subject; never another.
+        own, other = identity.ProviderRef("lister", "SAP.XETRA", "symbol"), identity.ProviderRef("community", "SAP", "symbol")
         self.assertTrue(device.bind_introduced(self.world.identity, "lister", own, SAP_XETRA))
-        self.assertFalse(device.bind_introduced(self.world.identity, "lister", other, SAP))
+        self.assertFalse(device.bind_introduced(self.world.identity, "community", other, SAP))
         row = self.world.identity.binding_for(own)
         self.assertEqual((row["subject_id"], row["authority"], row["rule_id"]), (SAP_XETRA, "rule_confirmed", "introduced@1"))
         self.assertIsNone(self.world.identity.binding_for(other))
@@ -289,33 +267,6 @@ class BindingTest(DeviceWorld):
         self.world.identity.db.execute("UPDATE bindings SET status = 'rejected' WHERE native_id = 'SAP.XETRA'")
         self.assertFalse(device.bind_introduced(self.world.identity, "lister", own, SAP_XETRA))
         self.assertEqual(self.world.identity.binding_for(own)["status"], "rejected")
-
-    def test_a_display_plugin_never_binds_the_parent_of_a_subject_it_introduced(self):
-        # The lister introduced a line under Ericsson B's security, which the reference holds. Its security-level
-        # answer binds that shared security from neither the line's page nor the security's own.
-        lister = page.PluginInfo(key="lister", manifest=identity.validate_manifest({
-            "contract_version": 1, "plugin": "lister", "provider": "lister",
-            "addressing": {"native": [{"native_scope": "symbol", "level": "listing"},
-                                      {"native_scope": "share", "level": "security"}]},
-            "concepts": {"market_data": {"level": "listing", "via": "listing", "operations": {"quote": "latest"}}},
-            "resolve": {"operation": "resolve", "input_schemes": ["isin"], "echoes": []},
-            "rights": {"licence": "personal", "cache": "none", "hostable": False}, "signoff": {"status": "unsigned"}}))
-        self.world.plugins = [lister]
-        line = "listing:provisional:lister:symbol:ERIC-B.XX"
-        device.put_subject(self.world.identity, line, plugin="lister", name="Ericsson B", parent_id=ERIC_B,
-                           attributes={"ticker": "ERIC-B", "operating_mic": "XSTO", "currency": "SEK"})
-
-        def answer(level, scope, native_id):
-            return {"level": level, "identifiers": [{"scheme": "isin", "value": "SE0000108656"}],
-                    "provenance": {**PROVENANCE, "plugin": "lister", "source": "lister"},
-                    "native_ref": {"provider": "lister", "native_id": native_id, "native_scope": scope}}
-        for subject_id in (line, ERIC_B):
-            with self.subTest(page=subject_id):
-                binding, item = self.world.resolve(lister, subject_id, answer("security", "share", "ERIC-B-SHARE"))
-                self.assertIsNone(binding)
-                self.assertEqual((item.reason, item.candidate_ids), ("unaudited", (ERIC_B,)))
-        binding, item = self.world.resolve(lister, line, answer("listing", "symbol", "ERIC-B.XX"))
-        self.assertEqual((binding.subject_id, item), (line, None))  # its own line, on its own page
 
 
 class NoReferenceTest(unittest.TestCase):
@@ -363,8 +314,8 @@ class NoReferenceTest(unittest.TestCase):
         view = body["data"]
         [quote] = [section for section in view["sections"] if section["section"] == "quote"]
         self.assertEqual((view["subject"]["name"], view["subject"]["level"]), ("USDC lending on Navi", "market"))
-        self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"], quote["unaudited"]),
-                         ("pool-source", "ready", "confirmed", self.pool.wire(), True))  # labelled not yet audited
+        self.assertEqual((quote["plugin"], quote["status"], quote["binding_status"], quote["binding"]),
+                         ("pool-source", "ready", "confirmed", self.pool.wire()))
         self.assertEqual(view["contributors"], [{"plugin": "pool-source", "label": "poolsource", "status": "enabled",
                                                  "stated": [], "introduced": True, "not_offered_since": None}])
         self.assertEqual(view["related"], [{"id": PROTOCOL, "type": "part_of", "direction": "to", "kind": "protocol",

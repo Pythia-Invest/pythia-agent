@@ -425,8 +425,8 @@ class ResolutionTest(unittest.TestCase):
         self.assertIs(self.decide(self.verdict(), prior=[other]), outcome.AMBIGUOUS)
         self.assertIs(self.decide(self.verdict(relation="ambiguous", chosen_id=None)), outcome.AMBIGUOUS)
 
-    def test_two_confirm_level_values_block_every_answer_but_the_users(self):
-        # No source outranks another: where confirm-level sources disagree, no rule or model answer confirms.
+    def test_two_sources_values_block_every_answer_but_the_users(self):
+        # No source outranks another: where sources disagree, no rule or model answer confirms.
         outcome = identity.VerdictOutcome
         other = self.figi("BBG000K6N6G7", source="vendor")
         user = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
@@ -438,7 +438,7 @@ class ResolutionTest(unittest.TestCase):
                 self.assertIs(self.decide(self.verdict(), claimed, evidence), outcome.BLOCKED)
                 self.assertIs(self.decide(user, claimed, evidence, threshold=None), outcome.CONFIRMED)
                 self.assertIs(self.decide(user, claimed, [self.figi(claimed)], threshold=None), outcome.CONFIRMED)
-        # Unanimous confirm-level proof refuses the user too, both a match against it and "none" against it.
+        # Unanimous proof refuses the user too, both a match against it and "none" against it.
         self.assertIs(self.decide(user, "BBG000K6N6G7", [self.figi("BBG000C1HT47")], threshold=None), outcome.BLOCKED)
         none = self.verdict(resolver="user", authority="user_attested", confidence=None, model=None,
                             prompt_version=None, input_digest=None, user_turn="desk:turn-1", relation="none",

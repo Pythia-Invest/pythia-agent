@@ -15,8 +15,7 @@ class EvidenceTier(StrEnum):
 
 
 class Authority(StrEnum):
-    """The kind of evidence, never its origin: how much it counts also depends on its contributor's trust level
-    (ADR 0044 A2, A4)."""
+    """The kind of evidence, never its origin or a level (ADR 0044 A2 and its amendment of 2026-09-30)."""
 
     SOURCE_ASSERTED = "source_asserted"  # a source's own record says so, a reference package's or a plugin's alike
     RULE_CONFIRMED = "rule_confirmed"    # a versioned T1 rule, named by rule_id

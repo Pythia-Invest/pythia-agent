@@ -2,9 +2,9 @@
 
 Core's ingest keeps a plugin's relations in identity.sqlite3's `relations`, each with its plugin. A relation whose
 subject has one target of its type (`ONE_TARGET`: a receipt represents one share) contradicts the package's relation
-of that type from the same subject to another. A confirm-level plugin's contradiction makes the package relation
+of that type from the same subject to another. An enabled plugin's contradiction makes the package relation
 contested: it is still shown, marked, but not applied, so a contested receipt is not folded into its share's listings
-(`search.Directory`). A display-level plugin's relation is only shown, and a relation the package states too changes
+(`search.Directory`). A disabled plugin's relation is only shown, and a relation the package states too changes
 nothing. Standard library only.
 """
 from __future__ import annotations
@@ -15,7 +15,6 @@ from typing import Any, Callable, Iterable, Mapping
 
 from .model import Relation, evidence_id
 from .schemes import subject_kind
-from .trust import CONFIRM
 from .vocabulary import FOLD, ONE_TARGET, Authority
 
 Edge = tuple[str, str, str]  # (type, from_id, to_id)
@@ -46,13 +45,12 @@ def keep(store, ref: sqlite3.Connection | None, plugin: str, claim, start: str, 
     return "conflicts" if disputed else "joined", db.total_changes != before
 
 
-def contested(store, granted: Mapping[str, str], types: Iterable[str] = ONE_TARGET) -> frozenset[Edge]:
-    """The one-target relations of `types` confirm-level plugins state (`granted`: each plugin's level,
-    `device.levels`): each contests a package relation of its type from the same subject to another subject
-    (`contests`)."""
+def contested(store, active: frozenset[str], types: Iterable[str] = ONE_TARGET) -> frozenset[Edge]:
+    """The one-target relations of `types` the enabled plugins (`active`, `device.enabled`) state: each contests a
+    package relation of its type from the same subject to another subject (`contests`)."""
     rows = store.select("SELECT type, from_id, to_id, plugin FROM relations WHERE type IN (SELECT value FROM json_each(?))",
                         (json.dumps(sorted(types)),))
-    return frozenset((type, start, end) for type, start, end, plugin in rows if granted.get(plugin) == CONFIRM)
+    return frozenset((type, start, end) for type, start, end, plugin in rows if plugin in active)
 
 
 def contests(edge: Edge, claims: Iterable[Edge]) -> bool:
@@ -69,13 +67,13 @@ def device_rows(store, subject_ids: list[str]) -> list[tuple[str, str, str, str]
         " (SELECT value FROM json_each(?)) ORDER BY type, from_id, to_id, plugin", (marks, marks))]
 
 
-def related(ref: sqlite3.Connection | None, store, subject_ids: list[str], granted: Mapping[str, str],
+def related(ref: sqlite3.Connection | None, store, subject_ids: list[str], active: frozenset[str],
             name: Callable[[str], str | None]) -> list[dict[str, Any]]:
-    """The subjects related to these, in either direction: the package's `related` relations, and its `fold` ones a
-    confirm-level plugin contests (then shown, not folded), each contested one marked `contested`; then the plugins'
+    """The subjects related to these, in either direction: the package's `related` relations, and its `fold` ones an
+    enabled plugin contests (then shown, not folded), each contested one marked `contested`; then the plugins'
     relations the package does not state (a pool's protocol), each with its plugin as `source` and marked `contested`
-    where a confirm-level one contradicts the package's."""
-    claims = contested(store, granted)
+    where an enabled one contradicts the package's."""
+    claims = contested(store, active)
     marks = json.dumps(subject_ids)
     package = [tuple(row) for row in ref.execute(
         "SELECT type, from_id, to_id FROM relations WHERE from_id IN (SELECT value FROM json_each(?)) OR to_id IN"

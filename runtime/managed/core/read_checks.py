@@ -4,9 +4,8 @@ Core serves a subject through addresses it derives (a ticker and MIC suffix tabl
 binds. Market data describes each reference before reading it, whether core routed it for
 a subject or the caller named it (the Desk page and the agent read the reference the page
 chose). The currency and venue that answer states are checked here, once per window, with
-rule `read_check@1`, and kept per subject in `read_checks`. A read that agrees, from an
-audited source, stamps `verified_at`; otherwise the page and the agent see a label ("venue
-differs"). A difference refuses the source only for an attribute in `page.ENFORCED`, which
+rule `read_check@1`, and kept per subject in `read_checks`. A read that agrees stamps
+`verified_at`; otherwise the page and the agent see a label ("venue differs"). A difference refuses the source only for an attribute in `page.ENFORCED`, which
 stays empty until the reference field it compares against is signed off. Nothing here
 calls a provider or opens a Repairs item, and a failure never fails the read.
 """
@@ -123,8 +122,7 @@ def _check(identity: Identity, subject_id: str, ref: ProviderRef, said: dict) ->
                   or ("currency" in stated and subject["listing"] and subject["listing"]["trading_currency"]))
     if not comparable:
         return UNCHECKED
-    note = (" and ".join(differs) + (" differ" if len(differs) > 1 else " differs") if differs
-            else "source not audited" if info.manifest.unaudited else None)  # ADR 0042 sign-off
+    note = " and ".join(differs) + (" differ" if len(differs) > 1 else " differs") if differs else None
     identity.store.put_read_check(subject["ids"][Level(served["via"])], ref, info.manifest.plugin, stated, differs, note)
     if note:
         logger.info("%s read of %s for %s: unverified (%s)", info.label, ref.native_id, subject_id, note)

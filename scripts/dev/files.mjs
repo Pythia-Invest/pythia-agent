@@ -32,10 +32,6 @@ function fsyncDirectory(path) {
   }
 }
 
-// Pythia's release trust grants: generated into the checkout by release-grants.mjs
-// before core is copied, never committed (ADR 0042, amendment of 2026-09-30).
-export const RELEASE_GRANTS = "identity/trust.json";
-
 export const MANAGED_CORE_FILES = Object.freeze([
   "__init__.py",
   "plugin.yaml",
@@ -118,8 +114,6 @@ export const MANAGED_CORE_FILES = Object.freeze([
   "identity/store.py",
   "identity/stub.py",
   "identity/subject.py",
-  "identity/trust.py",
-  RELEASE_GRANTS,
   "identity/vocabulary.py",
   "identity/sql/identity.sql",
   "identity/sql/reference.sql",

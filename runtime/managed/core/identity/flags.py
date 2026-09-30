@@ -3,7 +3,7 @@ agent sees"; ADR 0044 A6). Each is derived only from what composing the subject'
 
 A closed vocabulary, each flag a `code` with an optional `detail`:
 
-- `conflicting_identifier`: confirm-level sources disagree on one identifier, so neither value applies; the detail
+- `conflicting_identifier`: sources disagree on one identifier, so neither value applies; the detail
   gives the scheme and each value with its sources.
 - `identity_question_open`: open identity questions about the subject or its family; the detail gives their count and
   reasons.

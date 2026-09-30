@@ -6,12 +6,12 @@ uses it (`queue_ops.surface`). Each is asked once, and a new release supersedes 
 is an instrument's home is a choice (A5), even from an older package; a question with no candidate, whose only
 answer is "None of these" while the page already says the fact is unknown; and a malformed one.
 
-Core asks two more kinds when a subject is touched (`conflicts`): a fact confirm-level evidence contests, and a
-user's answer the installed release contradicts. They are tagged and answered like the build's.
+Core asks two more kinds when a subject is touched (`conflicts`): a fact different sources contest, and a user's
+answer the installed release contradicts. They are tagged and answered like the build's.
 
 An answer takes the question's one relation. The agent's answer is a suggestion that leaves the question open.
-The user's answer resolves it with a `user_attested` verdict, unless unanimous confirm-level identifier evidence
-contradicts it (`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an
+The user's answer resolves it with a `user_attested` verdict, unless unanimous identifier evidence contradicts it
+(`queue.submit`). That resolved row is the local override every read applies (`load_subject`): an
 issuer answer gives the security that issuer, a receipt answer adds a `related` entry, and an answer to a contested
 identifier gives the subject that value. It stays applied until the user reopens the question (`reopen`) or answers a
 later conflict about the same fact (`replace_answer`).
@@ -158,8 +158,8 @@ def own_identifier(item: dict) -> Level | None:
 
 def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
     """What identifies the question's own subject where an answer joins it: a company's own identifiers for the
-    question which company it is, which a chosen issuer's must not contradict; only the confirm-level values its
-    evidence agrees on, so never a contested one. Who issued a security asks about its issuer link, and a receipt
+    question which company it is, which a chosen issuer's must not contradict; only the values its evidence agrees
+    on, so never a contested one. Who issued a security asks about its issuer link, and a receipt
     answer relates two instruments: none, and neither does a contested identifier of a security or a listing."""
     found, question = asked(item), item["subject_ids"][0]
     subject = load_reference_subject(ref, question) \
@@ -171,10 +171,9 @@ def claimed(ref: sqlite3.Connection, item: dict) -> list[IdentifierValue]:
 
 def load_subject(ref: sqlite3.Connection, subject_id: str, listing_id: str | None, store,
                  plugins: Iterable = ()) -> dict[str, Any] | None:
-    """The reference subject (`subject.load_subject`) with the device's evidence about it, at the `plugins`' levels
-    (`device.merge`), and the user's answers about its listing, security or issuer applied. An answer stays applied
-    where the installed release, at confirm level, states another value for the same fact; `contradicted` lists those
-    for `conflicts` to ask about."""
+    """The reference subject (`subject.load_subject`) with the device's evidence about it (`device.merge`), and the
+    user's answers about its listing, security or issuer applied. An answer stays applied where the installed release
+    states another value for the same fact; `contradicted` lists those for `conflicts` to ask about."""
     subject = load_reference_subject(ref, subject_id, listing_id)
     if subject is None:
         return None
@@ -255,9 +254,9 @@ def _unasked(store, items: Iterable[QueueItem]) -> list[QueueItem]:
 
 
 def _contradicted(subject: dict, answer: dict, release: str | None, values: tuple[str, ...] = ()) -> None:
-    """Note an answer the installed release contradicts: at confirm level it names the subject `release` for the
-    same fact (with `values`, the answer's value and the release's)."""
-    if release is not None and release != answer["chosen"] and subject["trust"] == weighing.CONFIRM:
+    """Note an answer the installed release contradicts: it names the subject `release` for the same fact (with
+    `values`, the answer's value and the release's)."""
+    if release is not None and release != answer["chosen"]:
         subject["contradicted"].append({**answer, "release": release, "values": list(values)})
 
 
@@ -284,8 +283,8 @@ def _issuer(ref: sqlite3.Connection, subject: dict, answer: dict) -> None:
     if row is None:  # the chosen issuer is no longer in the reference
         return
     ids[Level.ISSUER] = chosen
-    joined = weighing.weigh((_assertion(item) for item in
-                             ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (other,))), subject["trust"])
+    joined = weighing.weigh(_assertion(item) for item in
+                            ref.execute("SELECT * FROM assertions WHERE subject_id = ?", (other,)))
     if any(value and joined["values"].get(scheme) not in (None, value) for scheme, value in own.items()):
         _contradicted(subject, answer, question)
     for name in ("evidence", "shown"):
