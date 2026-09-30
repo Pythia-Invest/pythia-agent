@@ -264,6 +264,11 @@ holds when new data arrives. Examples:
   vehicle by a name pattern, or linking an issuer through a unique normalised
   name. Use GLEIF Level 2 relationships or a judgement question instead. Names
   may be judge features or alarm descriptions, never identity.
+  A name may still break a tie only among candidates the identifiers already
+  name, and may veto a rule, but it never creates a link: an exact full-name
+  equality (never a shared word) may choose one of several identifier-linked
+  LEIs, and never a retired one; a receipt whose name disagrees with its
+  issuer's stays a question. A shared word only raises a review flag.
 
 A rule written for a named case has no stopping point. It fixes its own examples
 and moves the errors elsewhere.

@@ -1,8 +1,11 @@
 """What the FIRDS claims decide for each security, and the questions they leave (R2: never a guess stored as fact).
 
 - Issuer: RTS 23 field 5 (`assemble.issuer_lei`). An LEI ISO 10383 lists for a venue's operating entity decides
-  nothing, nor does a share's field 5 its receipts contradict (`Claims.receipt_issuers`): the issuer is unknown and
-  `issuer_identity` is asked, the receipts' issuer and field 5 as the candidates.
+  nothing, nor does a share's field 5 its receipts contradict (`Claims.receipt_issuers`): the issuer is unknown. Then
+  the registrant a SEC line joins to the security by ISIN or share-class FIGI is its issuer when field 5 is only a
+  venue operator's LEI (`registrant_join@1`); otherwise `issuer_identity` is asked, the receipts' issuer, field 5 and
+  the lines' issuers as the candidates, and when there is no candidate to choose nothing is asked: the security is
+  counted (`issuer_unknown_venue_lei`).
 - Primary: field 8 names the EEA admissions the issuer requested; it decides only an EEA primary. When a listing
   directory or registrant filing puts a line outside the EEA (an OpenFIGI home-exchange line, a SEC exchange line),
   the primary is unknown. Among requested admissions, the most liquid EU market (the relevant venue) picks the line
@@ -26,6 +29,7 @@ from .model import Evidence, Listing, Snapshot
 # A venue attribute (Pythia-authored): Deutsche Börse runs the Frankfurt Stock Exchange's regulated market on two
 # venues, the Frankfurt floor and Xetra, its main one. When the claims decide that market, the line is on Xetra.
 MAIN_VENUE = {"XFRA": "XETR"}
+REGISTRANT_JOIN = "registrant_join@1"
 
 
 def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> None:
@@ -41,9 +45,7 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
         live, evidence = security.activity != "inactive", [f"record:{claims.digests[isin]}"]
         leis = claims.isins[isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
         if security.issuer_id is None and live:
-            others = {line.issuer_id for line in lines[security.security_id] if line.issuer_id}
-            snap.ask("issuer_identity", security.security_id, [*security.issuer_candidates, *sorted(others)], evidence,
-                     sorted(leis))
+            _issuer_unknown(snap, claims, venues, security, lines[security.security_id], evidence, audit)
         stated = claims.isins[isin].get(Meaning.UNDERLYING_ISIN, set()) - {isin}
         if security.kind != "dr" and stated and live:  # the CFI says share, field 26 says receipt
             targets = [f"isin:{target}" for target in sorted(stated) if f"isin:{target}" in snap.securities]
@@ -59,6 +61,29 @@ def questions(snap: Snapshot, claims: Claims, venues: Venues, as_of: str) -> Non
             liquid = _on(lines[security.security_id], venues.op(relevant), relevant)
             if liquid:
                 liquid.most_liquid = True
+
+
+def _issuer_unknown(snap: Snapshot, claims: Claims, venues: Venues, security, lines: list[Listing], evidence: list[str],
+                    audit: Counter) -> None:
+    """A live security whose field 5 decided no issuer. A registrant joined to it by ISIN or share-class FIGI (a SEC line)
+    is its issuer when field 5 is only a venue operator's LEI, which says nothing about the issuer and is no claim that
+    could contradict it (`registrant_join@1`, `rule_confirmed`); a LEI from GLEIF's EDGAR registration upgrades the
+    CIK issuer as for any SEC line. Otherwise the issuer is asked, the candidates being the receipts' issuer, field 5
+    and the lines' issuers; with none, nothing is asked and the security is counted."""
+    leis = claims.isins[security.isin].get(Meaning.ISSUER_OR_VENUE_OPERATOR_LEI, set())
+    venue_only = bool(leis) and all(venues.operated.get(lei) for lei in leis)
+    registrants = {line.issuer_id for line in lines if line.issuer_id and line.evidence == Evidence.REGISTRANT_FILING}
+    if venue_only and not security.issuer_candidates and len(registrants) == 1:
+        security.issuer_id = next(iter(registrants))
+        for line in lines:
+            line.issuer_id = security.issuer_id
+        audit[REGISTRANT_JOIN] += 1
+        return
+    candidates = [*security.issuer_candidates, *sorted({line.issuer_id for line in lines if line.issuer_id})]
+    if candidates:
+        snap.ask("issuer_identity", security.security_id, candidates, evidence, sorted(leis))
+    else:  # nothing to choose: FIRDS names a venue operator's LEI where the issuer did not request the admission
+        audit["issuer_unknown_venue_lei" if venue_only else "issuer_unknown_no_candidate"] += 1
 
 
 def _primary(claims: Claims, venues: Venues, isin: str, lines: list[Listing], as_of: str) -> tuple[str, Listing | None]:

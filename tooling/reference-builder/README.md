@@ -25,7 +25,7 @@ python3 tooling/reference-builder/run.py --help
 | Issuers | `gleif.py` | GLEIF `lei-records` API, batched by LEI |
 | US tickers | `sec.py`, `sec_probe.py` | SEC `company_tickers_exchange.json` and the fund file `company_tickers_mf.json`, fingerprinted per build; `sec_probe.py` fingerprints the plugin's `submissions` and `companyfacts` for a fixed sample |
 | Tickers and FIGIs | `openfigi.py` | OpenFIGI `/v3/mapping` |
-| Rules | `rules.py`, `assemble.py`, `linking.py` | see below |
+| Rules | `rules.py`, `assemble.py`, `linking.py`, `link_review.py` | see below |
 | Claims and questions | `claims.py`, `reconcile.py`, `source_drift.py`, `firds_audit.py` | typed FIRDS claims, the decisions they make and the questions they leave, the FIRDS drift fingerprint and odd cases (below) |
 | Audit | `truth.py`, `truth_report.py`, `invariants.py` | the truth set and whole-build invariants (below) |
 | Snapshot, manifest and package | `schema.py`, `writer.py`, `manifest.py`, `package.py` | |
@@ -67,7 +67,7 @@ or names two subjects, is dropped and counted. Every assertion and relation
 states the kind of evidence it is, never where it came from (ADR 0044, A2;
 package format 6): a value read from a source is `source_asserted`, and one a
 builder rule derives is `rule_confirmed` with the rule in `source_record`: a
-receipt edge of `receipt_issuer_share@1`, and a CIK the build joins to a LEI
+receipt edge of `receipt_issuer_share@2`, and a CIK the build joins to a LEI
 issuer (`isin_exch_us`, `share_class_figi`; GLEIF's EDGAR registration states
 it, so that one is `source_asserted`). Venues carry their ISO 10383 market category (`RMKT`,
 `MLTF`…), which search uses to prefer a regulated listing over open-market
@@ -167,8 +167,17 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   it for a venue's operating entity: then it is the issuer only when GLEIF
   registers that entity in the ISIN's country (a bank's or an exchange's own
   share; for a receipt, whose field 5 is the underlying issuer's LEI, the
-  underlying's country), and otherwise the issuer is unknown and asked
-  (`issuer_identity`). Field 5 on a receipt is its underlying's issuer (ESMA
+  underlying's country), and otherwise the issuer is unknown. An unknown issuer
+  is decided or asked only where there is something to decide with: when field 5
+  is only a venue operator's LEI, the SEC registrant a line joins to the
+  security by ISIN or share-class FIGI is its issuer (rule `registrant_join@1`,
+  `rule_confirmed`: the operator's LEI says nothing about the issuer, so it
+  cannot contradict the registrant; a LEI the registrant's CIK links to later,
+  as for any SEC line, is the issuer instead); otherwise it is asked
+  (`issuer_identity`) with the lines' issuers and any contested LEIs as
+  candidates, and with no candidate nothing is asked: the security is counted
+  (`issuer_unknown_venue_lei`, 469 on the 2026-09-28 build) because a question
+  that offers nothing to choose cannot be answered. Field 5 on a receipt is its underlying's issuer (ESMA
   Q&A 1503), so a receipt stating a share (field 26) under another LEI that
   issues no share of its own and that GLEIF has not retired contradicts the
   share's field 5: Nestlé S.A.'s
@@ -233,21 +242,50 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   open issuer-identity question with the LEI as its candidate
   (`issuer_identity_name_candidate`; the name-only join once linked Biofrontera
   Inc. to Biofrontera AG), carried in the package's questions file. Conflicts
-  never merge, and a disagreement no rule decides stays unresolved and asked. A
-  CIK that identifiers link to several LEIs links to none and is asked
-  (`cik_lei_conflict`, an `issuer_identity` question with the LEIs as
-  candidates). When several CIKs link one LEI by identifier, the one whose SEC
-  title matches the LEI's names links (FIRDS gives Lee Enterprises' ISIN
-  Berkshire Hathaway's LEI); when several match, none links and each CIK is
-  asked with the LEI as candidate (Vishay Intertechnology and Vishay Precision
-  Group); when none matches, none links (`lei_contested_unnamed`: FIRDS puts
-  venue and data-vendor LEIs such as TP ICAP's or Bloomberg's on US ISINs). Generic words (GROUP, HOLDINGS, BANK…)
-  do not count as a match. Two cases are flagged for review
-  and left as built:
-  an identifier link whose SEC title shares no name word with any GLEIF name of
-  the LEI (`cik_link_suspect`: a rename, or a wrong LEI in FIRDS such as Lee
-  Enterprises under Berkshire Hathaway's), and a CIK-only issuer named like a
-  LEI issuer (`issuer_split_lei_cik`: probably one company split in two).
+  never merge, and a disagreement no rule decides stays unresolved and asked.
+  - **Exchange tickers outrank OTC rows.** A CIK's Nasdaq, NYSE and Cboe
+    tickers are its identifier evidence; its OTC rows count only when it has none
+    from an exchange ticker, since OTC Markets lists foreign lines and unrelated
+    companies' tickers under a registrant's CIK (CIBC's `CNDIF` is Canadian
+    Copper's share class). An OTC row that disagreed is counted
+    (`link_otc_outranked`).
+  - **Lapsed and retired LEIs.** A lapsed LEI (registration not renewed) is
+    common (a fifth of them) and still names its entity, so the sole exact name
+    may pick it (Vishay Intertechnology's); a retired, merged, annulled or
+    inactive one is never picked by a name. The exchange-over-OTC ranking refuses
+    a lapsed exchange LEI, the mark of a redomicile: the OTC evidence stays beside
+    it and the CIK stays asked (Critical Metals Corp.: Nasdaq names the lapsed
+    Ltd, an OTC row the PLC).
+  - A CIK that identifiers link to several LEIs links to the one whose GLEIF
+    name the SEC title is, exactly (`_named`); the other claims are flagged
+    `cik_lei_claim_rejected`. With none, or several, it links to none and is
+    asked (`cik_lei_conflict`, an `issuer_identity` question with the LEIs as
+    candidates). A CIK whose LEIs each issue only funds is a multi-series fund
+    trust (ProShares Trust II: one CIK, a LEI per series) and no issuer of any:
+    no link and no question (`fund_trust`).
+  - When several CIKs link one LEI by identifier, the one whose SEC title is
+    exactly the LEI's name links (FIRDS gives Lee Enterprises' ISIN Berkshire
+    Hathaway's LEI); when several are, or the LEI is retired, none links and each CIK is asked with the LEI as candidate;
+    when none is, none links (`lei_contested_unnamed`: FIRDS puts venue and
+    data-vendor LEIs such as TP ICAP's or Bloomberg's on US ISINs).
+  - **Exact name, not a shared word.** The name test is equality of the
+    normalised full names (`rules.normalized_name`: legal forms and punctuation
+    go, and the SEC's state and ADR markers from the title), against the
+    issuer's current GLEIF names, typed alternatives included (SoftBank Group's
+    Japanese-registered record names it in Latin script). A shared word matched
+    the wrong entity for CANADIAN, ARCELORMITTAL, METALS and VISHAY, so it no
+    longer decides anything; it only raises the review flag below. An issuer
+    GLEIF did not describe has only a FIRDS instrument name, which names a
+    security, not the entity, so it matches no title.
+  - **What a name may do.** A name may break a tie only among candidates the
+    identifiers already name, and may veto a rule (`receipt_name_disagrees`), but
+    never creates a link. Nothing here links on a name; a CIK no identifier links
+    stays CIK-only.
+  Two cases are flagged for review and left as built: an identifier link whose
+  SEC title shares no name word with any GLEIF name of the LEI (`cik_link_suspect`:
+  a rename, or a wrong LEI in FIRDS such as Lee Enterprises under Berkshire
+  Hathaway's), and a CIK-only issuer named like a LEI issuer
+  (`issuer_split_lei_cik`: probably one company split in two).
 - **Receipts.** Every `depositary_receipt_of` names a security of the build. A
   FIRDS receipt's stated underlying ISIN (field 26) is kept when an active
   security of the build carries it and that security's issuer is the
@@ -255,20 +293,32 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
   1503), or both issuers are asked with a shared candidate (Nestlé's ADR and
   CDRs). A stated security of another issuer (14 Canadian receipts stating
   Thermo Fisher) is asked, with it as the first candidate. FIRDS often names a superseded ISIN or one
-  outside the scope; then, and when field 26 states none, the underlying is
-  unknown and asked (`receipt_underlying`, the issuer's shares as candidates).
-  A share whose CFI says share while field 26 states an underlying is asked
-  too (`receipt_conflict`). SEC ADRs and New York registry shares outside
-  FIRDS name no underlying (neither does OpenFIGI), so rule
-  `receipt_issuer_share@1` links a receipt to its issuer's one ordinary
+  outside the scope; then the underlying is unknown and asked
+  (`receipt_underlying`, the issuer's shares as candidates). A share whose CFI
+  says share while field 26 states an underlying is asked too
+  (`receipt_conflict`): a stated ISIN of the same issuer is not settled by
+  its name (two share classes share a name), so it is asked too. SEC ADRs, New York registry
+  shares outside FIRDS, and FIRDS receipts whose field 26 states none (empty,
+  its own ISIN, or the `NOISINFOUND9` placeholder, which is no claim) name no
+  underlying (neither does OpenFIGI), so rule
+  `receipt_issuer_share@2` links a receipt to its issuer's one ordinary
   share that is not inactive, when that share is active with an active ticker
   line (a share search cannot show folds nothing in). An issuer with a
   preferred share or several such shares, with a ticker line or not, gets no
-  edge (`receipt_without_underlying`): a shared issuer never picks a share
-  class (ADR 0044, A3), so a FIRDS class A beside a SEC-only class B no longer
-  takes the receipt. On the 2026-09-28 build the rule links 198 receipts;
-  Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a second share
-  without an active line, get none. The edge is `rule_confirmed` and names its
+  edge (`receipt_without_underlying`; a FIRDS receipt with field 26 empty is
+  then asked as `receipt_underlying`, with the shares as candidates): a shared
+  issuer never picks a share class (ADR 0044, A3), so a FIRDS class A beside a
+  SEC-only class B no longer takes the receipt. A FIRDS receipt's field 5 can be
+  a venue's guess (no admission its issuer requested), which the SEC registrant
+  behind an ADR is not, so a name may veto the rule: when the receipt's own name
+  and the names of its share and issuer share no leading word (Concord Medical
+  Services' ADR under China Medical System Holdings), nothing is decided, the
+  question stays and the receipt is flagged `receipt_name_disagrees` (3 on the
+  2026-09-28 build: Concord, Huazhu, now H World, and a receipt named only
+  "Depositary Receipts"). The name never links. On that build the rule links 247
+  receipts (198 before FIRDS receipts with no stated underlying were
+  included); Inficon, Erste Bank Polska and Anadolu Efes, whose issuer has a
+  second share without an active line, get none. The edge is `rule_confirmed` and names its
   rule in `source_record`: a display default, never a validated fact (ADR
   0044, A6). No source
   states share classes, so the builder writes no `share_class_of`. Core's
@@ -290,6 +340,21 @@ a literal. Core's plugins are all equal: nothing in core ranks one by its name
 assertion's `adapter_version`, `package.json` and the release table, and a
 rule change bumps it with a line here:
 
+- **5** (2026-09-30, roadmap stage 0): fewer avoidable questions, each rule
+  measured on the 2026-09-28 build (1,698 questions before, 1,035 after):
+  a security whose only issuer claim is a venue operator's LEI and that has
+  nothing to choose between is counted, not asked (`issuer_unknown_venue_lei`,
+  469); the SEC registrant joined to such a security is its issuer
+  (`registrant_join@1`, 141); a FIRDS receipt with no stated underlying takes
+  its issuer's one live share as a SEC ADR does, unless the receipt's name
+  disagrees with its issuer's (`receipt_issuer_share@2`, 49 more edges, 3
+  vetoed and asked; the rule id moves to `@2` because its evidence basis
+  now includes FIRDS field 5 on a receipt); a CIK's exchange tickers outrank its
+  OTC rows, the name tie-break between a CIK's several LEIs and between several
+  CIKs' one LEI is exact full-name equality instead of a shared word, no
+  name picks a retired LEI and the exchange ranking refuses a lapsed one
+  (Critical Metals stays asked), and a multi-series fund trust has no CIK-to-LEI link (5 CIKs link a
+  LEI, 1 trust skipped).
 - **4** (2026-09-30, roadmap stage 0; package format 6): rows state the kind of
   evidence they are, never where they came from: an identifier a source
   states is `source_asserted`, a relation a source states (FIRDS field 26)

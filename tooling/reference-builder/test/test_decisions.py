@@ -112,8 +112,10 @@ class ReceiptClassTest(unittest.TestCase):
 class ConflictEvidenceTest(unittest.TestCase):
     def test_every_conflict_question_cites_evidence(self):
         # Core's queue refuses a conflict that cites nothing. NN's GLEIF record registers ASML's CIK at EDGAR beside
-        # ASML's share-class FIGI link (a CIK two LEIs claim), and NN's share states ASML as its underlying.
+        # ASML's share-class FIGI link (a CIK two LEIs claim; the SEC title names neither, or the name would decide),
+        # and NN's share states ASML as its underlying.
         given = inputs()
+        given.sec_tickers = [dataclasses.replace(t, name="ASML AND NN") if t.cik == "937966" else t for t in given.sec_tickers]
         record = firds_record(NN_ISIN, "XAMS", NN_LEI, name="NN GROUP", underlying=ASML_ISIN)
         firds.apply(given.admissions, firds.full_records(stream(fulins([record])), given.scope.cfi_prefixes), Counter())
         registered = gleif.entity_from_api(gleif_item(NN_LEI, "NN Group N.V.", "nl", ra="RA000665", ra_id="937966"))
