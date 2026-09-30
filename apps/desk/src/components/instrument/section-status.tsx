@@ -85,6 +85,13 @@ export function SectionPlaceholder({
       title: `${section.label} is turned off`,
       fallback: `Enable it with "hermes plugins enable ${section.plugin}" for this profile, then reopen this page.`,
     },
+    // A confirmed binding core keeps but does not use: the line no longer
+    // trades and its ticker may name another company, so core's reason says so.
+    suspended: {
+      icon: <CircleSlash />,
+      title: `${section.label} is suspended for this line`,
+      fallback: "",
+    },
     // Core's own answer when no source covers the listing: each source's
     // reason follows.
     not_covering: {

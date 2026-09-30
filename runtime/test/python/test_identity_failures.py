@@ -7,12 +7,13 @@ add their cases here.
 """
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from identity_world import AS_OF, NOW, World, record, vendor
 from test_identity_contracts import identity
 from test_identity_page import plugin
-from pythia_identity_fixture import lifecycle, page, queue, subject as subjects  # noqa: E402
+from pythia_identity_fixture import device, lifecycle, page, queue, store, subject as subjects  # noqa: E402
 
 ERICSSON, ERICSSON_LEI = "issuer:lei:549300W9JLPW15XIFM52", "549300W9JLPW15XIFM52"
 ERIC_A, ERIC_B = "listing:isin:SE0000108649:XSTO:SEK", "listing:isin:SE0000108656:XSTO:SEK"
@@ -99,15 +100,72 @@ class TickerReuseTest(FailureTest):
                 [address] = page.price_sources(goog, [source], **self.world.lookups(goog))
                 self.assertEqual(address["native_id"], trading)
 
-    def test_a_confirmed_binding_on_a_delisted_line_still_serves(self):
-        # Only positive evidence ends a binding (ADR 0037, rule 5): a delisting stops new addresses, not one the user
-        # confirmed while the line traded. (Once the ticker is reused, that binding quotes its new holder: a gap.)
-        symbols = vendor(mic_table={"XNYS": ""})
+    def bind(self, source, subject_id, native_id):
+        ref = identity.ProviderRef(source.manifest.provider, native_id, source.manifest.native[0].native_scope)
         self.world.identity.put_binding(identity.Binding(
-            provider_ref={"provider": "vendor", "native_id": "X", "native_scope": "symbol"}, subject_id=US_STEEL,
-            status="confirmed", authority="user_attested", evidence_ids=["ev:x"], plugin="vendor"))
-        quote = self.world.compose(US_STEEL, [symbols])["quote"]
-        self.assertEqual((quote["status"], quote["binding_status"], quote["binding"]["native_id"]), ("ready", "confirmed", "X"))
+            provider_ref=ref, subject_id=subject_id, status="confirmed", authority="user_attested",
+            evidence_ids=["ev:x"], plugin=source.manifest.plugin))
+        return ref
+
+    def test_a_confirmed_ticker_binding_on_a_delisted_line_is_kept_and_not_used(self):
+        # Only positive evidence ends a binding (ADR 0037, rule 5), so the row stays; but the ticker may be reassigned,
+        # and a saved line would then quote the new company. The binding is suspended: not ready, not routed.
+        for source, native_id in ((vendor(mic_table={"XNYS": ""}), "X"),
+                                  (vendor("ticker_mic", name="by-ticker", scope="ticker_mic"), "X@XNYS")):
+            with self.subTest(scope=source.manifest.native[0].native_scope):
+                ref = self.bind(source, US_STEEL, native_id)
+                steel = self.world.subject(US_STEEL)
+                quote = self.world.compose(US_STEEL, [source])["quote"]
+                self.assertEqual((quote["status"], quote["binding"], quote["reason"]),
+                                 ("suspended", None, "This line no longer trades; its ticker may now name another company"))
+                self.assertEqual(quote["notice"], None)  # the suspended source leads: nothing ranked ahead of it
+                self.assertEqual(page.price_sources(steel, [source], **self.world.lookups(steel)), [])
+                [answer] = page.answers(steel, [source], page.Section.QUOTE, **self.world.lookups(steel))
+                self.assertEqual(answer["status"], "suspended")
+                row = self.world.identity.binding_for(ref)
+                self.assertEqual((row["status"], row["subject_id"]), ("confirmed", US_STEEL))
+
+    def test_a_suspended_binding_is_a_notice_when_another_source_serves(self):
+        # The investor's own binding stops being used: a source ranked behind it serving shows the amber notice.
+        suspended = vendor(mic_table={"XNYS": ""}, name="first")
+        serving = vendor("figi", scope="figi", name="second")
+        self.bind(suspended, US_STEEL, "X")
+        self.bind(serving, US_STEEL, "BBG000000000")
+        quote = self.world.compose(US_STEEL, [suspended, serving])["quote"]
+        self.assertEqual((quote["status"], quote["plugin"], quote["notice"]["plugin"], quote["notice"]["code"]),
+                         ("ready", "pythia-second", "pythia-first", "suspended"))
+
+    def test_a_binding_through_a_permanent_identifier_serves_after_the_delisting(self):
+        # A FIGI or a CAIP-19 is not reassigned with a ticker, so a binding addressed by one keeps serving. The scope is
+        # named after the identifier scheme, as page addressing names it.
+        for scope, native_id in (("figi", "BBG000000000"), ("caip19", "eip155:1/erc20:0x0000000000000000000000000000000000000000")):
+            with self.subTest(scope=scope):
+                source = vendor(scope, scope=scope, name=f"by-{scope}")
+                ref = self.bind(source, US_STEEL, native_id)
+                steel = self.world.subject(US_STEEL)
+                quote = self.world.compose(US_STEEL, [source])["quote"]
+                self.assertEqual((quote["status"], quote["binding_status"], quote["binding"]["native_id"]),
+                                 ("ready", "confirmed", native_id))
+                self.assertEqual(page.price_sources(steel, [source], **self.world.lookups(steel)), [ref.wire()])
+
+    def test_a_confirmed_binding_on_a_line_that_trades_is_used(self):
+        source = vendor(mic_table={"XNAS": ""})
+        self.bind(source, GOOG, "GOOG")
+        goog = self.world.subject(GOOG)
+        quote = self.world.compose(GOOG, [source])["quote"]
+        self.assertEqual((quote["status"], quote["binding_status"], quote["binding"]["native_id"]), ("ready", "confirmed", "GOOG"))
+        self.assertEqual(len(page.price_sources(goog, [source], **self.world.lookups(goog))), 1)
+
+    def test_a_binding_on_a_line_the_reference_dropped_routes_nothing(self):
+        # A build that no longer holds the line leaves the subject unknown, so nothing is served through its binding;
+        # the binding row stays, and lifecycle flags the subject as vanished.
+        ref = self.bind(vendor(mic_table={"XNYS": ""}), US_STEEL, "X")
+        later = self.world.release("reference-20261001", drop=[US_STEEL])
+        done = self.world.rekey(later)
+        self.assertEqual(done["vanished"], 1)
+        with closing(store.open_reference(later, "confirm")) as dropped:
+            self.assertIsNone(device.load_subject(dropped, self.world.identity, US_STEEL, []))
+        self.assertEqual(self.world.identity.bound_subject(ref), US_STEEL)
 
 
 class CurrencyTest(FailureTest):

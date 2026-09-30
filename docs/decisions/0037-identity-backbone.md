@@ -157,7 +157,9 @@ A crosswalk derivation, such as EODHD's `AS` code mapped to XAMS, is T1, not T0.
 4. If resolvers disagree or several candidates qualify, the outcome is
    ambiguous and nothing is confirmed.
 5. Missing evidence never erases a confirmed association; only positive
-   evidence of an end sets `valid_to`.
+   evidence of an end sets `valid_to`. Keeping an association is not routing
+   through it: a delisted line's binding through a reusable address is kept
+   and suspended (see "Consequential failures").
 
 Rules give `rule_confirmed`, the user gives `user_attested` and must cite the
 Desk action behind it, a resolver plugin (such as Jev, off by default) gives
@@ -579,7 +581,17 @@ what an operation does with it. They pin:
   ticker, neither through ADR 0038's MIC table nor through a scope named
   `ticker_mic`, and sends no `ticker_mic` to a resolve, because the ticker may
   name another company now. Its price section says the line no longer trades.
-  A confirmed binding on the line still serves (rule 5).
+  A confirmed binding on the line is kept, never deleted or ended: a delisting
+  is missing evidence, not positive evidence that the binding ended (rule 5).
+  It stops routing instead. When its native scope is reusable, the page's
+  section for that source is `suspended` ("This line no longer trades; its
+  ticker may now name another company"), and `price_sources` and the agent's
+  reads skip it. A scope is reusable unless it is named after a global
+  identifier scheme (`schemes.SINGLE_VALUED`: FIGI, CAIP-19, ISIN and the
+  rest), whose values no provider reassigns with a ticker; a binding through
+  one keeps serving, as does any binding on a line that trades. The reference
+  must mark the line inactive: a build that no longer holds it leaves the
+  subject unknown, so nothing routes through it either.
 - **Conflicting identifiers.** A source still quoting a former ISIN is a
   conflict and re-keys nothing.
 - **Missing currency.** An ISIN keys no listing without a currency, and a line
@@ -598,10 +610,17 @@ Known gaps:
 - An `unqualified` ISIN, such as EODHD's, still binds by `resolve_answer@1`,
   and only read checks label it. Making it a residual would stop every EODHD
   resolve.
-- A confirmed binding to a provider ticker (EODHD `X.US`, a symbol bound by
-  ISIN) keeps serving after its line is delisted, so once the ticker is reused it
-  quotes the new holder. Read checks compare venue and currency only, so they
-  pass it.
+- Closed: a confirmed binding to a provider ticker (EODHD `X.US`, a symbol
+  bound by ISIN) used to keep serving after its line was delisted, so once the
+  ticker was reused it quoted the new holder (read checks compare venue and
+  currency only, so they passed it). It is now suspended (see "Ticker reuse").
+  Still open: a suspended binding has no way back while the reference marks its
+  line inactive. A fresh resolve answer that echoes the line's ISIN or FIGI
+  does not reactivate it, because reactivating for that answer's lifetime needs
+  a stored expiry and no resolve runs for a suspended binding today. A
+  provider's own permanent id (a broker's contract id) is suspended like a
+  ticker until a contract can declare it permanent. The new holder of the
+  ticker meets the old binding as a conflict, which the investor settles.
 - Market movers link a row's ticker and venue to any reference line with that
   `ticker_mic`, a delisted one included.
 - Ticker reuse cannot be seen on a record without identifiers, because names
