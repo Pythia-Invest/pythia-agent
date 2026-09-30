@@ -54,6 +54,7 @@ class StoreFixture(QueueFixture):
         self.identity.db.close()
         self.legacy, self.target = self.root / "legacy", self.root / "store"
         self.identity = store.IdentityStore(self.legacy)
+        (self.legacy / reference_package.MOVE_LOCK).unlink()  # an earlier Pythia's directory had no opener's lock
         self.addCleanup(lambda: self.identity.db.close())
         self.enterContext(unittest.mock.patch.dict(os.environ, {"PYTHIA_DATA_ROOT": self.tmp.name}))
 

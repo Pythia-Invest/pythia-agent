@@ -35,7 +35,13 @@ def disagree(assertions: Iterable[IdentifierAssertion]) -> bool:
 
 
 def weigh(assertions: Iterable[IdentifierAssertion], granted: str, as_of: str | None = None) -> dict[str, Any]:
-    """One contributor's assertions at the trust level `granted` to it, in the order they are stored.
+    """One contributor's assertions at the trust level `granted` to it (`weigh_each`)."""
+    return weigh_each(((item, granted) for item in assertions), as_of)
+
+
+def weigh_each(assertions: Iterable[tuple[IdentifierAssertion, str]], as_of: str | None = None) -> dict[str, Any]:
+    """Assertions, each at the trust level granted to its contributor (a device subject's plugins and the package),
+    in the order they are stored.
 
     `evidence` holds the confirm-level ones (they prove and block), `shown` the display-level ones. `values` gives
     each scheme the value its current confirm-level assertions agree on, else the one its display-level ones agree
@@ -43,7 +49,8 @@ def weigh(assertions: Iterable[IdentifierAssertion], granted: str, as_of: str | 
     confirm-level sources disagree (`disagree`) to those assertions: it has no value. Display-level sources that
     disagree give none and contest nothing."""
     items = list(assertions)
-    evidence, shown = (items, []) if granted == CONFIRM else ([], items)
+    evidence = [item for item, granted in items if granted == CONFIRM]
+    shown = [item for item, granted in items if granted != CONFIRM]
     today = as_of or date.today().isoformat()
     values: dict[str, str] = {}
     contested: dict[str, list[IdentifierAssertion]] = {}

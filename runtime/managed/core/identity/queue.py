@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Any, Iterable
 
-from . import build_questions
+from . import build_questions, device
 from .build_questions import BUILD
 from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
@@ -65,8 +65,8 @@ def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict) -> dict:
         # On an open question: the agent's suggestion, which waits for the user.
         "agent_answer": _suggestion(store, item) if item["state"] == "open" else None,
         "label": label, "question": question, "record": _record(record) if record else None,
-        "subjects": [_describe(ref, subject) for subject in item["subject_ids"]],
-        "candidates": [_describe(ref, subject) for subject in item["candidate_ids"]],
+        "subjects": [_describe(store, ref, subject) for subject in item["subject_ids"]],
+        "candidates": [_describe(store, ref, subject) for subject in item["candidate_ids"]],
         "settled_by": item["settled"]["by"] if item["state"] != "open" and item["settled"] else None,
         "settled_answer": {key: item["settled"][key] for key in ("relation", "chosen_id")}
         if item["state"] != "open" and item["settled"] else None,
@@ -114,10 +114,11 @@ def inspect(store: IdentityStore, ref: sqlite3.Connection, item_id: str) -> dict
 
 def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resolver: ResolverKind, relation: str,
            chosen_id: str | None, now: str, as_of: str, rationale: str | None = None,
-           user_turn: str | None = None) -> dict:
+           user_turn: str | None = None, plugins: Iterable[PluginInfo] = ()) -> dict:
     """Decide and record one agent or user verdict.
 
-    The user's confirmed answer binds the record, a "not a match" dismisses the question. An answer to a reference
+    The user's confirmed answer binds the record to the chosen reference or device subject (whose device evidence
+    counts at its `plugins`' trust levels), a "not a match" dismisses the question. An answer to a reference
     build question binds nothing: its resolved question is the local override reads apply (`build_questions`), in
     place of the user's earlier answer about the same fact. Only unanimous confirm-level identifier evidence refuses
     the user (`decide`). The agent only suggests (ADR 0044 ruling 8): its answer is recorded, the question stays
@@ -143,12 +144,12 @@ def submit(store: IdentityStore, ref: sqlite3.Connection, *, item_id: str, resol
     except ValueError as error:
         raise Refused(str(error)) from None
     record = _claim(raw) if raw else None
-    subject = load_subject(ref, chosen_id) if chosen_id else None
+    subject = device.load_subject(ref, store, chosen_id, plugins) if chosen_id else None
     if chosen_id and subject is None and not (built and build_questions.own_identifier(row)):
-        raise Refused("The chosen subject is not in the reference data.")  # a contested value need not name one
+        raise Refused("The chosen subject is not known on this device.")  # a contested value need not name one
     # Against "none", every candidate's evidence counts, each candidate's on its own (`pools`).
     subjects = [subject] if subject else [] if chosen_id else [
-        found for other in item.candidate_ids if (found := load_subject(ref, other))]
+        found for other in item.candidate_ids if (found := device.load_subject(ref, store, other, plugins))]
     pools = [found["evidence"] for found in subjects] if not chosen_id and subjects else [
         [assertion for found in subjects for assertion in found["evidence"]]]
     prior = [] if user else [_verdict(entry, item_id) for entry in store.history(row)
@@ -224,11 +225,12 @@ def settle_by_rules(store: IdentityStore, ref: sqlite3.Connection, plugins: Iter
 
     New identifier proof (a reference build, another plugin's binding) settles an item: its binding is
     written with a recorded rules verdict. A changed question supersedes the item. Returns settled ids."""
+    plugins = list(plugins)
     usable = {info.manifest.plugin: info for info in plugins if info.enabled and not info.missing}
     settled = []
     for row in items:
         try:
-            if _settle_one(store, ref, usable.get(row["plugins"][0]), row, now=now, as_of=as_of):
+            if _settle_one(store, ref, usable.get(row["plugins"][0]), row, now=now, as_of=as_of, plugins=plugins):
                 settled.append(row["id"])
         except (ValueError, KeyError, TypeError):  # one unreadable stored claim never stops the rest
             continue
@@ -242,12 +244,12 @@ class _Unbound(Exception):
 
 
 def _settle_one(store: IdentityStore, ref: sqlite3.Connection, info: PluginInfo | None, row: dict, *, now: str,
-                as_of: str) -> bool:
+                as_of: str, plugins: list[PluginInfo]) -> bool:
     raw = _raw(store, row)
     if row["state"] != "open" or info is None or raw is None or len(row["candidate_ids"]) != 1:
         return False
     target = row["candidate_ids"][0]
-    subject = load_subject(ref, target)
+    subject = device.load_subject(ref, store, target, plugins)  # a reference or a device subject
     if subject is None:
         return False
     record = _claim(raw)
@@ -313,8 +315,8 @@ def _record(raw: dict) -> dict:
             **{key: attributes.get(key) for key in ("name", "ticker", "mic", "currency", "kind")}}
 
 
-def _describe(ref: sqlite3.Connection, subject_id: str) -> dict:
-    subject = load_subject(ref, subject_id)
+def _describe(store: IdentityStore, ref: sqlite3.Connection, subject_id: str) -> dict:
+    subject = device.load_subject(ref, store, subject_id)
     if subject is None:
         return {"id": subject_id, "level": subject_kind(subject_id), "known": False}
     view = subject["view"]
