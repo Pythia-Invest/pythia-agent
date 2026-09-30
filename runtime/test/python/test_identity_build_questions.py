@@ -176,8 +176,22 @@ class SurfaceTest(BuildQuestionFixture):
         [item] = json.loads(self.queue_ops.read_queue(self.ops, {}))["data"]["items"]
         self.assertTrue(item["question"].startswith("Which company is this?"))
         self.assertIn(f"LEI {OPERATOR}", item["question"])
+        self.assertIn("CIK 0001234567 is tied to more than one LEI", item["question"])
         self.assertEqual([answer["chosen_id"] for answer in item["answers"] if answer["relation"] == "same_issuer"],
                          [ISSUER, OPERATOR_ISSUER])
+
+    def test_two_registrants_one_lei_claims_are_asked_in_words_that_tell_them_apart(self):
+        """Vishay Intertechnology and Vishay Precision Group: each CIK is asked about the one LEI both claim. The
+        question names its registrant and why the sources cannot decide; a security's still names only the LEI."""
+        def text(subject, values=(LEI,), scheme="lei"):
+            return self.build_questions.asked({"reason": "identifier", "scheme": scheme, "subject_ids": [subject],
+                                               "candidate_ids": [ISSUER], "values": list(values)})[0]
+        first, second = text(REGISTRANT), text("issuer:cik:0007654321")
+        self.assertNotEqual(first, second)
+        for question, cik in ((first, "0001234567"), (second, "0007654321")):
+            self.assertIn(f"CIK {cik} and at least one other SEC registrant are tied to LEI {LEI}", question)
+            self.assertIn("their names do not settle which of them it belongs to", question)
+        self.assertEqual(text(RECEIPT), f"Who issued this security? Its sources name LEI {LEI}, which does not decide it.")
 
     def test_an_issuer_candidate_shows_the_companys_identifiers_not_a_securitys(self):
         self.install([issuer_question()], self.world(issuer=False))

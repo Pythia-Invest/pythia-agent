@@ -121,6 +121,15 @@ def related(ref: sqlite3.Connection, subject_ids: list[str]) -> list[dict[str, A
             for other, type, direction in out]
 
 
+def name_of(ref: sqlite3.Connection, subject_id: str) -> str | None:
+    """The reference's name for a security or issuer, and for a listing the name its page shows: its security's."""
+    found = ref.execute(
+        "SELECT name FROM securities WHERE id = :id UNION ALL SELECT name FROM issuers WHERE id = :id UNION ALL"
+        " SELECT s.name FROM listings l JOIN securities s ON s.id = l.security_id WHERE l.id = :id",
+        {"id": subject_id}).fetchone()
+    return found[0] if found else None
+
+
 def _assertion(row: sqlite3.Row) -> IdentifierAssertion:
     """A stored assertion; its authority is the kind of evidence it is (reference.sql admits kinds only)."""
     return IdentifierAssertion(

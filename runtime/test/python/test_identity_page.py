@@ -8,6 +8,7 @@ from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
 from pythia_identity_fixture import markets, page, store  # noqa: E402
+from pythia_identity_fixture import subject as subjects  # noqa: E402
 
 ASML = "listing:isin:NL0010273215:XAMS:EUR"
 BTC = "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
@@ -82,6 +83,14 @@ class PageTest(Fixture):
     def test_a_security_page_names_the_listing_it_prices(self):
         view = page.load_subject(self.ref, "security:isin:NL0010273215")["view"]
         self.assertEqual((view["subject"]["level"], view["subject"]["listing"]), ("security", ASML))
+
+    def test_a_reference_listing_is_named_as_its_page_names_it(self):
+        """A pool's `market_asset` ends at a token's listing; its link reads as the token, never as its ID."""
+        listing = "listing:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0"
+        self.assertEqual(subjects.name_of(self.ref, listing), "Bitcoin")
+        self.assertEqual(subjects.name_of(self.ref, listing), page.load_subject(self.ref, listing)["view"]["subject"]["name"])
+        self.assertEqual(subjects.name_of(self.ref, f"issuer:lei:{LEI}"), "ASML Holding N.V.")
+        self.assertIsNone(subjects.name_of(self.ref, "listing:figi:BBG000000000"))
 
     def test_sections_use_derived_addresses_without_a_call(self):
         _subject, sections = self.compose(ASML, [plugin("gleif", operations={"profile": "pythia_gleif_profile"}),
@@ -349,3 +358,15 @@ class MarketPages(Fixture):
         contract["concepts"] = {"profile": {"level": "market", "via": "market", "operations": {"fields": "p"}}}
         with self.assertRaisesRegex(identity.ManifestError, r"^concepts\.profile\.level"):
             identity.validate_manifest(contract)
+
+
+class SourceLabelTest(unittest.TestCase):
+    def test_every_shipped_plugin_has_a_name_to_show(self):
+        """The label is what Settings, search rows and source lines show for a plugin; a provider missing from
+        core's table showed its lowercase slug (DeFiLlama as `defillama`)."""
+        shipped = sorted((Path(page.__file__).parents[2] / "plugins").glob("*/contract.json"))
+        manifests = [identity.validate_manifest(json.loads(path.read_text(encoding="utf-8"))) for path in shipped]
+        self.assertIn("defillama", {manifest.provider for manifest in manifests})
+        self.assertEqual([manifest.provider for manifest in manifests if manifest.provider not in page.LABELS], [])
+        defillama = next(manifest for manifest in manifests if manifest.provider == "defillama")
+        self.assertEqual(page.PluginInfo(key="pythia-defillama", manifest=defillama).label, "DeFiLlama")

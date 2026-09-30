@@ -27,6 +27,22 @@ function levelName(level: string) {
   return level.replaceAll("_", " ");
 }
 
+/** What the page says when no section could serve the subject. A pool or a
+ * protocol has no price or data concept yet, so the note says that instead of
+ * suggesting an installable plugin; other subjects lack a covering source. */
+export function NoDataNote({ level }: { level: string }) {
+  return (
+    <p
+      data-slot="instrument-no-data"
+      className="text-body text-foreground-secondary"
+    >
+      {level === "market" || level === "protocol"
+        ? `Pythia has no price or data for this ${level} yet.`
+        : `No installed plugin can show data for this ${levelName(level)} yet.`}
+    </p>
+  );
+}
+
 /** Core's reason often repeats the title ("X needs configuration: add k to
  * f"); keep only what the title does not already say. */
 function reasonDetail({ reason, label }: SubjectSection) {
