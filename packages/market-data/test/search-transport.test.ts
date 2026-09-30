@@ -43,7 +43,6 @@ const response: SearchResponse = {
       ],
     },
   ],
-  lookup: [],
 };
 
 describe("search transport", () => {
@@ -109,12 +108,32 @@ describe("search transport", () => {
           ],
         },
       ],
-      lookup: [{ plugin: "pythia-openfigi", label: "OpenFIGI" }],
     };
     const { value } = transport({ outcome: "ok", data: found });
     await expect(
       transportSearch(value)({ query: "navi", limit: 20 }, signal),
     ).resolves.toEqual(found);
+  });
+
+  it("passes the delisted filter through and accepts a delisted line", async () => {
+    const [group] = response.groups;
+    const [line] = group?.rows ?? [];
+    const found: SearchResponse = {
+      groups: [
+        {
+          ...group,
+          rows: [{ ...line, ticker: null, delisted: true, no_ticker: true }],
+        },
+      ],
+    } as SearchResponse;
+    const { value, requests } = transport({ outcome: "ok", data: found });
+    await expect(
+      transportSearch(value)(
+        { query: "asml", limit: 20, include_delisted: false },
+        signal,
+      ),
+    ).resolves.toEqual(found);
+    expect(requests[0]?.arguments).toMatchObject({ include_delisted: false });
   });
 
   it("rejects failed or malformed results instead of showing them", async () => {

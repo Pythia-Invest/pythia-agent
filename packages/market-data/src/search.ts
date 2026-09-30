@@ -3,7 +3,8 @@
  * its request and response types live.
  *
  * Search is one read of the device's directory index: no connector is called
- * while typing, nothing is reconciled and rows carry no prices. The core ranks
+ * while typing or by any search action, nothing is reconciled and rows carry no
+ * prices. A plugin's own functions live on its own page. The core ranks
  * groups (a company, a fund, a crypto asset) and orders each group's listings,
  * relevant ones first; clients keep both orders. The directory-search backend
  * implements this shape; change it here first.
@@ -39,8 +40,8 @@ export const searchRowSchema = z.object({
    * shows its price; it is never a provider symbol. */
   id: text(256),
   /** Subject id of the instrument the listing belongs to (a receipt's is the
-   * share it folds into), which the instrument page is; absent when unknown,
-   * as for an explicit lookup's answer. */
+   * share it folds into), which the instrument page is; absent when
+   * unknown. */
   instrument: text(256).nullish(),
   /** Absent for a subject that has none, such as a pool or a protocol. */
   ticker: text(64).nullable(),
@@ -57,6 +58,14 @@ export const searchRowSchema = z.object({
   /** The plugin that introduced the subject, as its label; absent for the
    * reference's own subjects. */
   source: text(128).nullish(),
+  /** The line no longer trades (its source marks it inactive). Absent for a
+   * live line. Core ranks delisted lines below live ones; the instrument
+   * page still refuses a live price through them. */
+  delisted: z.boolean().optional(),
+  /** The listed security has no line with a ticker: this is its one row,
+   * found by name or identifier. Absent otherwise. Ranked below lines that
+   * have a ticker. */
+  no_ticker: z.boolean().optional(),
 });
 export type SearchRow = z.infer<typeof searchRowSchema>;
 
@@ -84,11 +93,8 @@ export type SearchGroup = z.infer<typeof searchGroupSchema>;
 
 export const searchResponseSchema = z.object({
   groups: z.array(searchGroupSchema).max(50),
-  /** Enabled plugins offering an explicit single-provider lookup. */
-  lookup: z.array(z.object({ plugin: text(64), label: text(128) })).max(8),
 });
 export type SearchResponse = z.infer<typeof searchResponseSchema>;
-export type LookupOffer = SearchResponse["lookup"][number];
 
 export type SearchRequest = {
   query: string;
@@ -99,9 +105,6 @@ export type SearchRequest = {
   kinds?: InstrumentKind[];
   /** Maximum number of groups; a group read ignores it. */
   limit?: number;
+  /** Delisted lines are included unless this is false. */
+  include_delisted?: boolean;
 };
-
-/** One explicit lookup, in exactly one plugin, of a query the directory does
- * not hold. It is never issued while typing or to several plugins at once, and
- * answers with groups whose row ids are subject ids. */
-export type LookupRequest = { plugin: string; query: string };

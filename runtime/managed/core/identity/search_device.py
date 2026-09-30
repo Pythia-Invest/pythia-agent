@@ -14,8 +14,7 @@ enabled plugins state (`additions`):
 Only records a plugin still offers count (placed `joined`, `introduced` or `conflict`). A disabled plugin adds nothing:
 its subjects leave search, and their pages still open by ID. The additions are laid over the reference's lines in place
 (`search_index.Index.renew`) whenever the store's `generation` or the enabled plugins change (`key`); the
-reference's part is rebuilt only with the reference file. `offers` names the lookups a search
-answer offers.
+reference's part is rebuilt only with the reference file. A subject marked inactive is a line too, flagged `delisted`.
 """
 from __future__ import annotations
 
@@ -37,7 +36,6 @@ from .vocabulary import FOLD
 SEARCHED = ("isin", "lei", "cik", "figi", "composite_figi", "share_class_figi", "caip19")  # the directory's identifiers
 FIGIS = ("figi", "share_class_figi", "composite_figi")  # a FIGI's text does not say its level
 NAMED_KINDS = (Kind.MARKET, Kind.PROTOCOL, Kind.INDEX, Kind.FX)  # search's kinds outside the hierarchy; others: other
-OFFERS = 8  # lookups one answer offers at most (packages/market-data/src/search.ts)
 OFFERED = json.dumps(["joined", "introduced", "conflict"])  # placings of a record its plugin still offers
 
 
@@ -101,7 +99,7 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
     for subject in sorted(touched):
         row = every.get(subject)
         kind = Kind(row["kind"]) if row is not None else None
-        if row is None or row["status"] == "inactive" or kind in (Kind.ISSUER, Kind.SECURITY, Kind.COMPOSITE) \
+        if row is None or kind in (Kind.ISSUER, Kind.SECURITY, Kind.COMPOSITE) \
                 or device.in_reference(ref, subject):  # a line is a listing or a subject outside the hierarchy
             continue
         line, size = _listing(ref, row, every) if kind is Kind.LISTING else _own(row, kind)
@@ -112,18 +110,10 @@ def additions(ref: sqlite3.Connection, *, store: IdentityStore, plugins: Iterabl
     return out
 
 
-def offers(query: str, plugins: Iterable) -> list[dict[str, str]]:
-    """The lookups a search answer offers (ADR 0037, "Look up in X"): each enabled, configured plugin whose resolve
-    takes the identifier the query is (`identifier`). A text query offers none."""
-    return [{"plugin": info.key, "label": info.label} for info in plugins
-            if info.enabled and not info.missing and info.manifest.resolve is not None
-            and info.manifest.resolve.operation in info.operations
-            and identifier(query, info.manifest.resolve) is not None][:OFFERS]
-
-
 def identifier(query: str, resolve: Any) -> tuple[str, str] | None:
     """The scheme and value of the identifier the query is (`search.classify`) in a scheme `resolve` takes (a FIGI in
-    any FIGI scheme, since its text does not say its level), else None: text, or a malformed identifier."""
+    any FIGI scheme, since its text does not say its level), else None: text, or a malformed identifier. It is
+    `identity-lookup`'s rule; search itself offers no lookup."""
     kind, value = classify(query)
     accepted = {str(item) for item in resolve.input_schemes}
     scheme = next((name for name in (FIGIS if kind == "figi" else (kind,)) if name in accepted), None)
@@ -146,13 +136,16 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
     the reference's), else its own record's."""
     attributes, parent = row["attributes"], row["parent_id"]
     security = every.get(parent) if parent else None
+    delisted = row["status"] == "inactive"  # the line's own status, as the page's price guards read it
+    dormant = delisted or (security is not None and security["status"] == "inactive")
     if security is not None:
         issuer, name, size = security["parent_id"], security["name"], notability(security["attributes"].get("rank"))
         kind, asset_class = security["attributes"].get("kind"), security["attributes"].get("asset_class")
     else:
-        found = ref.execute("SELECT issuer_id, name, kind, asset_class, rank FROM securities WHERE id = ?",
+        found = ref.execute("SELECT issuer_id, name, kind, asset_class, rank, status FROM securities WHERE id = ?",
                             (parent,)).fetchone() if parent else None
-        issuer, name, kind, asset_class, rank = found or (None,) * 5
+        issuer, name, kind, asset_class, rank, status = found or (None,) * 6
+        dormant = dormant or status == "inactive"
         size = logrank(rank)
     # Under a known security, its kind and class are the security's: a plugin's line never regroups it.
     asset_class = asset_class or attributes.get("asset_class")
@@ -160,7 +153,7 @@ def _listing(ref: sqlite3.Connection, row: Mapping[str, Any], every: Mapping[str
     operating, ticker = attributes.get("operating_mic") or attributes.get("mic"), attributes.get("ticker")
     line = (row["id"], parent or row["id"], None, attributes.get("mic") or operating, operating, ticker,
             attributes.get("currency"), None, 0, issuer, name or row["name"] or ticker or row["id"], kind, asset_class,
-            None, 0)
+            None, 0, int(delisted), int(dormant))
     return line, size if size is not None else notability(attributes.get("rank"))
 
 
@@ -169,7 +162,7 @@ def _own(row: Mapping[str, Any], kind: Kind) -> tuple[tuple, float | None]:
     attributes = row["attributes"]
     line = (row["id"], row["id"], None, None, None, attributes.get("ticker"), attributes.get("currency"), None, 1, None,
             row["name"] or row["id"], str(kind) if kind in NAMED_KINDS else "other", attributes.get("asset_class"),
-            None, 0)
+            None, 0, *[int(row["status"] == "inactive")] * 2)
     return line, notability(attributes.get("rank"))
 
 

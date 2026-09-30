@@ -268,7 +268,6 @@ def choose(ready: list, skipped: list, wanted: str | None, concept: str, infos: 
 def find(arguments: dict, **_context: Any) -> str:
     arguments = {**arguments, "limit": min(int(arguments.get("limit") or 10), 25)}
     result = json.loads(identity().search(arguments))
-    (result.get("data") or {}).pop("lookup", None)  # Desk's single-provider lookup offer
     if result.get("outcome") == "ok":
         result["next"] = ("pythia_instrument for a row's identifiers, listings and sources; pythia_prices, "
                           "pythia_filings and the provider tools it lists take its subject id.")

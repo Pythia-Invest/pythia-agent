@@ -300,3 +300,155 @@ class SearchTest(Fixture):
         self.assertEqual([(row["id"], row["name"]) for row in company["rows"]][:2],
                          [("listing:bank:common", "Bank Corp"), ("listing:bank:preferred", "x")])  # its own name
         self.assertEqual([row["id"] for row in etn["rows"]], ["listing:bank:etn"])
+
+    # ---- delisted lines (ADR 0044 amendment of 2026-09-30): found, flagged, ranked below, and never priced ----------------
+
+    MILK, MILK_SECURITY = "listing:isin:NL0009508712:XWAR:EUR", "security:isin:NL0009508712"
+    MILK_LINE = "listing:milk-adr"
+
+    def delist(self):
+        """Milkiland (delisted in Warsaw, security and line inactive), a live company named like it, a live receipt of
+        its shares, and a delisted Frankfurt line of Shell."""
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XWAR", "XWAR", "Warsaw", "PL", "RMKT"), ("XFRA", "XFRA", "Frankfurt", "DE", "NSPD")])
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank)"
+                           " VALUES (?, NULL, ?, 'equity', ?, ?, ?)",
+                           [(self.MILK_SECURITY, "Milkiland", "ordinary", "inactive", None),
+                            ("security:milkwood", "Milkwood Holdings", "ordinary", "active", 1),
+                            ("security:milk-adr", "Milkiland ADR", "depositary_receipt", "active", None)])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary, status)"
+                           " VALUES (?, ?, ?, ?3, ?, 'EUR', 0, ?)",
+                           [(self.MILK, self.MILK_SECURITY, "XWAR", "MLK", "inactive"),
+                            ("listing:milkwood", "security:milkwood", "XNYS", "MWH", "active"),
+                            (self.MILK_LINE, "security:milk-adr", "XNYS", "MLKA", "active"),
+                            ("listing:shell:xfra", "security:isin:GB00BP6MXD84", "XFRA", "SHLD", "inactive")])
+            db.execute("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, authority, source, plugin,"
+                       " adapter_version, retrieved_at) VALUES ('ev:milk-isin', ?, 'security', 'isin', 'NL0009508712',"
+                       " 'source_asserted', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')", (self.MILK_SECURITY,))
+            db.execute("INSERT INTO relations (evidence_id, type, from_id, to_id, authority, source, plugin, adapter_version,"
+                       " retrieved_at) VALUES ('ev:milk-adr', 'depositary_receipt_of', 'security:milk-adr', ?,"
+                       " 'source_asserted', 'fixture', 'pythia', '1', '2026-09-28T00:00:00Z')", (self.MILK_SECURITY,))
+        return search.Directory(self.ref)
+
+    def test_a_delisted_line_is_found_by_name_isin_and_ticker_and_flagged(self):
+        directory = self.delist()
+        for query in ("milkiland", "NL0009508712", "MLK"):
+            with self.subTest(query=query):
+                groups = directory.search(query, limit=5)["groups"]
+                row = next(row for group in groups for row in group["rows"] if row["id"] == self.MILK)
+                self.assertEqual({key: row[key] for key in ("ticker", "name", "mic", "delisted")},
+                                 {"ticker": "MLK", "name": "Milkiland", "mic": "XWAR", "delisted": True})
+        # A live line carries no flag at all.
+        live = directory.search("milkwood", limit=1)["groups"][0]["rows"][0]
+        self.assertEqual((live["id"], "delisted" in live), ("listing:milkwood", False))
+
+    def test_a_delisted_match_ranks_below_a_live_one_however_well_it_matches(self):
+        # The delisted line is the exact name and ticker; the live one only starts with the name, but is notable.
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank)"
+                           " VALUES (?, NULL, ?, 'equity', 'ordinary', ?, ?)",
+                           [("security:zorp", "Zorp", "inactive", None), ("security:zorpex", "Zorpex Holdings", "active", 1)])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, status)"
+                           " VALUES (?, ?, 'XNYS', 'XNYS', ?, 'USD', ?)",
+                           [("listing:zorp", "security:zorp", "ZORP", "inactive"),
+                            ("listing:zorpex", "security:zorpex", "ZRX", "active")])
+        ranked = [group["rows"][0]["id"] for group in search.Directory(self.ref).search("zorp", limit=5)["groups"]]
+        self.assertEqual(ranked, ["listing:zorpex", "listing:zorp"])
+
+    def test_a_group_lists_its_live_lines_before_its_delisted_ones_and_a_filter_leaves_them_out(self):
+        directory = self.delist()
+        group, = directory.group("issuer:lei:21380068P1DRHMJ8KU70")["groups"]
+        self.assertEqual([row["id"] for row in group["rows"]], [SHELL, SHELL_OTC, SHEL, "listing:shell:xfra"])
+        self.assertEqual([row.get("delisted") for row in group["rows"]], [None, None, None, True])
+        hidden, = directory.group(group["id"], delisted=False)["groups"]
+        self.assertEqual(([row["id"] for row in hidden["rows"]], hidden["listings"]), ([SHELL, SHELL_OTC, SHEL], 3))
+        # A live line represents the company even when the query names the delisted line's venue.
+        self.assertEqual(leads(directory, "shell frankfurt", limit=1), [SHELL])
+        # The delisted ticker alone finds the company, unless delisted lines are hidden.
+        found, = directory.search("SHLD", limit=5)["groups"]
+        self.assertEqual([(row["id"], row.get("delisted")) for row in found["rows"]], [("listing:shell:xfra", True)])
+        self.assertEqual(directory.search("SHLD", limit=5, delisted=False)["groups"], [])
+        self.assertEqual(directory.search("milkiland", limit=5, delisted=False)["groups"][0]["rows"][0]["id"], self.MILK_LINE)
+
+    def test_delisted_is_the_lines_own_status_so_a_live_line_under_an_inactive_security_is_not_marked(self):
+        # AvePoint's shape in the 2026-09-28 build: an active line under a security the builder marked inactive. The
+        # page's price guards read the line alone, so search marks a line delisted by its own status alone.
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank) VALUES"
+                       " ('security:avept', NULL, 'AvePoint', 'equity', 'ordinary', 'inactive', 1)")
+            db.execute("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, status) VALUES"
+                       " ('listing:avept', 'security:avept', 'XNYS', 'XNYS', 'AVPT', 'USD', 'active')")
+        directory = search.Directory(self.ref)
+        for query in ("avpt", "avepoint"):
+            group = directory.search(query, limit=3)["groups"][0]
+            self.assertEqual([(row["id"], "delisted" in row) for row in group["rows"]], [("listing:avept", False)])
+        self.assertEqual(directory.search("avepoint", limit=3, delisted=False)["groups"][0]["rows"][0]["id"], "listing:avept")
+        # It ranks as a live line, and the page's lines and price pick leave it out as they always did.
+        self.assertEqual(directory.instrument_listings("security:avept"), [])
+
+    def test_a_delisted_line_never_joins_the_pages_lines_or_their_pick(self):
+        directory = self.delist()
+        # The page lists and prices only live lines: a delisted security has none, and a delisted Frankfurt line of
+        # Shell is not one of Shell's.
+        self.assertEqual(directory.instrument_listings(self.MILK_SECURITY), [])
+        shell = [item["id"] for item in directory.instrument_listings("security:isin:GB00BP6MXD84")]
+        self.assertEqual(shell, [SHELL, SHELL_OTC, SHEL])
+        # A live receipt of a delisted share stays its own instrument, priced through its own line.
+        receipt, = directory.instrument_listings("security:milk-adr")
+        self.assertEqual((receipt["id"], receipt["folded"]), (self.MILK_LINE, False))
+        self.assertEqual([item["id"] for item in directory.other_instruments("security:milk-adr")], [])
+
+    # ---- securities whose lines have no ticker: one row each, found by name and ISIN, ranked below ticker lines ------------
+
+    def tickerless(self):
+        """Quux (live, two lines without a ticker, one flagged primary), Oldco (delisted, one), Quuxworth (has a ticker), and Zeta (a ticker line and a line without one)."""
+        with contextlib.closing(sqlite3.connect(self.path)) as db, db:
+            db.executemany("INSERT OR IGNORE INTO venues (mic, operating_mic, name, country, category) VALUES (?, ?, ?, ?, ?)",
+                           [("XBUL", "XBUL", "Bulgarian Stock Exchange", "BG", "RMKT")])
+            db.executemany("INSERT INTO securities (id, issuer_id, name, asset_class, kind, status, rank)"
+                           " VALUES (?, NULL, ?, 'equity', 'ordinary', ?, ?)",
+                           [("security:isin:BG1100087987", "Quux", "active", None),
+                            ("security:isin:BG1100000001", "Oldco", "inactive", None),
+                            ("security:quuxworth", "Quuxworth Holdings", "active", 50000),
+                            ("security:zeta", "Zeta", "active", None)])
+            db.executemany("INSERT INTO listings (id, security_id, mic, operating_mic, ticker, currency, is_primary, status)"
+                           " VALUES (?, ?, ?, ?3, ?, 'EUR', ?, ?)",
+                           [("listing:quux:xetr", "security:isin:BG1100087987", "XETR", None, 0, "active"),
+                            ("listing:quux:xbul", "security:isin:BG1100087987", "XBUL", None, 1, "active"),
+                            ("listing:oldco:xbul", "security:isin:BG1100000001", "XBUL", None, 0, "inactive"),
+                            ("listing:quuxworth", "security:quuxworth", "XNYS", "QWX", 0, "active"),
+                            ("listing:zeta:xnys", "security:zeta", "XNYS", "ZETA", 0, "active"),
+                            ("listing:zeta:xbul", "security:zeta", "XBUL", None, 0, "active")])
+            db.executemany("INSERT INTO assertions (evidence_id, subject_id, level, scheme, value, authority, source, plugin,"
+                           " adapter_version, retrieved_at) VALUES (?, ?, 'security', 'isin', ?, 'source_asserted', 'fixture',"
+                           " 'pythia', '1', '2026-09-28T00:00:00Z')",
+                           [("ev:quux", "security:isin:BG1100087987", "BG1100087987"),
+                            ("ev:oldco", "security:isin:BG1100000001", "BG1100000001")])
+        return search.Directory(self.ref)
+
+    def test_a_security_with_no_ticker_is_found_by_name_and_isin_as_one_marked_row(self):
+        directory = self.tickerless()
+        for query in ("quux", "BG1100087987"):
+            with self.subTest(query=query):
+                group = next(group for group in directory.search(query, limit=5)["groups"] if group["id"] == "security:isin:BG1100087987")
+                # One row for the security, through its primary line; the ticker column is empty and the row says why.
+                self.assertEqual([(row["id"], row["ticker"], row["no_ticker"], "delisted" in row) for row in group["rows"]],
+                                 [("listing:quux:xbul", None, True, False)])
+                self.assertEqual(group["listings"], 1)
+        old, = directory.search("BG1100000001", limit=5)["groups"]  # delisted too: both marks
+        self.assertEqual([(row["ticker"], row["no_ticker"], row["delisted"]) for row in old["rows"]], [(None, True, True)])
+        self.assertEqual(directory.search("oldco", limit=5, delisted=False)["groups"], [])
+        # A ticker line carries no mark, and a line with no ticker of a security that has one adds no row.
+        zeta, = directory.search("zeta", limit=5)["groups"]
+        self.assertEqual([(row["id"], "no_ticker" in row) for row in zeta["rows"]], [("listing:zeta:xnys", False)])
+
+    def test_a_tickerless_row_ranks_below_lines_with_tickers_however_well_it_matches(self):
+        directory = self.tickerless()  # "quux" is Quux's exact name; Quuxworth only starts with it and is obscure
+        ranked = [group["id"] for group in directory.search("quux", limit=5)["groups"]]
+        self.assertEqual(ranked[:2], ["security:quuxworth", "security:isin:BG1100087987"])
+
+    def test_a_tickerless_row_never_joins_the_pages_lines(self):
+        directory = self.tickerless()
+        self.assertEqual(directory.instrument_listings("security:isin:BG1100087987"), [])
+        self.assertEqual([item["id"] for item in directory.instrument_listings("security:zeta")], ["listing:zeta:xnys"])

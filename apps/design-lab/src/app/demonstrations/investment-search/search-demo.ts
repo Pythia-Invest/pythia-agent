@@ -2,24 +2,18 @@
  * Synthetic in-memory directory for the investment search demonstration.
  *
  * Names, tickers, venues and ISINs mirror public reference data so the cases
- * are recognisable; subject ids follow the identity fixtures. Dates, ranking
- * and lookup answers are synthetic. There are no prices and no
- * provider data.
+ * are recognisable; subject ids follow the identity fixtures. Dates and
+ * ranking are synthetic. There are no prices and no provider data.
  */
 import type {
   InstrumentKind,
-  LookupRequest,
   SearchGroup,
   SearchRequest,
   SearchResponse,
   SearchRow,
 } from "@pythia/market-data/search";
 
-import { type Company, demoCompanies, line } from "./search-demo-companies";
-
-export const demoLookupOffers: SearchResponse["lookup"] = [
-  { plugin: "yahoo", label: "Yahoo Finance" },
-];
+import { type Company, demoCompanies } from "./search-demo-companies";
 
 const SHOWN = 3;
 
@@ -80,19 +74,32 @@ export function searchDemoDirectory(
   {
     kinds,
     limit = 20,
-  }: { kinds?: readonly InstrumentKind[] | undefined; limit?: number } = {},
+    include_delisted = true,
+  }: {
+    kinds?: readonly InstrumentKind[] | undefined;
+    limit?: number;
+    include_delisted?: boolean;
+  } = {},
 ): SearchResponse {
+  const live = (company: Company) => company.rows.some((row) => !row.delisted);
   const groups = demoCompanies
     .map((company, order) => ({ company, order, score: score(company, query) }))
     .filter(
       (entry): entry is typeof entry & { score: number } =>
         entry.score !== undefined &&
+        (include_delisted || live(entry.company)) &&
         (!kinds || entry.company.rows.some((row) => kinds.includes(row.kind))),
     )
-    .sort((a, b) => a.score - b.score || a.order - b.order)
+    // A company with a live line ranks before one with only delisted lines.
+    .sort(
+      (a, b) =>
+        Number(!live(a.company)) - Number(!live(b.company)) ||
+        a.score - b.score ||
+        a.order - b.order,
+    )
     .slice(0, limit)
     .map((entry) => demoGroup(entry.company, query));
-  return { groups, lookup: demoLookupOffers };
+  return { groups };
 }
 
 function wait(ms: number, signal: AbortSignal) {
@@ -111,31 +118,7 @@ export function demoSearch(delay = 0) {
   return async (request: SearchRequest, signal: AbortSignal) => {
     await wait(delay, signal);
     const company = demoCompanies.find((entry) => entry.id === request.group);
-    if (request.group)
-      return {
-        groups: company ? [demoAll(company)] : [],
-        lookup: demoLookupOffers,
-      };
+    if (request.group) return { groups: company ? [demoAll(company)] : [] };
     return searchDemoDirectory(request.query, request);
-  };
-}
-
-/** Yahoo "finds" one synthetic, unverified listing; other plugins find none. */
-export function demoLookup(delay = 0) {
-  return async ({ plugin, query }: LookupRequest, signal: AbortSignal) => {
-    await wait(delay, signal);
-    if (plugin !== "yahoo") return [];
-    return [demoLookupGroup(query.toUpperCase().slice(0, 12))];
-  };
-}
-
-export function demoLookupGroup(symbol: string): SearchGroup {
-  const name = `${symbol} (synthetic lookup result)`;
-  return {
-    id: `issuer:demo:${symbol}`,
-    name,
-    kind: "ordinary",
-    listings: 1,
-    rows: [line(`listing:demo:${symbol}`, symbol, name, null)],
   };
 }

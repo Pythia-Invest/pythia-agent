@@ -11,9 +11,8 @@ import {
 } from "@pythia/widget-sdk";
 import { LoaderCircle, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type LookupOffer, rowTarget, type SearchGroup } from "../search";
+import { rowTarget, type SearchGroup } from "../search";
 import {
-  type LookupRunner,
   type SearchBackend,
   useDirectorySearch,
   useGroupListings,
@@ -23,20 +22,13 @@ import {
   searchOptions,
   type TypeFilter,
 } from "./search-model";
-import {
-  type LookupState,
-  type PanelStatus,
-  SearchPanel,
-} from "./search-panel";
+import { type PanelStatus, SearchPanel } from "./search-panel";
 
 export type InvestmentSearchProps = {
   query: string;
   onQueryChange(query: string): void;
   /** Local directory read; never a connector call. */
   search: SearchBackend;
-  /** Runs the explicit single-plugin lookup the directory offers at the
-   * bottom of the panel. Without it, no lookup action is shown. */
-  lookup?: LookupRunner | undefined;
   /** The chosen row: its instrument's subject id, which the instrument page
    * is, and the listing id whose price the page shows (the same id for a
    * crypto asset or a row without a known instrument). */
@@ -52,7 +44,6 @@ export type InvestmentSearchProps = {
 const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
 const NO_GROUPS: SearchGroup[] = [];
 const NO_EXPANDED: ReadonlySet<string> = new Set();
-const NO_OFFERS: LookupOffer[] = [];
 const NO_OPTIONS: SearchOption[] = [];
 
 /** Busy cues appear only when work is noticeably slow, so fast local reads
@@ -70,13 +61,12 @@ function useDelayedFlag(flag: boolean, delay: number) {
 
 /** One field for names, tickers and identifiers with a panel anchored to it.
  * Base UI's combobox owns focus, highlighting, selection and dismissal; this
- * component owns the directory read, the type filter and the explicit lookup.
- * Nothing here calls a connector unless the user presses a lookup action. */
+ * component owns the directory read, the type filter and the delisted filter.
+ * Nothing here calls a connector: search is a read of local data. */
 export function InvestmentSearch({
   query,
   onQueryChange,
   search,
-  lookup,
   onSelect,
   onHighlight,
   shortcut = true,
@@ -84,44 +74,43 @@ export function InvestmentSearch({
 }: InvestmentSearchProps) {
   const input = useRef<HTMLInputElement>(null);
   const popup = useRef<HTMLDivElement>(null);
-  const lookupAbort = useRef<AbortController | null>(null);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TypeFilter>("all");
-  const [lookupState, setLookupState] = useState<LookupState>();
+  // Delisted lines are searchable, ranked below live ones; this only hides
+  // them. Kept for the session (the top bar stays mounted), not persisted.
+  const [includeDelisted, setIncludeDelisted] = useState(true);
   // Groups showing all their listings; a new query or type starts collapsed.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(NO_EXPANDED);
   const toggled = useRef(false);
 
   const trimmed = query.trim();
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on a new query or type only
-  useEffect(() => setExpanded(NO_EXPANDED), [trimmed, filter]);
+  useEffect(() => setExpanded(NO_EXPANDED), [trimmed, filter, includeDelisted]);
   // Every keystroke is its own local read; React Query cancels the superseded
   // one and keeps the previous rows on screen until the new ones arrive.
-  const result = useDirectorySearch(search, trimmed, filter, open);
+  const result = useDirectorySearch(
+    search,
+    trimmed,
+    filter,
+    open,
+    includeDelisted,
+  );
   const response = trimmed ? result.data : undefined;
   const fresh = Boolean(response) && !result.isPlaceholderData;
-  const shownLookup = lookupState?.query === trimmed ? lookupState : undefined;
-  const found = shownLookup?.status === "done" ? shownLookup.groups : NO_GROUPS;
   // "All N listings" is a group read of its own, only once a group is opened.
   const groupReads = useGroupListings(
     search,
     trimmed,
     filter,
+    includeDelisted,
     (response?.groups ?? NO_GROUPS).filter(
       (group) => expanded.has(group.id) && group.listings > group.rows.length,
     ),
   );
   const options = useMemo(
-    () => [
-      ...searchOptions(
-        response?.groups ?? NO_GROUPS,
-        "directory",
-        expanded,
-        groupReads.rows,
-      ),
-      ...searchOptions(found, "lookup", expanded),
-    ],
-    [response, found, expanded, groupReads.rows],
+    () =>
+      searchOptions(response?.groups ?? NO_GROUPS, expanded, groupReads.rows),
+    [response, expanded, groupReads.rows],
   );
   const status: PanelStatus = !trimmed
     ? "prompt"
@@ -134,8 +123,6 @@ export function InvestmentSearch({
     open && Boolean(trimmed) && result.isFetching,
     250,
   );
-
-  useEffect(() => () => lookupAbort.current?.abort(), []);
 
   useEffect(() => {
     if (!shortcut) return;
@@ -155,32 +142,6 @@ export function InvestmentSearch({
     return () => window.removeEventListener("keydown", onShortcut);
   }, [shortcut]);
 
-  async function runLookup(offer: LookupOffer) {
-    if (!lookup || !trimmed || lookupState?.status === "running") return;
-    const controller = new AbortController();
-    lookupAbort.current = controller;
-    const base = { plugin: offer.plugin, label: offer.label, query: trimmed };
-    setLookupState({ ...base, status: "running", groups: [] });
-    // The pressed action is disabled while it runs; the field keeps focus so
-    // the arrow keys reach the rows it returns.
-    input.current?.focus();
-    try {
-      const answer = await lookup(
-        { plugin: offer.plugin, query: trimmed },
-        controller.signal,
-      );
-      if (!controller.signal.aborted)
-        setLookupState({
-          ...base,
-          status: "done",
-          ...(Array.isArray(answer) ? { groups: answer } : answer),
-        });
-    } catch {
-      if (!controller.signal.aborted)
-        setLookupState({ ...base, status: "error", groups: [] });
-    }
-  }
-
   return (
     // An autocomplete: the field's text is the value and rows are
     // destinations, so a choice reports its subject id and keeps the query.
@@ -194,10 +155,6 @@ export function InvestmentSearch({
           details.reason !== "escape-key"
         )
           return;
-        if (value.trim() !== trimmed) {
-          lookupAbort.current?.abort();
-          setLookupState(undefined);
-        }
         onQueryChange(value);
       }}
       open={open}
@@ -252,8 +209,8 @@ export function InvestmentSearch({
           maxLength={512}
           onFocus={() => setOpen(true)}
           onKeyDown={(event) => {
-            // The combobox leaves the panel's pills and lookup actions out of
-            // the tab order; Tab reaches them instead of leaving the panel.
+            // The combobox leaves the panel's pills and toggle out of the tab
+            // order; Tab reaches them instead of leaving the panel.
             const next = popup.current?.querySelector<HTMLElement>(TABBABLE);
             if (event.key === "Tab" && !event.shiftKey && open && next) {
               event.preventDefault();
@@ -310,14 +267,11 @@ export function InvestmentSearch({
               status={status}
               fresh={fresh}
               filter={filter}
+              includeDelisted={includeDelisted}
               options={options}
-              offers={
-                lookup && trimmed ? (response?.lookup ?? NO_OFFERS) : NO_OFFERS
-              }
-              lookup={shownLookup}
               onFilter={setFilter}
+              onIncludeDelisted={setIncludeDelisted}
               onRetry={() => void result.refetch()}
-              onLookup={(offer) => void runLookup(offer)}
               onChoose={(option) => {
                 if (!option.row) return;
                 const { subjectId, listingId } = rowTarget(option.row);

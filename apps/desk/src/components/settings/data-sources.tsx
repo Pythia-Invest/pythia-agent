@@ -2,17 +2,16 @@
 
 import { Alert, Badge, Button, Switch } from "@pythia/ui";
 import {
+  count,
   type DataSource,
+  placedLine,
   type SyncSummary,
   useDataSources,
   usePauseSource,
   useSyncSource,
 } from "@/client/data-sources";
 import { ListRow, RowsSkeleton } from "./primitives";
-
-function count(value: number, one: string, many: string) {
-  return `${value} ${value === 1 ? one : many}`;
-}
+import { SourceLookup } from "./source-lookup";
 
 /** The data concepts a source serves, in the investor's words. */
 const SERVES: Record<string, string> = {
@@ -71,14 +70,7 @@ export function effectLine({ sole, saved, paused, serves }: DataSource) {
 }
 
 export function syncLine(summary: SyncSummary) {
-  const parts = [
-    `${summary.joined} joined`,
-    `${summary.introduced} new`,
-    count(summary.conflicts, "conflict", "conflicts"),
-    `${summary.unmatched} unmatched`,
-    ...(summary.not_seen ? [`${summary.not_seen} no longer offered`] : []),
-  ];
-  return `Read: ${parts.join(", ")}${summary.partial ? " (stopped before the end)" : ""}.`;
+  return `Read: ${placedLine(summary)}${summary.partial ? " (stopped before the end)" : ""}.`;
 }
 
 function DataSourceRow({ source }: { source: DataSource }) {
@@ -136,6 +128,9 @@ function DataSourceRow({ source }: { source: DataSource }) {
           ) : null}
           {pause.error ? (
             <Alert className="mt-2" tone="error" title={pause.error.message} />
+          ) : null}
+          {source.lookup.length && !source.paused ? (
+            <SourceLookup source={source} />
           ) : null}
         </>
       }

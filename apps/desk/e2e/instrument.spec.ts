@@ -88,7 +88,6 @@ async function routeIdentity(page: Page) {
                 ],
               },
             ],
-            lookup: [],
           },
         },
       });

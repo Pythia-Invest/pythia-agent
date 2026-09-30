@@ -32,6 +32,18 @@ export function ConnectorMark({
   );
 }
 
+/** A small outlined note on a row: what is unusual about the line. */
+function Mark({ slot, children }: { slot: string; children: string }) {
+  return (
+    <span
+      data-slot={`investment-search-${slot}-mark`}
+      className="flex-none rounded-control border border-border px-1.5 text-foreground-secondary"
+    >
+      {children}
+    </span>
+  );
+}
+
 /** The regional-indicator flag of an ISO 3166 country code. */
 function countryFlag(country: string): string {
   return String.fromCodePoint(
@@ -62,6 +74,8 @@ function optionLabel(option: SearchOption) {
     ownDetail(option),
     row.venue ?? row.mic,
     row.source ? `from ${row.source}` : null,
+    row.no_ticker ? "no ticker" : null,
+    row.delisted ? "delisted" : null,
     row.currency,
     KIND_LABELS[row.kind],
   ]
@@ -89,8 +103,9 @@ function GroupHeading({ option }: { option: SearchOption }) {
 
 /** One listing of a group on one line: ticker, the venue with its country
  * flag, what the listing is when it is not the plain share (a class, registry
- * shares), the plugin that introduced a subject the reference lacks, currency
- * and type. No prices and no provider logos: search shows what exists; data
+ * shares), the plugin that introduced a subject the reference lacks, a
+ * "No ticker" mark for a security whose lines have none, a "Delisted" mark for a line that no longer trades,
+ * currency and type. No prices and no provider logos: search shows what exists; data
  * sources belong on the instrument page.
  *
  * A group's first listing carries the group's heading inside the same option,
@@ -138,6 +153,8 @@ export function SearchRowOption({
             {venue || detail ? "· " : ""}from {row.source}
           </span>
         ) : null}
+        {row.no_ticker ? <Mark slot="no-ticker">No ticker</Mark> : null}
+        {row.delisted ? <Mark slot="delisted">Delisted</Mark> : null}
       </span>
       <span className="w-9 flex-none text-foreground-secondary">
         {row.currency}
