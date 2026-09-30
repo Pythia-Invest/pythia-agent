@@ -222,7 +222,7 @@ class OpenFigiClaims(unittest.TestCase):
         self.assertNotIn('share_class_figi', {item.scheme for item in claims[X1].identifiers})
 
     def test_a_line_that_is_no_order_book_keeps_its_code_and_the_reason_in_the_vocabulary_words(self):
-        codes = ['GD', 'QT', 'XV', 'L3', 'GR', 'ER', 'ZZ', 'TT (Taiwan Stock Exchange)', 'BSE', None]
+        codes = ['GD', 'QT', 'XV', 'L3', 'GR', 'ER', 'ZZ', 'TT (Taiwan Stock Exchange)', 'BSE', None, 'UN', 'PQ']
         lines = [line(code, figi(f'BBGZZ0001{index:02d}'), None, 'SYN') for index, code in enumerate(codes)]
         claims = list(self.claims(lines, isin=ISIN).values())
         self.assertEqual([(claim.attributes.provider_venue, claim.attributes.operating_mic, claim.attributes.venue_note)
@@ -236,7 +236,10 @@ class OpenFigiClaims(unittest.TestCase):
                           ('ZZ', None, 'venue code ZZ is not in the vocabulary'),
                           ('TT', 'XTAI', None),  # the descriptive suffix is not part of the code
                           ('BSE', None, 'venue code BSE is unknown: a descriptive string on bond or structured lines, not an exchange code'),
-                          (None, None, 'the line carries no venue code')])
+                          (None, None, 'the line carries no venue code'),
+                          ('UN', None, 'venue code UN is a US exchange line (New York Stock Exchange, Inc.) from unlisted '
+                                       'trading: the listing comes from SEC'),
+                          ('PQ', 'OTCM', None)])  # OTC Markets is the one US code that maps
 
     def test_a_differing_share_class_figi_stays_the_lines_own(self):
         # One line OpenFIGI files under another share class keeps it beside the ISIN, so core's join sees both.
@@ -278,7 +281,7 @@ class OpenFigiVocabulary(unittest.TestCase):
 
     def test_every_entry_has_what_its_reason_reads_and_a_second_book_names_a_real_main_on_its_mic(self):
         fields = {'exchange': {'mic', 'name'}, 'second_book': {'mic', 'name', 'of'}, 'trade_report': {'mic', 'name'},
-                  'dark': {'mic', 'name'}, 'composite': {'name'}, 'unknown': {'note'}}
+                  'dark': {'mic', 'name'}, 'us_unlisted_trading': {'mic', 'name'}, 'composite': {'name'}, 'unknown': {'note'}}
         for code, entry in self.codes.items():
             with self.subTest(code=code):
                 self.assertEqual(set(entry), {'kind'} | fields[entry['kind']])

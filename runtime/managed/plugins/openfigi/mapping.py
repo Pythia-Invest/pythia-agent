@@ -115,6 +115,8 @@ def venue_note(code):
         return f'venue code {code} is a dark venue ({name}), not a public order book'
     if kind == 'second_book':
         return f"venue code {code} is a second book on {entry['mic']} ({name}); {entry['of']} is the line there"
+    if kind == 'us_unlisted_trading':
+        return f'venue code {code} is a US exchange line ({name}) from unlisted trading: the listing comes from SEC'
     if kind == 'composite':
         return f'venue code {code} is the {name}, not a venue'
     return f"venue code {code} is unknown: {entry['note']}"

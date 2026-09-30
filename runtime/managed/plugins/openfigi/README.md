@@ -44,6 +44,8 @@ tested to agree). A line's code is one of:
 - `exchange`: a public order book; it gets its operating MIC;
 - `second_book`: a second code on an operating MIC whose main code has the line
   (Munich's gettex GZ beside GM);
+- `us_unlisted_trading`: a US exchange line OpenFIGI gives every US security;
+  the listing comes from SEC, so it is not mapped (PQ, OTC Markets, is);
 - `trade_report`: an APA or off-exchange publication (XV, XX, E1, UV);
 - `dark`: a dark or block venue (Liquidnet, Posit);
 - `composite`: a country composite or EO, the OTC composite. A composite is a

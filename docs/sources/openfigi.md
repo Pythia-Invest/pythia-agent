@@ -79,8 +79,9 @@ later, downstream.
 
 | Kind | What it is | Maps to an operating MIC | Entries |
 | --- | --- | --- | --- |
-| `exchange` | A public order book: an exchange, a lit MTF book, an ATS, a systematic internaliser such as Lang & Schwarz (LU) | yes, and it is in the contract's `venue_codes` | 123 |
-| `second_book` | A second code on an operating MIC that already has a main code (gettex GZ on XMUN, Quotrix QT on XDUS, Japannext's X and U markets JU and JW beside JE) | no: the line is the main code's; `of` names it | 56 |
+| `exchange` | A public order book: an exchange, a lit MTF book, an ATS, a systematic internaliser such as Lang & Schwarz (LU) | yes, and it is in the contract's `venue_codes` | 110 |
+| `second_book` | A second code on an operating MIC that already has a main code (gettex GZ on XMUN, Quotrix QT on XDUS, Japannext's X and U markets JU and JW beside JE) | no: the line is the main code's; `of` names it | 47 |
+| `us_unlisted_trading` | A US exchange line (UN, UA, UP, UW, UF and the other US exchanges and ATSs): OpenFIGI gives a US security a line on every US venue it trades on, not only where it lists | no: the listing comes from SEC, and OpenFIGI's US lines join it by FIGI | 22 |
 | `trade_report` | APA and off-exchange publication: the X-prefixed codes under the EO composite, E1, EU and XL on XLON, XE, XV, XX, X9, XZ, XO, XT, UV | no | 22 |
 | `dark` | A dark or block-crossing venue (B3 BlockMatch, L1 and L3 Liquidnet, PO Posit, MatchNow) | no | 13 |
 | `composite` | A country composite (US, GR, JP, AU and others) or the OTC composite EO | no | 23 |
@@ -124,11 +125,11 @@ directly). The runs were:
 23 are composites (a code is a composite when at least 90% of its lines name
 themselves as composite and other lines name it), 6 are descriptive strings on
 bond lines (`BSE`, `EURONEXT-AMSTER`, `EURONEXT-DUBLIN`, `EUWAX STUTTGART`,
-`LUXEMBOURG`, `TRACE`), and 41 stayed unresolved. The 215 became 123 `exchange`,
-56 `second_book`, 22 `trade_report` and 13 `dark` entries. The contract held 47
+`LUXEMBOURG`, `TRACE`), and 41 stayed unresolved. The 215 became 110 `exchange`,
+47 `second_book`, 22 `us_unlisted_trading`, 22 `trade_report` and 13 `dark` entries. The contract held 47
 codes before this change; OpenFIGI's own pairing agrees with 46, and they keep
 their MIC. The 47th, AU, is a composite and is out; the contract now holds the
-123 `exchange` codes. Raw responses stayed on the
+110 `exchange` codes. Raw responses stayed on the
 device and are not committed.
 
 **Unresolved (41), by lines in the cached answers:** ER (51,317), XW (40,619),
@@ -162,15 +163,18 @@ line counts), plus these choices, which are the founder's rulings where marked:
   S1, S2, S4, TK, TO, TR, TV, TW. TO, TR and TV are Cboe Canada's MATCHNow.
 - *Main and second books.* Where the contract already held a code for an
   operating MIC it stays the main. Elsewhere the main is the code whose segment
-  MIC is the operating MIC, then the one with the most lines, with two choices
-  the lines do not settle: BS is B3's main (BN has as many lines), and UF (Cboe BZX) is Cboe US's main beside VJ, VK
-  and VY. Nasdaq's line is in exactly one of UW, UQ, UR (listing tier) or UT
-  (Intermarket, for others' listings) per security, so all four are `exchange`
-  on XNAS; UB and UX are second books of UW.
-- *US codes.* The earlier reading left the US exchange codes unmapped because a
-  line for every exchange a security trades on would show unlisted trading as a
-  listing. A line here is a public order book where the security trades, as the
-  founder ruled; telling the listing venue from the others is a later filter.
+  MIC is the operating MIC, then the one with the most lines, with one choice
+  the lines do not settle: BS is B3's main (BN has as many lines).
+- *US codes* (manager ruling on the pull request): the US exchange codes are
+  not mapped. OpenFIGI gives a line for every US exchange a security trades on
+  under unlisted trading privileges, so mapping UN, UA, UP, UF, UW and the rest
+  would show a Nasdaq stock as listed on NYSE, Arca and Cboe. US listings come
+  from SEC. These 22 codes (OC, OD, UA, UB, UC, UF, UM, UN, UP, UQ, UR, UT, UW,
+  UX, VF, VG, VJ, VK, VL, VP, VT, VY) keep their MIC in the vocabulary as kind
+  `us_unlisted_trading` and are parked with the note "venue code UN is a US
+  exchange line (...) from unlisted trading: the listing comes from SEC". PQ
+  (OTC Markets, under the US composite) stays `exchange` and mapped to OTCM, as
+  before; UD and UV are trade reports.
 - *RFQ venues.* B2, B4, WT and T2 (Bloomberg's and Tradeweb's MTFs, nearly all
   ETPs) are `exchange`: ISO lists them as trading venues, and they are not trade
   reports. They are not lit order books either; a filter can separate them.
