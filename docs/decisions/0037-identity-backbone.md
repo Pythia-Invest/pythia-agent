@@ -1654,7 +1654,7 @@ a plugin would take away.
   joined, introduced, found in conflict and left unmatched. Enabling and
   disabling stay Hermes's own command: the section has no toggles.
   Superseded in the pausing amendment: "the section has no toggles", and the
-  list of "enabled" plugins only.
+  listing of plugins that declare a catalogue or a resolve only.
 - **The acceptance test** (`test_identity_peers.py`) runs two fixture plugins
   core never names through the ordinary contract, trust by digest and
   `identity-sync`: a confirm-level financial source that joins the package's
@@ -1725,10 +1725,16 @@ investor simply stops trusting, should be one click away from off and from on.
 - **Only a plugin Hermes has enabled, with a contract, can be paused.** One
   Hermes disabled stays disabled, and core and the feature backends, which ship
   no contract, never pause.
-- **The effect comes first.** `identity-plugin-effect` without `plugin` lists
-  every source Hermes has enabled, paused ones too (`paused`), so the switch can
-  turn one back on. The Desk shows, beside the switch and before it is turned
-  off, "Turning this off hides N subjects; M saved items will show as paused".
+- **Every source has the switch, and the effect comes first.**
+  `identity-plugin-effect` without `plugin` lists every plugin that ships a
+  contract and that Hermes has enabled, not only those with a catalogue or a
+  resolve: a price, filings or news source (Yahoo, EODHD, Hyperliquid) is what
+  an investor pauses when a price looks wrong. Paused ones stay listed
+  (`paused`), so the switch can turn one back on, and each row names the
+  concepts it serves (`serves`). The Desk shows, beside the switch and before it
+  is turned off, "Turning this off hides N subjects; M saved items will show as
+  paused"; for a source that supplies no subjects, "Turning this off stops its
+  prices, filings or news; other sources take over where configured".
 - **A plugin Hermes does not run is still Hermes's.** The section lists only
   what Hermes has enabled, and says that enabling another takes
   `hermes plugins enable <plugin>` and a Hermes restart.
@@ -1747,8 +1753,8 @@ immediate.
   on its own.
 - The paused list is a plain field of `settings.json`: editing it by hand works
   the same way, and a missing, unsafe or malformed file pauses nothing.
-- Desk's `identity-plugin-effect` row gains `paused`; the contributor status
-  gains `paused`.
+- Desk's `identity-plugin-effect` row gains `paused` and `serves`; the
+  contributor status gains `paused`.
 
 **Rejected alternatives.**
 

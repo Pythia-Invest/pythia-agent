@@ -420,17 +420,18 @@ class PluginEffectTest(PeersFixture):
         self.assertEqual(self.effect("tidepool-community")[0]["sole"]["count"], 3)
         self.assertNotIn(POOL, self.found("Example Lend USDC"))
 
-    def test_without_a_plugin_it_lists_every_enabled_plugin_with_a_catalogue_or_resolve(self):
+    def test_without_a_plugin_it_lists_every_enabled_plugin_that_ships_a_contract_and_what_it_serves(self):
         self.meridian()
         self.tidepool()
         self.install("quotes", {**{name: value for name, value in MERIDIAN.items() if name != "catalogue"},
                                 "plugin": "quotes", "provider": "quotes", "addressing": {
                                     "native": [{"native_scope": "line", "level": "listing"}],
                                     "mic_table": {"XETR": ".DE"}}})  # quotes only: no catalogue, no resolve
-        self.assertEqual([(item["plugin"], item["level"], item["sole"]["count"]) for item in self.effect()],
-                         [("pythia-meridian", "confirm", 0), ("tidepool-community", "display", 0)])
+        self.assertEqual([(item["plugin"], item["serves"], item["sole"]["count"]) for item in self.effect()],
+                         [("pythia-meridian", ["market_data"], 0), ("tidepool-community", [], 0),
+                          ("quotes", ["market_data"], 0)])
         self.disabled.add("tidepool-community")
-        self.assertEqual([item["plugin"] for item in self.effect()], ["pythia-meridian"])
+        self.assertEqual([item["plugin"] for item in self.effect()], ["pythia-meridian", "quotes"])
         body = json.loads(self.plugin_effect.effect(self.ops, {"plugin": "nobody"}))
         self.assertEqual(body["issues"][0]["message"], "Unknown plugin.")
 

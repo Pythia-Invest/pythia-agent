@@ -54,7 +54,7 @@ const sections = [
     id: "sources",
     label: "Data sources",
     description:
-      "Plugins that add subjects or look identifiers up. Switch one off to pause it at once; its subjects and saved items stay, shown as paused.",
+      "Plugins that supply prices, filings, news or subjects. Switch one off to pause it at once; its subjects and saved items stay, shown as paused.",
   },
   {
     id: "updates",

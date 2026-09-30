@@ -20,30 +20,60 @@ function count(value: number, one: string, many: string) {
   return `${value} ${value === 1 ? one : many}`;
 }
 
+/** The data concepts a source serves, in the investor's words. */
+const SERVES: Record<string, string> = {
+  market_data: "prices",
+  profile: "profiles",
+  filings: "filings",
+  fundamentals: "financial statements",
+  estimates: "estimates",
+  news: "news",
+  market_movers: "market movers",
+};
+
+function served(serves: string[]) {
+  const names = serves.flatMap((item) => SERVES[item] ?? []);
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+    : (names[0] ?? "");
+}
+
 /** What turning a source off hides, shown beside its switch before it is
  * turned off (ADR 0044 A3), and once it is off what stays hidden: the
- * subjects only it supplies leave search and data, and saved entries keep
- * their names, shown as paused. */
-export function effectLine({ sole, saved, paused }: DataSource) {
-  if (!sole.count)
+ * subjects only it supplies leave search and data, saved entries keep their
+ * names, shown as paused, and the prices, filings or news it serves come from
+ * other sources where configured. */
+export function effectLine({ sole, saved, paused, serves }: DataSource) {
+  const data = served(serves);
+  const takeover = "other sources take over where configured";
+  if (!sole.count) {
+    if (data)
+      return paused
+        ? `It is not used for ${data} now; ${takeover}.`
+        : `Turning this off stops its ${data}; ${takeover}.`;
     return paused
       ? "Nothing is hidden: no subject on this device comes only from it."
       : "No subject on this device comes only from it, so turning this off hides none.";
+  }
   const subjects = count(sole.count, "subject", "subjects");
   const names = saved.sample.map((item) => item.name ?? item.id).join(", ");
   const more = saved.count > saved.sample.length ? ", …" : "";
   const items = count(saved.count, "saved item", "saved items");
-  if (paused)
-    return `${subjects} only it supplies ${sole.count === 1 ? "is" : "are"} hidden, and ${
-      saved.count
-        ? `${items} ${saved.count === 1 ? "shows" : "show"} as paused (${names}${more})`
-        : "no saved item is affected"
-    }.`;
-  return `Turning this off hides ${subjects}; ${
-    saved.count
-      ? `${items} will show as paused (${names}${more})`
-      : "no saved item will show as paused"
-  }.`;
+  const hidden = paused
+    ? `${subjects} only it supplies ${sole.count === 1 ? "is" : "are"} hidden, and ${
+        saved.count
+          ? `${items} ${saved.count === 1 ? "shows" : "show"} as paused (${names}${more})`
+          : "no saved item is affected"
+      }.`
+    : `Turning this off hides ${subjects}; ${
+        saved.count
+          ? `${items} will show as paused (${names}${more})`
+          : "no saved item will show as paused"
+      }.`;
+  if (!data) return hidden;
+  return `${hidden} ${
+    paused ? `It is not used for ${data} now` : `It also stops its ${data}`
+  }; ${takeover}.`;
 }
 
 export function syncLine(summary: SyncSummary) {
@@ -70,7 +100,7 @@ function DataSourceRow({ source }: { source: DataSource }) {
           <div className="flex flex-wrap items-center gap-2 font-medium text-body text-foreground">
             {source.label}
             <Badge>{LEVELS[source.level]}</Badge>
-            {source.paused ? <Badge tone="warning">Paused</Badge> : null}
+            {source.paused ? <Badge>Paused</Badge> : null}
           </div>
           <p className="m-0 text-body text-foreground-secondary leading-ui">
             {effectLine(source)}
@@ -116,10 +146,11 @@ function DataSourceRow({ source }: { source: DataSource }) {
   );
 }
 
-/** The plugins Hermes has enabled that read a catalogue or look identifiers
- * up: each with its trust level, a switch that pauses it at once, what turning
- * it off hides and, for a catalogue, a way to read it now. Only a plugin Hermes
- * has not enabled needs Hermes: its command, then a restart. */
+/** Every source Hermes has enabled (a plugin that ships a contract), price,
+ * filings and news sources as much as catalogues: each with its trust level, a
+ * switch that pauses it at once, what turning it off takes away and, for a
+ * catalogue, a way to read it now. Only a plugin Hermes has not enabled needs
+ * Hermes: its command, then a restart. */
 export function DataSourceSettings() {
   const query = useDataSources();
   return (
@@ -141,7 +172,7 @@ export function DataSourceSettings() {
       ))}
       {query.data && !query.data.length ? (
         <p className="text-body text-foreground-secondary">
-          No enabled plugin reads a catalogue or looks identifiers up.
+          No plugin enabled in Hermes supplies data.
         </p>
       ) : null}
       {query.data ? (

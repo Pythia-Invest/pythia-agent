@@ -7,10 +7,12 @@ into place).
 """
 import json
 import os
+import sys
 import types
 import unittest
+from unittest import mock
 
-from test_identity_peers import ASML_LINE, OTHER_FIGI, POOL, SAP_BY_FIGI, PeersFixture, line
+from test_identity_peers import ASML_LINE, MERIDIAN, OTHER_FIGI, POOL, SAP_BY_FIGI, PeersFixture, line
 from test_identity_queue import CORE
 
 
@@ -78,6 +80,36 @@ class PauseTest(PeersFixture):
         [paused] = self.effect("tidepool-community")
         self.assertEqual((paused["sole"], paused["saved"]), (pool_source["sole"], pool_source["saved"]))
         self.assertNotIn(POOL, self.found("Example Lend USDC"))
+
+    def test_a_price_source_with_no_catalogue_or_lookup_has_a_switch_too(self):
+        self.meridian()
+        self.install("quotes", {**{name: value for name, value in MERIDIAN.items() if name != "catalogue"},
+                                "plugin": "quotes", "provider": "quotes", "addressing": {
+                                    "native": [{"native_scope": "line", "level": "listing"}],
+                                    "mic_table": {"XETR": ".DE"}}})  # prices only, like Yahoo or EODHD
+        self.assertEqual({item["plugin"]: item["paused"] for item in self.effect()},
+                         {"pythia-meridian": False, "quotes": False})
+        self.pause("quotes")
+        self.assertEqual({item["plugin"]: item["paused"] for item in self.effect()},
+                         {"pythia-meridian": False, "quotes": True})
+
+    def test_a_paused_sources_agent_tool_refuses_with_the_switch_as_the_reason(self):
+        """`installed()` reads the pause from settings.json and `agent_depth.run` refuses on it: no faked PluginInfo."""
+        key = self.meridian()
+        from pythia_core_queue_fixture import agent_depth
+        registry = sys.modules["tools.registry"].registry
+
+        def answer():
+            raw = agent_depth.run(types.SimpleNamespace(), key, "meridian_quote", "meridian.latest", {}, {})
+            return json.loads(raw)["issues"][0]
+        with mock.patch.object(registry, "get_schema", lambda _tool: {}, create=True):
+            self.assertNotEqual(answer()["code"], "paused")
+            self.pause(key)
+            refused = answer()
+            self.assertEqual(refused["code"], "paused")
+            self.assertIn("paused in Settings", refused["message"])
+            self.pause()
+            self.assertNotEqual(answer()["code"], "paused")
 
     def test_only_a_source_enabled_in_hermes_can_be_paused(self):
         key = self.meridian()

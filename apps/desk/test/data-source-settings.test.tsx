@@ -49,6 +49,7 @@ const defi = {
   level: "display",
   catalogue: true,
   resolve: false,
+  serves: [],
   sole: {
     count: 1204,
     sample: [{ id: "market:provisional:defillama:pool:P1", name: "USDC" }],
@@ -75,6 +76,16 @@ const lookup = {
   saved: { count: 0, sample: [] },
 };
 
+// A price and profile source supplies no subject of its own (Yahoo, EODHD,
+// Hyperliquid): it still has a switch, and its effect is about its data.
+const prices = {
+  ...lookup,
+  plugin: "pythia-yahoo-discovery",
+  label: "Yahoo Finance",
+  resolve: false,
+  serves: ["market_data", "profile", "news"],
+};
+
 beforeEach(() => {
   state.plugins = [defi, lookup];
   state.sync = null;
@@ -94,6 +105,24 @@ it("shows each source's trust level and what turning it off hides, beside its sw
   );
   expect(html.match(/role="switch"/gu)).toHaveLength(2);
   expect(html).toContain('aria-label="Use DeFiLlama"');
+});
+
+it("gives a price source a switch, and says its prices and news come from other sources", () => {
+  state.plugins = [prices];
+  const html = renderToStaticMarkup(<DataSourceSettings />);
+  expect(html).toContain('aria-label="Use Yahoo Finance"');
+  expect(html).toContain(
+    "Turning this off stops its prices, profiles and news; other sources take over where configured.",
+  );
+  expect(html).not.toContain("hides none");
+  state.plugins = [{ ...prices, enabled: false, paused: true }];
+  expect(renderToStaticMarkup(<DataSourceSettings />)).toContain(
+    "It is not used for prices, profiles and news now; other sources take over where configured.",
+  );
+  const both = dataSourceSchema.parse({ ...defi, serves: ["market_data"] });
+  expect(effectLine(both)).toBe(
+    "Turning this off hides 1204 subjects; 1 saved item will show as paused (Navi USDC). It also stops its prices; other sources take over where configured.",
+  );
 });
 
 it("says a source Hermes has not enabled needs Hermes's command and a restart", () => {

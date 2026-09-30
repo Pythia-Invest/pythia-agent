@@ -5,10 +5,11 @@ own rule: an offered record of no other enabled plugin is placed on them or stat
 inactive, and no reference package holds them. While the plugin is off they leave search and keep only their label
 (ADR 0037, amendment "device subjects"). It also answers the saved entries of
 the markets overview (`markets_watchlist`, `markets_cards`) that name them, through their aliases, each as a count with
-a short sample. Without `plugin`, it answers every plugin enabled in Hermes that declares a bulk catalogue or a resolve,
-paused ones too (`paused`; the investor's switch in Settings → Data sources, `platform.access.plugin_paused`), with its
-trust level, as the Desk's Data sources settings list them. A paused plugin's effect is what its pause hides now. It
-calls no provider and writes nothing. A Desk operation:
+a short sample, and the concepts it serves (`serves`: market data, filings, news ...). Without
+`plugin`, it answers every plugin enabled in Hermes that ships a contract, paused ones too (`paused`; the investor's
+switch in Settings → Data sources, `platform.access.plugin_paused`), with its trust level, as the Desk's Data sources
+settings list them: a price or filings source has a switch as much as a catalogue. A paused plugin's effect is what its
+pause hides now. It calls no provider and writes nothing. A Desk operation:
 the agent's tool list has no room for it (test_agent_surface.py's budget).
 """
 from __future__ import annotations
@@ -31,8 +32,8 @@ SAMPLE = 5
 SCHEMA = {
     "name": "pythia_identity_plugin_effect",
     "description": "What disabling one plugin would take away: the subjects only it supplies and the saved watchlist "
-                   "and card entries naming them, as counts with a short sample. Without plugin, every plugin enabled "
-                   "in Hermes (paused ones too) that declares a catalogue or a resolve. Local only.",
+                   "and card entries naming them, as counts with a short sample, and the concepts it serves. Without "
+                   "plugin, every plugin enabled in Hermes (paused ones too) that ships a contract. Local only.",
     "parameters": {"type": "object", "properties": {"plugin": {"type": "string", "minLength": 1, "maxLength": 128}},
                    "additionalProperties": False},
 }
@@ -56,13 +57,12 @@ def register(ctx: Any, identity: Identity) -> None:
 
 
 def effect(identity: Identity, arguments: dict, **_context: Any) -> str:
-    """identity-plugin-effect: one plugin's effect, or every source plugin's that Hermes has enabled."""
+    """identity-plugin-effect: one plugin's effect, or every installed source's that Hermes has enabled."""
     from .identity_ops import _envelope, installed
     from .markets_ops import MarketReads
     plugins, wanted = installed(), arguments.get("plugin")
     chosen = [info for info in plugins if wanted in (info.key, info.manifest.plugin)] if wanted else [
-        info for info in plugins if (info.enabled or info.paused) and (info.manifest.catalogue is CatalogueMode.BULK
-                                                                       or info.manifest.resolve is not None)]
+        info for info in plugins if info.enabled or info.paused]
     if wanted and not chosen:
         return _envelope("empty", None, issue="Unknown plugin.")
     try:
@@ -90,5 +90,6 @@ def _effect(store, ref, info, plugins: list, saved: dict[str, list[str]]) -> dic
     return {"plugin": info.key, "label": info.label, "enabled": info.enabled, "paused": info.paused,
             "level": DISPLAY if info.manifest.unaudited else CONFIRM,
             "catalogue": info.manifest.catalogue is CatalogueMode.BULK, "resolve": info.manifest.resolve is not None,
+            "serves": [str(concept) for concept in info.manifest.concepts],
             "sole": {"count": len(sole), "sample": [{"id": key, "name": sole[key]} for key in list(sole)[:SAMPLE]]},
             "saved": {"count": len(named), "sample": named[:SAMPLE]}}
