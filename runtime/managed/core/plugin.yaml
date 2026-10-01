@@ -15,10 +15,16 @@ provides_tools:
   - pythia_instrument
   - pythia_prices
   - pythia_filings
+  - pythia_document
   - pythia_identity_questions
   - pythia_answer_identity_question
   - pythia_propose_identity_correction
   - pythia_reference_status
   - pythia_filings_combined
+  - pythia_news_combined
   - pythia_market_overview
   - pythia_market_movers
+  - pythia_filings_read
+  - pythia_identity_sync
+  - pythia_identity_lookup
+  - pythia_identity_plugin_effect

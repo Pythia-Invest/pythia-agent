@@ -1,5 +1,6 @@
 """Core registration through the native Hermes context contract."""
 import importlib.util
+from itertools import takewhile
 import json
 from pathlib import Path
 import sys
@@ -54,6 +55,16 @@ class CoreTest(unittest.TestCase):
         self.assertTrue(context.sections)
         skill = context.skills['identity-data'][0]  # the skill `pythia_instrument` points to, with its queries
         self.assertTrue(skill.is_file() and (skill.parent / 'references/queries.md').is_file())
+
+    def test_the_manifest_lists_exactly_the_tools_core_registers(self):
+        # Hermes shows `provides_tools` in its plugin list and uses it for the auth hint and the plugin lint; it is a
+        # description of what registers (runtime/contracts/hermes.md), so a tool left out or left behind misleads.
+        context = RegistryContractContext()
+        MODULE.register(context)
+        lines = iter((CORE.parent / 'plugin.yaml').read_text().splitlines())
+        next(line for line in lines if line == 'provides_tools:')
+        listed = [line[4:] for line in takewhile(lambda line: line.startswith('  - '), lines)]
+        self.assertEqual(sorted(listed), sorted(context.tools))
 
     def test_prompt_sections_fit_their_budgets_on_every_platform(self):
         # Hermes skips, not truncates, a section longer than max_chars (hermes_cli/plugins.py
