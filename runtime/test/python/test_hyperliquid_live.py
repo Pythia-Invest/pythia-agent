@@ -116,7 +116,32 @@ def info(universe=({'name': 'BTC', 'szDecimals': 5, 'maxLeverage': 40, 'marginTa
     return read
 
 
-def streams(sockets, read_info=None):
+class StepClock:
+    """A clock that moves only when a test moves it, so a rate limit's count never depends on the machine's speed."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+class PacedSocket(FakeSocket):
+    """Delivers one message per `step` seconds of the injected clock, and says once the last one has been read."""
+
+    def __init__(self, messages, clock, step):
+        super().__init__(messages)
+        self.clock, self.step, self.drained = clock, step, threading.Event()
+
+    def recv(self, timeout=None):
+        if self.inbox.empty():
+            self.drained.set()
+        else:
+            self.clock.now += self.step
+        return super().recv(timeout)
+
+
+def streams(sockets, read_info=None, **options):
     queue_ = list(sockets)
 
     def open_socket(_url):
@@ -125,7 +150,7 @@ def streams(sockets, read_info=None):
             raise item
         return item
     return stream.Streams(identity.validate_live_market, open_socket=open_socket, read_info=read_info or info(),
-                          log=lambda _message: None)
+                          log=lambda _message: None, **options)
 
 
 def full(event):
@@ -248,14 +273,17 @@ class StreamLifetime(unittest.TestCase):
             owner.close()
 
     def test_at_most_four_snapshots_a_second(self):
-        at = now()
-        socket = FakeSocket([book(at + index) for index in range(200)])
-        owner, listener = streams([socket]), Listener()
+        at, clock = now(), StepClock()
+        socket = PacedSocket([book(at + index) for index in range(41)], clock, 0.1)  # ten books a second, for four seconds
+        owner, listener = streams([socket], clock=clock), Listener()
         owner.subscribe('BTC', SUBJECT, listener)
         try:
-            listener.wait(lambda event: event.get('type') == 'snapshot')
-            time.sleep(1.0)
-            self.assertLessEqual(len(listener.snapshots()), 6)
+            self.assertTrue(socket.drained.wait(5), 'the stream read every message')  # a deadline, never a delay
+            elapsed = clock.now - 1000.0
+            published = len(listener.snapshots())
+            self.assertAlmostEqual(elapsed, 4.1)
+            self.assertGreaterEqual(published, 2)  # it publishes, only not on every message
+            self.assertLessEqual(published, 4 * elapsed + 1)
         finally:
             listener.close()
             owner.close()

@@ -5,6 +5,7 @@ Shapes: https://www.sec.gov/search-filings/edgar-application-programming-interfa
 CIKs, names and tickers below are invented.
 """
 from copy import deepcopy
+from datetime import datetime
 import gzip
 import importlib
 import importlib.util
@@ -46,6 +47,14 @@ SUBMISSIONS = {'cik': '123456', 'name': 'Example Holdings N.V.', 'tickers': ['EX
                'stateOfIncorporationDescription': 'Netherlands',
                'formerNames': [{'name': 'Example Lithography Holding N.V.',
                                 'from': '1995-03-01T00:00:00.000Z', 'to': '2012-07-11T00:00:00.000Z'}]}
+
+
+class FixedNow(datetime):
+    """`datetime` whose `now()` is the fixtures' own date, so a window counted back from today never drifts past them."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.fromisoformat(STAMP).astimezone(tz)
 
 
 def observation(value, *, start='2024-07-01', end='2025-06-30', filed='2025-08-01', accession='0000123456-25-000001', form='10-K'):
@@ -210,6 +219,7 @@ class SecFormsSearch(unittest.TestCase):
         annual = instance.invoke('filings', {'native_ref': REF, 'limit': 5, 'kinds': ['annual']})
         self.assertEqual([row['form'] for row in annual['data']['filings']], ['10-K'])
 
+    @patch.object(plugin, 'datetime', FixedNow)
     def test_older_pages_are_read_back_five_years_at_most_three(self):
         recent = submissions_block(['4'] * 60, 2026)  # the recent list reaches back only a few months
         files = [{'name': f'CIK{CIK}-submissions-{index:03d}.json', 'filingCount': 10,
