@@ -13,6 +13,7 @@ import { contributorSchema } from "./contributors";
 import { correctionViewSchema } from "./corrections";
 import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
+import { webUrl } from "./web-url";
 import { withheldFactSchema } from "./withheld";
 
 /** Core plugin id; feature query keys start with the serving plugin (ADR 0036). */
@@ -207,7 +208,7 @@ export const profileSchema = z.object({
   names: z
     .array(z.object({ name: text, kind: optionalText, type: optionalText }))
     .catch([]),
-  source: z.object({ label: text, url: z.string().nullish() }).nullish(),
+  source: z.object({ label: text, url: webUrl }).nullish(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 
@@ -235,7 +236,7 @@ export const filingsSchema = z.object({
         /** Shared by parallel reports: issuer, kind and period end. */
         report_period: optionalText,
         basis: optionalText, // us_gaap or ifrs, where the source states it
-        url: z.string().nullish(),
+        url: webUrl,
         language: optionalText,
         source: optionalText,
         authority: optionalText,
@@ -247,13 +248,13 @@ export const filingsSchema = z.object({
       }),
     )
     .default([]),
-  source: z.object({ label: text, url: z.string().nullish() }).nullish(),
+  source: z.object({ label: text, url: webUrl }).nullish(),
   /** Combined reads: the sources that supplied the rows, and those that failed. */
   sources: z
     .array(
       namedSource.extend({
         authorities: z.array(text).default([]),
-        url: z.string().nullish(),
+        url: webUrl,
       }),
     )
     .default([]),
@@ -271,7 +272,7 @@ const citationSchema = z.object({
   section_title: optionalText,
   offsets: z.array(z.number()).default([]),
   /** The document's URL, at the section's anchor where it has one. */
-  url: z.string().nullish(),
+  url: webUrl,
 });
 /** Core's document read (`filings-read`): an outline, one bounded part of a
  * section, or search passages, each part cited. */
@@ -280,7 +281,7 @@ export const filingDocumentSchema = z.object({
     id: text,
     form: optionalText,
     title: optionalText,
-    url: z.string().nullish(),
+    url: webUrl,
   }),
   sections: z.array(documentPart).optional(),
   section: documentPart.optional(),
