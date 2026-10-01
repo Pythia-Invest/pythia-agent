@@ -463,7 +463,7 @@ class BackendMutationTests(unittest.TestCase):
                 backend = sources.backend(directory)
             self.assertEqual(len(logged.output), 2)
             self.assertIn("source_order in settings.json", logged.output[0])
-            self.assertIn("{'history': ['synthetic_other']} and 1 scoped", logged.output[0])
+            self.assertIn("{'history': ['synthetic_other']}, 1 scoped choices, 0 saved mappings and 0 overrides", logged.output[0])
             self.assertFalse(store.exists() or legacy.exists())  # kept under a new name, never deleted
             self.assertTrue((root / "preferences-retired.sqlite3").is_file())
             self.assertTrue((root / "identity-retired.sqlite3").is_file())
@@ -483,6 +483,24 @@ class BackendMutationTests(unittest.TestCase):
             with self.assertNoLogs(level="WARNING"):
                 sources.backend(directory)
             self.assertTrue((root / "identity.sqlite3").is_file())
+
+    def test_a_former_identity_file_holding_only_mappings_and_overrides_is_logged_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            os.chmod(root, 0o700)
+            path = root / "identity.sqlite3"
+            with closing(sqlite3.connect(path)) as db, db:  # the tables of the retired store (ADR 0012), no source orders
+                db.executescript("CREATE TABLE mappings (id TEXT PRIMARY KEY, status TEXT NOT NULL);"
+                                 "CREATE TABLE overrides (id TEXT PRIMARY KEY, state TEXT NOT NULL);")
+                db.executemany("INSERT INTO mappings VALUES (?, 'active')", [("one",), ("two",)])
+                db.execute("INSERT INTO overrides VALUES ('only', 'active')")
+            path.chmod(0o600)
+            with self.assertLogs(level="WARNING") as logged:
+                Sources().backend(directory)
+            [line] = logged.output
+            self.assertIn("identity.sqlite3 is kept as identity-retired.sqlite3", line)
+            self.assertIn("{}, 0 scoped choices, 2 saved mappings and 1 overrides", line)
+            self.assertTrue((root / "identity-retired.sqlite3").is_file())
 
     def test_cache_bounds_expiry_detached_values_and_strict_fresh_bypass(self):
         cache_type = import_module(f"{TOOLKIT}.cache").ReadCache
