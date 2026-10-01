@@ -158,6 +158,8 @@ describe("native work projection", () => {
           id: "child",
           source: "subagent",
           parent_session_id: "parent",
+          started_at: 4,
+          last_active: 9,
           ended_at: 10,
           title: "Source coverage",
         },
@@ -182,6 +184,8 @@ describe("native work projection", () => {
         goal: "Research agent",
         title: "Source coverage",
         status: "ended",
+        startedAt: 4,
+        lastActive: 9,
         endedAt: 10,
       },
     ]);
