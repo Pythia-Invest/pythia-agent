@@ -5,10 +5,11 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MANAGED_CORE_FILES,
@@ -90,6 +91,17 @@ printf '%s\\n' "$*" >> '${commandLog}'
     // A fresh source snapshot contains no generated widgets. Explicit
     // preparation must finish before copied-source validation or refresh.
     await buildManagedWidgets(paths.repositoryRoot);
+    // Connector workers come from the same explicit preparation step. The
+    // snapshot has no dependencies to compile against, so this checkout's
+    // compiler builds the identical runner sources straight into the snapshot
+    // (never the shared checkout output). It takes seconds, hence the timeout.
+    execFileSync(process.execPath, [
+      join(repositoryRoot, "node_modules/typescript/bin/tsc"),
+      "--project",
+      join(repositoryRoot, "runtime/managed/runner/tsconfig.json"),
+      "--outDir",
+      join(paths.repositoryRoot, "runtime/managed/runner/dist"),
+    ]);
     await refreshRuntimeAssets(
       { ...paths, managedCore },
       "safe-local-key-value",
@@ -112,7 +124,7 @@ printf '%s\\n' "$*" >> '${commandLog}'
         )
         .join("\n"),
     );
-  });
+  }, 60_000);
 
   it("recreates a tampered Hermes source cache from the verified archive", async () => {
     const root = temporaryRoot();
@@ -268,6 +280,20 @@ printf '%s\\n' "$*" >> '${commandLog}'
     });
     expect(recoverInterruptedProfileInitialization(paths).recovered).toBe(true);
     expect(existsSync(paths.profileInitialization)).toBe(false);
+  });
+
+  it("lists every file of core's bundled skills for the copy", () => {
+    const core = join(repositoryRoot, "runtime", "managed", "core");
+    const shipped = readdirSync(join(core, "skills"), {
+      recursive: true,
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(core, join(entry.parentPath, entry.name)));
+    expect(shipped).toContain("skills/identity-data/SKILL.md");
+    expect(
+      shipped.filter((path) => !MANAGED_CORE_FILES.includes(path)),
+    ).toEqual([]);
   });
 
   it.each(["development", "installed"])(

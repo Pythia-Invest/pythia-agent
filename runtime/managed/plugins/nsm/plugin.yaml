@@ -1,0 +1,10 @@
+name: pythia-nsm
+version: 0.1.0
+description: UK regulated disclosures (filings and regulatory announcements) from the FCA National Storage Mechanism, by issuer LEI; reads an undocumented endpoint
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_nsm_resolve
+  - pythia_nsm_filings
+  - pythia_nsm_news

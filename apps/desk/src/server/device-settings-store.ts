@@ -1,6 +1,25 @@
-import { existsSync, lstatSync, mkdirSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { DeviceSettingsError } from "./device-settings-contract";
+
+type JsonStore = Record<string, unknown> & { schema_version?: unknown };
+
+// Core's reserved settings.json field (platform/configuration.py `PAUSED`): the
+// plugins the investor paused in Settings → Data sources.
+const PAUSED_PLUGINS = "pythia_paused_plugins";
+const MAX_PAUSED_PLUGINS = 64;
 
 export function privateDirectory(path: string) {
   if (!existsSync(path)) mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -31,4 +50,84 @@ export function resolveConfigRoot(environment: NodeJS.ProcessEnv) {
     503,
     "settings_not_configured",
   );
+}
+
+// The paused list is settings.json's only writer here, so the read and the
+// atomic write stay private to this module.
+function readStore(path: string): JsonStore | null {
+  if (!existsSync(path)) return { schema_version: 1 };
+  const info = lstatSync(path);
+  if (
+    !info.isFile() ||
+    info.isSymbolicLink() ||
+    (process.platform !== "win32" && (info.mode & 0o077) !== 0)
+  )
+    return null;
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      return null;
+    const store = value as JsonStore;
+    return store.schema_version === 1 ? store : null;
+  } catch {
+    return null;
+  }
+}
+
+function requireStore(path: string) {
+  const store = readStore(path);
+  if (store === null) {
+    throw new DeviceSettingsError(
+      "The existing Pythia settings file is invalid; it was not changed.",
+      503,
+      "settings_store_invalid",
+    );
+  }
+  return store;
+}
+
+function atomicWriteStore(path: string, value: JsonStore) {
+  privateDirectory(dirname(path));
+  const temporary = join(
+    dirname(path),
+    `.pythia-settings-${process.pid}-${Date.now()}`,
+  );
+  const descriptor = openSync(temporary, "wx", 0o600);
+  try {
+    writeFileSync(
+      descriptor,
+      `${JSON.stringify({ ...value, schema_version: 1 }, null, 2)}\n`,
+      "utf8",
+    );
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  chmodSync(temporary, 0o600);
+  try {
+    renameSync(temporary, path);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+}
+
+/** Adds or removes one plugin in settings.json's paused list, keeping every
+ * other field. Core reads the file on each use, so the change is immediate. */
+export function setPausedPlugin(path: string, plugin: string, paused: boolean) {
+  const store = requireStore(path);
+  const stored = store[PAUSED_PLUGINS];
+  const current = Array.isArray(stored)
+    ? stored.filter((item): item is string => typeof item === "string")
+    : [];
+  const next = paused
+    ? [...new Set([...current, plugin])].sort()
+    : current.filter((item) => item !== plugin);
+  if (next.length > MAX_PAUSED_PLUGINS) {
+    throw new DeviceSettingsError(
+      "Too many plugins are paused.",
+      409,
+      "too_many_paused_plugins",
+    );
+  }
+  atomicWriteStore(path, { ...store, [PAUSED_PLUGINS]: next });
 }

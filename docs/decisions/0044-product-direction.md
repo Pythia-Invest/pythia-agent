@@ -1,0 +1,1303 @@
+# 0044: Product direction: mandate-driven agents, a decision ledger, and extensible data
+
+*Reading this record.* The rulings below are the first version. Amendments
+follow, and a later one can supersede part of an earlier one; the superseded
+passage carries a dated note and stays as history. What is built now is the
+"Today" list of the amendment "data any plugin can extend", which each later
+amendment keeps true.
+
+## Context
+
+Pythia began as a local research companion. Much of the recent work built the
+foundation for reliable data: the identity backbone
+([ADR 0037](0037-identity-backbone.md)), source selection
+([ADR 0040](0040-data-concepts-and-agent-tools.md)), reference data
+([ADR 0039](0039-local-first-reference-data-and-rights.md)) and source
+onboarding ([ADR 0042](0042-source-onboarding-standard.md)).
+
+In September 2026 the project clarified its goal. Pythia should let investors
+work with AI agents that research continuously, decide within an explicit
+mandate, and eventually help develop new strategies. The first users are
+technically comfortable investors who self-host. A hosted offering for
+investment teams, and sharing proven strategies, follow later.
+
+An architecture review of the identity backbone work against that goal found
+the following:
+
+- **The engine has no home.** Nothing represents a mandate, a decision record,
+  forecasts, a paper portfolio, portfolio state, order approval, or work that
+  runs without an open conversation.
+- **Evaluation is the hard problem.** Historical backtests of LLM judgment are
+  contaminated by training data
+  ([Lopez-Lira, Tang and Zhu, 2025](https://arxiv.org/abs/2504.14765);
+  [FINSABER, 2025](https://arxiv.org/abs/2505.07078)). Returns alone take many
+  years to establish modest skill
+  ([Bailey and López de Prado](https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf)).
+- **An approval the agent can reach is not an approval.** The agent's terminal
+  runs as the same user as the application, so an approval step that the agent
+  could reach would not be a real boundary.
+- **Pythia's state and plugins depend on Hermes internals.** This makes the
+  harness harder to replace, and it gives the future engine no Pythia-owned
+  home.
+- **Identity resolution on every device imposes a curator's work on every
+  user.** A reference build can raise more than ten thousand world-level
+  questions that have the same answer everywhere.
+- **Some effort goes to breadth the goal does not yet need.** That includes
+  additional reference sources and audits.
+
+## Ruling
+
+1. **Direction.** Pythia is a self-hosted workbench for mandate-driven
+   investment agents: research, decisions within limits, a verifiable forward
+   record, and owner-approved execution. [Vision](../vision.md) is the public
+   description of this direction.
+2. **Audience order.** Builder-investors, who self-host and customise, come
+   first. Hosted workspaces and team offerings follow. Their form is decided
+   with teams once agent strategies have a track record.
+3. **The decision ledger.** Every decision, including a deliberate decision to
+   take no action, is recorded append-only and hash-chained, with a daily
+   external timestamp.
+   - Each actionable decision carries two to five resolvable forecasts and
+     references to its evidence.
+   - Evidence is stored as references, never as copies of licensed data.
+   - Forward records and scored forecasts are the evidence of skill.
+     Backtests serve rule-based strategies and are labelled with their
+     biases. Replays of agent judgment are never evidence.
+4. **Mandates.** A strategy is a shareable method. A mandate is an investor
+   adopting it with explicit limits. Capital authorisation is a separate act.
+   - A running mandate has a small machine-checked limits file next to its
+     prose.
+   - Deterministic code checks every decision against the approved limits.
+   - Exploratory strategies remain free-form.
+5. **Execution boundary.**
+   - Agents propose; Pythia sizes and checks orders.
+   - Execution is never model-callable or widget-invokable.
+   - Approval is proven by the owner through a channel the agent cannot reach.
+     The first form is placing a drafted order in the broker's own application.
+   - Broker-side limits (trade-only credentials, dedicated sub-accounts) are
+     the backstop.
+   - Agent code execution is sandboxed before any live trading credential is
+     connected.
+   - Pythia executes only on the owner's own accounts.
+6. **Engine ownership.** Pythia owns mandates, the ledger, portfolio, jobs,
+   order tickets and approvals, in stores under Pythia's own data directory.
+   - The agent harness (currently Hermes) runs agent turns behind a single
+     adapter.
+   - Plugins use a small Pythia platform interface and do not import harness
+     internals.
+   - The engine starts in the existing backend process. It moves to its own
+     process at a concrete trigger: live automated execution with isolated
+     credentials, a native client, a harness replacement, or a hosted
+     deployment.
+7. **Local workspace, central truth.**
+   - Research, strategies, credentials, portfolios and ledgers stay on the
+     investor's machine.
+   - World-level identity answers, vendor symbol mappings for widely used
+     vendors, and optional datasets built from open sources are curated
+     centrally and delivered as signed downloads. Pythia's services do not
+     receive users' queries.
+   - Licensed provider data is never redistributed.
+
+   *Superseded on 2026-09-29 by A1 below: any plugin can extend the data, and
+   central curation is a maintained default, not the path.*
+8. **Conflict handling.**
+   - World identity conflicts are resolved centrally at build time, by rules,
+     typed claims and AI-assisted review, with maintainer approval.
+   - A user's own unmatched records are resolved lazily on their machine, with
+     one-click confirmation of a suggested match.
+   - Differing values are shown side by side, as ADR 0040 already requires.
+   - Source drift is the plugin maintainer's responsibility.
+   - Local fixes may be contributed upstream by opt-in per fix, sending
+     identifiers and reasoning only.
+   - When a user's own vendor disagrees with the reference, the reference is
+     the default and the user may override it locally.
+
+   *The first and last bullets are superseded by A2 below (2026-09-29), and the
+   reference is one source among the enabled plugins (2026-09-30).*
+9. **Identity scope.**
+   - **Kept:** the four-level backbone and its relations, today's coverage,
+     permanent identifiers (aliases, successors, and no identifier ever
+     disappearing), and holdings-first subjects for records that cannot be
+     matched.
+   - **Added only when a strategy needs them:** new kinds of subject.
+   - **Paused until a strategy universe reaches a gap or a second user
+     arrives:** new reference sources and further source audits.
+
+   *Superseded by A3 below (2026-09-29).*
+10. **Plugin trust levels.** Display, suggest identity, and confirm identity.
+    Only confirming identity requires the full onboarding audit and sign-off.
+    A display-only plugin, including a user's own licensed vendor, needs
+    declared coverage and terms only.
+
+    *Superseded by A4 (2026-09-29), which the amendment of 2026-09-30 "installing
+    a plugin means trusting it" replaced in turn: there are no trust levels.*
+11. **Extension model.** Builders customise through files and plugins, and the
+    core stays upstream and updatable.
+    - **Files:** strategies, mandates, skills, prompts and agent roles.
+    - **Plugins:** sources, account readers, datasets, widgets, schedules and
+      monitors.
+12. **Sustainability.**
+    - The application is open source and free to run, with a free, regularly
+      updated reference snapshot.
+    - Optional paid services cover what is shared and costly to operate:
+      curated data updates and datasets built from open sources, hosted
+      workspaces, and later strategy packages after legal review.
+    - Model access stays bring-your-own by default.
+
+## Rationale
+
+- **Trust is the constraint.** Agents can already do analyst-scale work. What
+  is missing is a way to know whether their judgment is good. A forward,
+  verifiable record with scored forecasts answers that. It cannot be created
+  after the fact, so it must exist from the first mandate run.
+- **Limits in prose are advisory.** Checking them in code turns them into a
+  boundary, consistent with enforcing security boundaries in code rather than
+  in prompts.
+- **Keeping execution out of the agent's reach** is the only boundary that
+  holds against prompt injection through documents and news, while agent
+  sandboxing is still deferred.
+- **Owning the engine's state keeps it portable.** Pythia-owned state survives
+  a harness replacement, a native client and hosted deployments. Starting
+  in-process avoids new infrastructure until a trigger justifies it.
+- **Resolve shared facts once.** Resolving world-level facts once keeps the
+  local workspace, and its privacy and control, without turning every user
+  into a data curator. Delivering curated data as downloads preserves privacy:
+  what an investor researches is their edge.
+- **Scope identity to what the loop needs.** The identity backbone is what lets
+  many plugins connect. Further breadth adds less than the missing engine
+  does.
+
+## Consequences
+
+This ADR sets direction. Each component (ledger, mandates, jobs, approvals and
+execution, curated reference distribution, plugin platform interface) receives
+its own implementing ADR or architecture document when it is built.
+
+It amends the following rulings:
+
+- **[Product](../product.md) "Pythia is not a trading system".** Replaced:
+  Pythia is not an investment adviser. It acts on an owner's own accounts only
+  with that owner's explicit approval.
+- **[ADR 0013](0013-workspace-and-native-research-context.md) "No
+  investment-case schema".** A running mandate gets a small machine-checked
+  limits file. Everything else stays schema-free.
+- **[ADR 0030](0030-coordinated-reads-and-live-updates.md) "no new durable
+  scheduler".** Pythia-owned jobs run mandate and event-driven research. Live
+  subscriptions are unchanged.
+- **[ADR 0037](0037-identity-backbone.md) "nothing triggers the agent".** Jobs
+  may trigger agent work. Identity questions reach a device only for subjects
+  it touches; world-level questions are answered centrally.
+- **[ADR 0039](0039-local-first-reference-data-and-rights.md) "Pythia publishes
+  no snapshot and operates no service" and "Model verdicts stay out of any
+  release".**
+  - Pythia may publish a signed reference package over open data, including
+    reviewed curated answers, once the rights checks listed in that ADR are
+    complete.
+  - Raw model exchanges stay out of releases.
+  - Provider data is still never redistributed.
+- **[ADR 0042](0042-source-onboarding-standard.md) "verdicts stay on the
+  device".**
+  - Reviewed curated answers over open data may ship in the reference package.
+  - Gold labels on licensed data and raw model exchanges stay on the device.
+  - The trust levels in ruling 10 define what requires sign-off. *(Superseded
+    on 2026-09-30: sign-off is Pythia's own audit record and no code reads it.)*
+- **The deferral of agent sandboxing** ends before the first live trading
+  credential is connected.
+- **Hermes-native permissions** continue to govern reads. Approval of orders is
+  owned by Pythia.
+
+## Rejected alternatives
+
+- **A fully hosted service now, with licensed data.** It would make the product
+  simpler for teams. But it requires licensing and redistributing market data
+  before there is a product, removes the privacy of what users research, makes
+  a customisable many-agent workbench expensive to operate, and conflicts with
+  local control. It stays open as a later option: a hosted workspace running
+  the same software.
+- **Fully local data resolution.** It would give each installation its own
+  reference build and its own world-level questions, and it would make every
+  user a data curator.
+- **Backtest-first evaluation of agent judgment.** It is contaminated by
+  training data and misleading.
+- **Autonomous execution without per-trade approval.** Deferred until a
+  sustained record exists and an explicit decision is made.
+- **Building the engine inside the agent harness.** That would deepen the
+  dependency on harness internals and lose portability.
+- **Continuing identity breadth before the engine.** It improves coverage that
+  current strategies do not need, while the record that cannot be created later
+  does not exist.
+- **Live query data services.** They would reveal what users research.
+
+## Amendment (2026-09-29): data any plugin can extend
+
+### Context
+
+The first version of this ADR, merged the same day, made Pythia's central
+curation the path for world-level identity answers (rulings 7 to 9). Three
+investigations on the 28 September 2026 reference build (EU and United States,
+11,965 open identity questions) and a review of the code changed that
+direction.
+
+- **Plugins cannot extend the universe.** Subjects come only from the
+  reference build and core's curated tables. Trust follows the list of bundled
+  plugin names, and the builder's evidence outranks the same claim from a
+  plugin. Reference sources stopped emitting claims after a security fix; ADRs
+  0038 and 0042 recorded that afterwards without weighing alternatives.
+- **Most identity questions are not judgment.**
+  - About a fifth settled once the downloaded open sources contributed
+    evidence as peers, and about half with an exchange-code table and one more
+    rule (measured).
+  - About a quarter concerned instruments that trade in Europe only on
+    bank-internal, request-for-quote or dark venues.
+  - About fifty (0.4%) needed judgment, nearly all about which of two listings
+    is primary.
+- **Runtime judgment helps research but does not settle records.** *(Narrowed on
+  2026-09-30: calibrated verdicts on facts apply for read-only use, see the
+  amendment below.)* In a small,
+  single-run test on real cases, strong models answered research questions
+  well, often from memory of well-covered companies. They still chose
+  differently on convention questions, and a smaller model did no better than
+  the default.
+- **Central maintenance is acceptable where licences allow.** The requirement
+  is extensibility: any plugin can extend the universe through the same
+  contract as the maintained defaults.
+
+### Ruling
+
+This amendment's rulings are numbered A1 to A8. They supersede rulings 7, 9
+and 10, and the first and last bullets of ruling 8; the other rulings stand. It
+also narrows the rationale "Resolve shared facts once" and the rejected
+alternative "Fully local data resolution" to raising every world-level
+question on every installation.
+
+*Amended on 2026-09-30: A4 is superseded, and A2 and A3 weigh evidence by kind
+alone, with no trust levels (amendment "installing a plugin means trusting it"
+below).*
+
+**A1.** **Extensible data with maintained defaults** (replaces ruling 7).
+   - Research, strategies, credentials, portfolios and ledgers stay on the
+     investor's machine.
+   - Every plugin can introduce subjects and contribute evidence through the
+     same supported contract.
+   - Pythia provides maintained defaults, including open reference data, which
+     users can replace or supplement. Default plugins are preinstalled, never
+     mandatory.
+   - Where a licence allows, a plugin's output may ship prebuilt. A prebuilt
+     package has no more authority than the same plugin run locally.
+   - Prebuilt data is delivered as downloads, so no service receives users'
+     queries. Licensed provider data is never redistributed.
+
+**A2.** **Combining evidence** (replaces the first and last bullets of ruling 8).
+   - Rules combine the evidence of all enabled plugins. They name kinds of
+     evidence and trust levels, never sources, and are published, versioned
+     and overridable locally.
+   - Conflicting claims are kept and marked, not deleted.
+   - Where the rules do not decide, the link stays unresolved and the
+     disagreement is shown. A local override makes the user's choice win on
+     their installation.
+   - An identity question is queued only when the instrument becomes relevant
+     to a holding, a research task or an operation. An instrument's venue
+     category does not make it irrelevant.
+   - An agent's answer to any identity question is a suggestion and changes
+     nothing until the user confirms it. *Modified on 2026-09-30: a calibrated
+     verdict above its threshold applies for read-only use (decided, not built;
+     see Today), and everything
+     else stays a suggestion
+     ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
+
+**A3.** **Identity scope and contributions** (replaces ruling 9).
+   - **Kept:** the four-level backbone and its relations, today's coverage,
+     permanent identifiers, and holdings-first subjects for records that
+     cannot be matched.
+   - **Core owns the rules, plugins contribute the contents.** Core defines a
+     small set of subject kinds, the identifier rules, relations and matching.
+     New kinds are a rare core addition.
+   - **Introducing subjects.** A plugin may introduce portable, first-class
+     subjects that no source yet covers, under its native identifier scheme or
+     under open identifiers. Introducing a subject confers no authority over
+     it: facts about any subject are weighed by evidence kind and trust level,
+     and the absence of competing evidence never increases a plugin's
+     authority.
+   - **Links are made by identifier agreement at the right scope.** A shared
+     issuer never makes two instruments the same; ambiguous links stay
+     unresolved.
+   - **Identifiers come from identifiers, not sources.** Any enabled plugin
+     that supplies the same identifier yields the same subject.
+   - **Disabling a default plugin** reduces identity quality or coverage, and
+     Pythia shows the effect before it happens.
+   - **Shared artefacts carry identifier bundles,** pin the meaning of their
+     rules and declare their data requirements. The receiving installation
+     leaves ambiguous matches unresolved. Separate installations need not
+     reach identical new decisions. Reproducing a historical decision uses its
+     selected facts, evidence references and relevant versions.
+   - **Paused until a strategy universe reaches a gap or a second user
+     arrives:** new reference sources and further source audits.
+
+**A4.** **Plugin trust levels** (replaces ruling 10). *Superseded on
+   2026-09-30: installing a plugin means trusting it, and there are no levels
+   ([amendment below](#amendment-2026-09-30-installing-a-plugin-means-trusting-it)).
+   Only the last bullet, code isolation, stands.* There are three levels:
+   display, suggest identity and confirm identity.
+   - **Display** covers showing data with its source and introducing subjects
+     under open or native identifiers. It needs declared coverage and terms,
+     and the identifier scheme of any subjects it introduces.
+   - **Confirm identity**, which establishes facts that other sources also
+     describe without review, requires the full onboarding audit and sign-off.
+   - **A user's own licensed vendor** is usable at the display level.
+   - **Bounds and trust.** What a plugin's claims can establish is bounded by
+     claim type and trust level. Trust attaches to a signed or hashed release,
+     not to a plugin's name.
+   - **Code isolation.** Trust levels bound data, not code. Isolating untrusted
+     plugin code is required before an open marketplace.
+
+**A5.** **Identity, evidence and choices are separate.**
+   - Whether records are the same instrument requires evidence at the correct
+     scope.
+   - Which listing a view shows is a preference or documented default.
+   - The instrument, price series, currency and fill policy of a forecast or
+     paper decision are pinned when it is created. Pinning preserves the
+     choice; it does not validate the facts behind it (A6).
+   - What conflicting evidence means for a thesis is the agent's
+     interpretation, which it explains.
+
+**A6.** **Uncertainty and consequential operations.**
+   - Recording uncertainty is allowed in research, notes and ledger entries.
+   - Consequential operations need validated facts and pinned choices. These
+     are simulating a fill, carrying or merging positions across corporate
+     actions, checking an issuer limit, and creating an order ticket. Factual
+     inputs, such as an issuer link or a split ratio, must meet the operation's
+     evidence requirements. Choices, such as the listing, price series or fill
+     policy, are pinned. Pinning preserves a choice and never validates a fact.
+     When an input falls short, that operation is unavailable with a reason,
+     and the rest of the workflow continues.
+   - An unconfirmed agent interpretation never counts as a validated fact.
+   - A saved interpretation keeps its evidence, scope and dependencies, and
+     becomes stale when they change.
+
+**A7.** **Reviewed answers.** *Superseded for now on 2026-09-30: a shared
+   answer list is rejected until measurement shows many devices judging the
+   same cases
+   ([amendment below](#amendment-2026-09-30-who-fixes-what-is-wrong-and-how-the-device-agent-judges-the-rest)).*
+   Reviewed answers over open data may ship as a
+   Pythia-maintained answer list, contributed at its trust level like any
+   other plugin's evidence. Raw model exchanges and gold labels on licensed
+   data stay on the device.
+
+**A8.** **Open until validated:**
+   - direct and prebuilt forms per reference source;
+   - the exact evidence-weighing rules;
+   - bitemporal claims;
+   - learned source reliability;
+   - subscribable answer lists beyond Pythia's own (and, since 2026-09-30,
+     any shared answer list at all);
+   - the content and pricing of paid services.
+
+### Today
+
+Roadmap stage 0 implements this amendment. No package is published and no
+central curator exists.
+
+- **Plugins extend the universe on equal terms.** Any plugin can introduce
+  subjects and contribute evidence through core's ingest, joined by identifier
+  at each record's own scope and introduced only under the key schemes its
+  contract declares. Pages and search show them with or without a reference
+  package. A saved reference keeps resolving through disabling, re-enabling
+  and updates, and its page names its source and says whether that source is
+  off or no longer offers it ([ADR 0037](0037-identity-backbone.md),
+  amendments "device subjects", "ingest", "search over reference and device"
+  and "saved references through a plugin's lifecycle"). Which plugin syncs
+  first does not change the relations stored or the names shown: a relation
+  waits for a token a later plugin introduces, and a subject's name follows
+  the investor's `source_order`, else plugin id. A subject's `status`,
+  `attributes` and parent still follow the plugin that introduced it (amendment
+  "ingest results do not depend on which plugin syncs first").
+- **Sources are read only when asked.** A catalogue is read from Settings →
+  Data sources ("Sync now"), and one identifier is looked up in a plugin that
+  takes it, from the form on that plugin's row there. Search calls no plugin
+  and offers no lookup. There is no scheduler.
+- **Search answers from local data, delisted lines included.** A delisted line
+  (its own status is inactive, as the price guards read it) is found by name, ticker and
+  identifier, marked "Delisted" and ranked below live lines; an "Include
+  delisted" toggle in the search panel hides them. Its page still gets no live
+  price through the ticker. A security none of whose lines has a ticker is
+  found too, as one row marked "No ticker" (amendment of 2026-09-30 below).
+- **A source corrects its own errors, labelled.** A plugin or a builder adapter
+  states a known error in its own source as a source correction: the field, the
+  source's original text and the reason, with the corrected value stated once in
+  the record and the original kept beside it, applied only while the source still
+  states the original. It keeps the source's own authority and is not the
+  investor's catalogue correction. The first entry retracts the issuer FIRDS
+  states on Concord Medical's ADR; the SEC state-code mis-keys wait for an emitter
+  of incorporation (amendment "a source adapter corrects its own source").
+- **A source switches off at once, from Settings.** Settings → Data → Data sources
+  has a switch per source that pauses it: a paused plugin counts as disabled
+  for data, with no restart. The subjects only it supplies are hidden from
+  search and selection, while a saved reference still opens, labelled as paused. The section shows first which subjects only
+  that source supplies and which saved watchlist and card entries name them.
+  Enabling a plugin Hermes does not run, and disabling one for good, stay
+  Hermes's commands ([ADR 0037](0037-identity-backbone.md), amendment
+  "pausing a plugin").
+- **Installing a plugin means trusting it.** There are no trust levels: every
+  enabled plugin is equal, binds onto reference or device subjects, and
+  contributes evidence that counts like the package's (amendment of
+  2026-09-30 below).
+- **Questions on touch.** The build's open questions, and the conflicts between
+  plugins' evidence (a plugin-introduced subject's included, and one plugin
+  contradicting itself), are asked when an instrument is opened, watched or
+  used by the agent, and the user's answer is a local override
+  ([ADR 0037](0037-identity-backbone.md), amendments "questions on touch" and
+  "questions and overrides for plugin-introduced subjects"). While a question
+  is open, the page shows an open data conflict linked to its repair where the
+  fact it holds back would be, never a blank (amendment "open data conflicts on
+  the page").
+- **The investor can correct the catalogue.** From an instrument's page they
+  set or remove an identifier and pin the source that prices a line or
+  security; the agent can only propose the same, and the investor confirms it
+  in Repairs. A correction applies on every read above the reference, the
+  plugins and the investor's answers, is undone from the page or Repairs, and
+  follows a re-key (amendment "user catalogue corrections" below). Moving a
+  listing to another security and ignoring one plugin's record are the next
+  part of the same change and are not read yet.
+- **Reference sources are builder adapters.** A build can leave out any of
+  them (FIRDS, FITRS, GLEIF, OpenFIGI, SEC), and its `package.json` lists the
+  sources it includes; only the ISO 10383 venue codes and core's curated
+  crypto table are always in. A device can remove its installed package:
+  search and pages then read the device's subjects alone, and saved
+  references open as labelled stubs ([ADR 0037](0037-identity-backbone.md),
+  amendment "search over reference and device").
+- **Crypto keys come from claims.** A deployment key (`listing:caip19:`) may
+  come from any plugin, and an asset key (`security:caip19:`) from any
+  plugin's canonical-issuance claim; a platform list never keys an asset
+  ([ADR 0037](0037-identity-backbone.md), amendment "ingest"). Core's curated
+  table stays the maintained default supplier of those claims, through the
+  reference build.
+- **DeFi sources share tokens, not pools.** DeFiLlama and NAVI (the Sui lending
+  protocol) each introduce their own pools or reserves and protocol, and both
+  name the coin types they hold by CAIP-19, so a token both state is one
+  subject. Their pools, reserves and protocols stay separate subjects, adjacent
+  on the token's page: no plugin that ships on states an identifier at that scope (the experimental Sui keys below
+  do, for plugins that ship off), and a
+  bridge between them is a founder decision ([ADR 0038](0038-plugin-addressing-contract.md)).
+- **Experimental (in development): Sui keys.** The open schemes `sui_package` (protocol)
+  and `sui_object` (market) let several Sui sources state one subject; the plugins
+  that use them (`pythia-sui`, NAVI) ship disabled ([ADR 0048](0048-sui-defi-experiment.md)).
+
+Still open:
+
+- Holdings, forecasts and operations join as question triggers in stage 1.
+- The reference sources' direct and prebuilt forms, and the exact
+  evidence-weighing rules, stay open (A8). The defaults name kinds of evidence.
+- The judgement architecture of the amendment of 2026-09-30 below is decided,
+  and its procedures (prompts, gold sets, the judge) are not built. Until they
+  are, every agent answer is still a suggestion and open conflicts stay open.
+- A user cannot yet alias a provisional coin.
+- The effect of disabling a plugin counts coverage (the subjects only it
+  supplies), not the identifiers a subject other sources also supply would
+  lose.
+- Sync, lookup and the effect are Desk operations; the agent's tool list has
+  no room for them.
+- CoinGecko's and CoinMarketCap's catalogues still answer an older row format,
+  so sync cannot read them.
+
+Documents that cite the first version of these rulings describe earlier
+behaviour or its original plan. The central curator's back office they mention
+was to become the Pythia-maintained answer list of A7, which the amendment of
+2026-09-30 below supersedes: plugins fix their own data and the device agent
+judges the rest. The "finish line" of the first ruling 9 is superseded by the
+stage 0 work below.
+
+### Consequences
+
+- **Rulings in other ADRs changed when stage 0 landed:**
+  - [ADR 0037](0037-identity-backbone.md): crypto keys only from the curated
+    table; `snapshot` outranking `source_asserted`; `curated` at the top tier.
+  - [ADR 0038](0038-plugin-addressing-contract.md): "Reference sources do not
+    emit" (plugins emit through core's ingest; the reference sources are still
+    builder adapters).
+  - [ADR 0039](0039-local-first-reference-data-and-rights.md): a published
+    package would be a maintained default without extra authority. None is
+    published.
+  - [ADR 0042](0042-source-onboarding-standard.md): "The builder's reference
+    sources are not plugins", and no subjects before sign-off, for plugins
+    that introduce subjects.
+- **Roadmap stage 0 gains:**
+  - an ordinary plugin adding a subject;
+  - contributing evidence about an existing one;
+  - appearing in search;
+  - keeping saved references through disabling, re-enabling and updates;
+  - queueing identity questions only for instruments relevant to a holding,
+    research task or operation;
+  - removing authority by name or origin;
+  - tests of consequential failures.
+
+### Rejected alternatives
+
+- **Central curation as the authority over identity.** This was the first
+  version of this ADR. Central maintenance remains as a default, but as the only
+  path that creates subjects or settles conflicts it would put every plugin
+  below it.
+- **Only the reference may create subjects.** Every new domain, such as a DeFi
+  ecosystem or a niche market, would wait for a catalogue release.
+- **Mandatory reference plugins.** They would guarantee identical identifiers,
+  but make Pythia unusable for anyone who does not want part of the market.
+  Identifier bundles and aliases give portability without the mandate.
+- **Letting the agent settle records at runtime.** *(Narrowed on 2026-09-30:
+  it stands for conventions and consequential use, not for calibrated
+  read-only verdicts on facts.)* Capable models chose
+  differently on convention questions.
+- **The model tier as the safety boundary.** Saving an answer makes it
+  repeatable, not correct. Evidence and the operation's requirements decide
+  its use.
+- **Raising every world-level question on every installation.** It would make
+  every user a data curator.
+
+### Note (2026-09-30): OpenFIGI introduces subjects on demand only
+
+**Context.** Stage 0 shows an overlapping financial source introducing subjects.
+OpenFIGI is that source: it is keyless and free, its plugin is grandfathered
+(ADR 0042), and its FIGIs identify each level exactly (listing, composite, share
+class). OpenFIGI can map any ISIN, so its plugin could also page through ISINs
+in bulk and act as a reference source by another route, which A8 leaves open
+("direct and prebuilt forms per reference source").
+
+**Ruling.** OpenFIGI introduces subjects on demand only: a single-identifier
+lookup, one ISIN, when the investor asks for it (from the plugin's row in
+Settings → Data sources, [amendment of 2026-09-30](#amendment-2026-09-30-search-is-local-data-only-and-delisted-lines-stay-findable))
+or the agent asks for the mapping (`openfigi_identifiers`, which stores
+nothing). Its contract
+declares `resolve` with input `isin` and `introduces: {"listing": ["figi"]}`, and
+no catalogue. There is no bulk mapping and no scheduled sync. The answer is one
+listing claim per FIGI line; tickers are evidence only, and an exchange code
+becomes an operating MIC only through the contract's `venue_codes`
+([source record](../sources/openfigi.md)).
+
+**Rationale.** A lookup covers what stage 0 needs to prove, a line the
+reference lacks (Toyota's London line in the build of 2026-09-28), without
+deciding the open question of how a reference source ships. It keeps to
+OpenFIGI's keyless limits and to ADR 0038's rule that "Look up in X" calls
+exactly one plugin's `resolve`.
+
+**Consequences.** OpenFIGI adds evidence to existing listings by FIGI and adds
+lines one ISIN at a time; it never widens coverage by itself. A catalogue or bulk
+mode waits for A8.
+
+**Rejected alternatives.** A bulk catalogue over the reference's ISINs (a
+direct form of a reference source, open under A8), and EODHD as the overlapping
+source (paid, and its ISINs are `unqualified`, so nothing joins by ISIN).
+
+### Note (2026-09-30): OpenFIGI's exchange codes are a vocabulary
+
+**Context.** The note above let an exchange code become an operating MIC only
+through the contract's `venue_codes`, and the plugin left out the composite
+lines and mapped about fifty codes. One-time research with OpenFIGI's own
+`micCode` filter (297 requests) showed most of the 285 codes seen: order books,
+second books on an operating MIC, trade reports, dark venues, composites, and 41
+it could not resolve. Toyota's 143 lines are mostly not order books.
+
+**Ruling.** The founder ruled: "Dropping data is almost never what you want."
+Keep every record, learn the vocabulary, and filter visibility later,
+downstream. Lines are for real public order books only. The plugin holds the
+vocabulary (`vocabulary.json`, [source record](../sources/openfigi.md)) and gives
+each code a kind: `exchange`, `second_book`, `us_unlisted_trading`,
+`rfq`, `trade_report`, `dark`, `composite` or `unknown`. Only `exchange` codes are in `venue_codes` and so become lines.
+Every other line is still emitted as a claim carrying `provider_venue`, parked
+(`unmatched`) without an operating MIC, and a new claim attribute, `venue_note`,
+says why in words (a trade report, a second book, not in the vocabulary). AU is
+Australia's composite and the ASX line is AT. The US exchange codes (UN, UW, UF
+and the rest) are not mapped: OpenFIGI gives a US security a line on every US
+venue under unlisted trading privileges, so mapping them would show a Nasdaq
+stock as listed on NYSE and Cboe. Their kind, `us_unlisted_trading`, keeps the
+MIC in the vocabulary; US listings come from SEC (decided in review). PQ stays
+mapped to OTCM. Request-for-quote MTFs (B2, B4, T2, WT) are not order books
+either: kind `rfq`, parked.
+
+**Rationale.** A line without an operating MIC is harmless and the reason is
+evidence; a dropped line is gone. The classification is the plugin's knowledge of
+Bloomberg's codes, so it lives in the plugin, and core changed only by one
+optional attribute that every plugin may use. The reason sits in the claim as
+stored, readable by SQL, rather than in a new column every plugin would share.
+
+**Consequences.** The contract's `venue_codes` grows from 47 to 106 codes, all
+order books, and OpenFIGI adds venue lines it used to park, except the US
+exchange codes, which stay parked. A code the vocabulary lacks is kept and says
+so. `venue_note` is a new key of every wire record, so the first sync after the
+upgrade finds every plugin's stored claims different from the re-emitted ones and
+places each once more, then stores it again. That re-place is harmless (same
+placements, subjects and identifiers, no new question; tested).
+
+**Rejected alternatives.** Dropping trade-report and composite lines from the
+answer (loses data); mapping every resolved code to its operating MIC (several
+lines of one security on one MIC, and trade reports shown as order books); a new
+nullable column on `claims` for the reason (a core schema addition beside a claim
+attribute that already travels with the record).
+
+## Amendment (2026-09-30): installing a plugin means trusting it
+
+### Context
+
+Stage 0 built A4's trust levels: display and confirm, looked up by a digest of
+a plugin's files. Pythia's release grants were generated when the payload was
+assembled, the user could grant or demote any plugin locally, the reference
+package was granted on its own digest, only a confirm-level plugin could bind,
+and a plugin below confirm was labelled "not yet audited" and its would-be
+binding became an `unaudited` question. The founder ruled on 2026-09-30: "IF
+you install 'Japan stocks' that means that you trust it… remove that
+distinction." The user chose the plugin; Pythia asking them to trust it a
+second time, by a digest they cannot judge, adds friction and no safety.
+
+### Ruling
+
+- **Every enabled plugin is equal.** It can introduce subjects under its
+  contract's key schemes, contribute evidence, bind its records to a reference
+  or device subject, and alias its provisional IDs. Its evidence counts like
+  any other's, including the reference package's. The reference package is
+  just another source.
+- **This supersedes** A4's three levels and its sentence "trust attaches to a
+  signed or hashed release", and the parts of A2 and A3 that weigh evidence by
+  "trust level": evidence is weighed by its kind. Gone with them are the
+  plugin-file digest, Pythia's release grants and the user's local grants, the
+  package grant, the `vouched` contract, the "not yet audited" label, the
+  `unaudited` residual, ADR 0042's "binding by trust level" and the Settings
+  labels "Confirms identity" and "Display only".
+- **Conflicts stay.** Evidence from different plugins or sources that
+  disagrees on a single-valued fact leaves it contested: every value is kept,
+  none is applied, and a question is asked when the subject is touched. The
+  user's answer is a local override and wins, refused only by unanimous
+  identifier proof. One source's several values (A2) are no conflict, nor are
+  several sources stating the identical values.
+- **A plugin that is off or removed** keeps its subjects' labels and
+  identifiers on the device, shown with their source, but what it stated does
+  not prove, block or contest while it is off. That follows from disabling,
+  not from a level.
+- **Default enablement is a product default.** DeFiLlama, NAVI, Hyperliquid and
+  the FCA NSM plugin stay off in fresh profiles, and enabling one is the opt-in.
+- **`signoff` in a plugin's contract** stays as a record of Pythia's own audit
+  under [ADR 0042](0042-source-onboarding-standard.md), which stays Pythia's
+  quality process for the defaults it ships. No code reads it.
+- **Source selection** keeps [ADR 0040](0040-data-concepts-and-agent-tools.md)'s
+  one order (the investor's, then core's default order, then by plugin ID),
+  without the rule that an unsigned source is never core's own pick: any
+  enabled plugin can be picked by the default order.
+- **Code isolation** (A4's last bullet) still stands: isolating plugin code is
+  required before an open marketplace.
+
+### Rationale
+
+- Installing is the decision. A plugin the user did not want is not installed;
+  one they did want should work on equal terms, as the vision says.
+- The levels were a second, hidden decision. Confirm or display by digest
+  meant a user who edited a plugin's file, or updated it, lost its binding
+  powers until a new grant was recorded, and had no way to read the digest.
+- What protects the data is conflict, not rank: a wrong value that another
+  source contradicts is contested rather than applied. The other remedies are
+  the user's (disable the plugin, answer the question).
+- It removes a generator run at every assembly, a generated file in core's
+  payload, a local grants file in the config folder, a parity test between
+  assembly and runtime, and a separate rule for display plugins in ingest,
+  evidence, relations, search and binding.
+
+### Consequences
+
+- **There is no protection against a buggy or malicious plugin** other than
+  disabling it, correcting its data, or conflicts being raised. A plugin that
+  states a wrong value no other source contradicts is believed. Code isolation
+  stays required before an open marketplace.
+- Two plugins that send the same records under different names, whatever
+  sign-off each declares, give the same subjects, evidence, pages and search
+  results.
+- An existing `trust.json` in the Pythia config folder is ignored, and core
+  no longer writes or reads one. `reference_package install` takes no
+  `--display` and needs no config folder.
+- A disagreement between two plugins that an earlier version ranked by level
+  is now a contested fact and a question on touch. Two plugins that name
+  different parents for one device line leave the line without a parent
+  (neither wins), and another plugin's line on the same exchange counts as a
+  second line there, so a currency-less record that would have joined the
+  exchange's one line stays unmatched.
+- Evidence Pythia cannot rank stays unranked: the exact weighing rules remain
+  open (A8).
+- The remedies the founder named, an explanation of where a value comes from,
+  an on/off switch per plugin in Settings, and user corrections to the
+  catalogue, are separate changes; none of them is part of this one.
+- Earlier amendments' text on levels is superseded where it conflicts: ADR 0037
+  ("evidence counts by kind and trust level", "binding", the search tie-break),
+  ADR 0038 (a declared address `confirmed` only at confirm level), ADR 0040
+  ("Unaudited sources") and ADR 0042 (its three trust amendments).
+
+### Rejected alternatives
+
+- **Hash-bound levels (A4 as built).** They tie trust to reviewed content, but
+  the user never reviews the content, every update changes the hash, and
+  Pythia's own grants needed generating and guarding. The protection they gave
+  was against a plugin under a trusted name, a risk a user who installs
+  plugins by choice already carries.
+- **Levels by origin** (shipped, community, the user's own). They are
+  authority by origin again, which A1 rules out.
+- **A single "verified" badge** kept for Pythia's audited plugins. It would
+  make every unbadged plugin second class in the interface while changing no
+  behaviour.
+
+## Amendment (2026-09-30): user catalogue corrections
+
+### Context
+
+The founder's ruling that installing a plugin means trusting it (the amendment
+above) named the remedies for a plugin that is wrong: an explanation of where a
+value comes from, an on/off switch per plugin, and "manual overwrites to the
+catalog in case there are issues with plugins but you want to keep using them".
+The explanation became the stores' own provenance and the `pythia:identity-data`
+skill, and the switch became the pause in Settings. The investor's answer to a
+question is already a local override, but it exists only where a source is
+contested or a build asked; it cannot say "this ISIN is wrong", "this source
+should price this line", or remove a value nobody contests.
+
+### Ruling
+
+- **A correction is a local override the investor makes on purpose, at the top
+  of the precedence.** It applies on every read above the reference, every
+  plugin and the investor's answers to questions, and it changes no ingested
+  row, so a sync cannot revive what it overrode.
+- **Two kinds are built now.** An `identifier` correction sets one scheme of a
+  subject, at the level the scheme identifies, or removes it. A `price_source`
+  correction pins a plugin as the source of a line's or security's quote, chart
+  and live price; a failing pinned source falls through to the next and the
+  page says so. The kinds `parent` (move a listing to another security) and
+  `detach` (ignore one plugin record's statements about a subject) are
+  reserved in the schema and refused until they are read.
+- **Only the investor makes one apply.** The Desk writes it `active` with the
+  user's turn, and the table refuses an `active` row without one. The agent's
+  call writes a `proposed` row that applies to nothing (A2's rule that an
+  agent's answer changes nothing until the user confirms). Confirm, decline and
+  undo are Desk operations; the agent has no tool for them.
+- **Corrections are their own table, `corrections`, in the identity store.**
+  The question machinery (`queue`, `verdicts`) cannot carry them: a verdict
+  needs a question, refuses an answer that unanimous identifier evidence
+  contradicts (a correction exists for exactly that case), and has no relation
+  for set, remove or pin. The conventions are reused: `user_attested`
+  authority, a `user_turn`, rows kept as history, and the store's `generation`,
+  which every write and undo bumps so search renews.
+- **One active row per fact.** A newer correction replaces the older (it stays
+  as `undone`, cited in `replaces`). A re-key of a subject re-points its
+  corrections, and where two now state one fact the newest stays.
+- **The surfaces stay small.** The identifier is edited in place in the
+  instrument header (an empty value removes it), "Always use" sits beside
+  "Back" on a price section's sources line, "Corrected by you · Undo" marks the
+  corrected item and the settled rows of Settings → Repairs, and the agent's
+  proposals are Repairs rows. There is no explanation panel.
+
+### Rationale
+
+- A correction marks a plugin or source issue worth investigating. Each one stays
+  visible in the raw data so it can be reviewed and retired once the plugin is
+  fixed.
+- The founder asked for a way to keep using a plugin that is wrong in a few
+  places, without waiting for it to be fixed and without disabling it.
+- Overriding on read, never in the ingested rows, keeps the evidence intact and
+  makes undo exact: the data reads as before.
+- Letting the agent only propose keeps A2's boundary: a correction changes what
+  the investor sees and what price they read, so they decide.
+
+### Consequences
+
+- A corrected identifier does not change the evidence a plugin's resolve is
+  checked against, so a plugin that resolves by the corrected value can still
+  be refused by the source evidence it contradicts, as it is for an answer to a
+  question. A corrected FIGI does change the address core derives from it.
+- A pin applies to the subject it names and, for a security, to its lines; a pin
+  on a line beats one on its security. A pin on a plugin that is later
+  uninstalled applies to nothing.
+- The store schema stays at 6: an older store gains the table when it is next
+  opened, and an older Pythia ignores it.
+- The effect of `parent` and `detach` on search and pages is part of the
+  follow-up change and is not designed here.
+
+### Rejected alternatives
+
+- **Reusing questions and verdicts.** Only "set an identifier" fits, through a
+  chosen candidate, and it is refused where the evidence is unanimous.
+- **Editing the ingested rows.** A sync would revive the old value, and undo
+  would have nothing to restore.
+- **Letting the agent write an active correction** on the user's confirmation in
+  chat. A chat turn is not a Desk action the store can check, and A2 already
+  names Repairs as the place a suggestion becomes the user's.
+- **Trust levels for who may correct** (removed above), and an explanation panel
+  (the founder asked for well-modelled data instead).
+
+## Amendment (2026-09-30): search is local data only, and delisted lines stay findable
+
+### Context
+
+Two rulings by the founder. First, "the search should fully work with the local
+data": search offered "Look up in OpenFIGI" for an identifier the directory did
+not hold, a plugin-specific action reached from a search screen. Second,
+delisted and inactive instruments disappeared from search: the directory
+dropped every line whose listing or security is inactive, so Milkiland
+(`security:isin:NL0009508712`, delisted in Warsaw) could be found neither by
+name nor by ISIN, although its page opens by id and the reference holds it.
+
+### Ruling
+
+- **Search never calls a plugin.** It offers no lookup, in the background or
+  from its interface. A plugin's own function lives on that plugin's own
+  place: any plugin that declares a `resolve` (not only OpenFIGI) gets the same
+  small, generic lookup form on its row in
+  Settings → Data → Data sources (an identifier in; the counts of records
+  joined, introduced, in conflict or unmatched, and the subjects they were
+  placed on, out). The form calls `identity-lookup`, which calls exactly that
+  plugin once. The search answer no longer has a `lookup` field.
+- **No plugin page framework.** The existing Data sources row is the place;
+  nothing else is built. A plugin's widgets (ADR 0032) remain the way to give
+  it a richer surface.
+- **Delisted lines are found.** A line is delisted when its own status is
+  inactive, whatever the source: the rule the page's price guards use, so a row
+  marked delisted is exactly a row that gets no live price. An active line under
+  an inactive security (54 in the 2026-09-28 build, such as AvePoint) is live
+  and unmarked; it stays out of the page's listing selector and price pick as
+  it always did (the security's status keeps it out of those, not out of search). Search finds it by name, ticker
+  and identifier like any other line, marks it `delisted`, and ranks it below
+  live lines: a group with a live line before a group with only delisted lines,
+  and within a group, live lines first (also as the line that represents a
+  security). A live receipt whose share is delisted stays its own instrument.
+  A subject a plugin marks inactive (a dead DeFi protocol) is treated the same.
+- **A security with no ticker is found.** Search holds everything the device
+  holds: a security none of whose lines has a ticker (live or delisted) is one
+  row, through its primary line (else the first by id), found by name and by
+  identifier, marked "No ticker" (and "Delisted" if inactive), and ranked below
+  lines that have a ticker. A line with no ticker of a security that has one
+  adds no row. Like a delisted line, such a row never joins the page's listing
+  selector or the line a security page prices through.
+- **A way to hide them.** Search takes `include_delisted` (default true), and the
+  search panel has an "Include delisted" toggle, on by default, kept for the
+  session only, so a reload shows delisted lines again: Desk has no per-viewer
+  preference mechanism for a plugin's widget, and this one is cheap to set
+  again. When they are hidden and nothing else matches, the empty state says
+  "Delisted results are hidden".
+- **Pages and prices are unchanged.** The instrument page's listing selector and
+  the line a security page prices through leave delisted lines out, as before,
+  and a delisted ticker still addresses no price source (tickers get reused).
+  Market data is out of scope for this change.
+
+### Rationale
+
+Search is a read of what the device holds; asking a provider from it makes a
+read write to the store and call a third party, and puts one plugin's function
+on a screen every plugin shares. A delisted instrument is still an instrument
+an investor holds records about, researches after the fact, or has saved, so
+hiding it is a silent loss; flagging and ranking it keeps the answer honest
+without crowding live lines.
+
+### Consequences
+
+- An investor who used the search button now opens Settings → Data → Data
+  sources, types the ISIN in the plugin's row, and then searches. The agent
+  reads OpenFIGI mappings through `openfigi_identifiers`, which stores nothing;
+  only the form stores a lookup.
+- Search results can contain delisted lines: rows carry `delisted: true`, and
+  the agent's `pythia_find` sees the flag.
+- The effect of pausing a plugin counts an inactive subject as supplied only by
+  that plugin, because search finds it.
+- The directory grows by one row per security without a ticker: on the
+  2026-09-28 package (135,596 lines), 7,188 rows (+7.7%, 207 of them delisted),
+  +6.6 MB of index (+7%), no change in build time (about 2.7 s) and no
+  measurable change in query latency (all under 1.3 ms).
+
+### Rejected alternatives
+
+- **Indexing every tickerless line.** About 42,000 near-duplicate rows; one row
+  per security answers "is it held" without them.
+- **Keeping the lookup in search but moving it behind a setting.** It is still
+  a plugin-specific action on a shared screen.
+- **A plugin page framework** (a route and layout per plugin). Nothing needs it
+  yet; the data sources row does.
+- **Hiding delisted lines by default, with a toggle to show them.** The founder
+  asked that they never disappear, so they show unless the investor hides them.
+- **A penalty weight instead of a rank tier.** A delisted line with an exact
+  ticker or ISIN match could then outrank a live match, against "below active
+  matches".
+- **Persisting the toggle in browser storage.** Desk has no shared mechanism for
+  a plugin widget's preference, and a second ad hoc one is not worth it for a
+  filter.
+
+## Amendment (2026-09-30): who fixes what is wrong, and how the device agent judges the rest
+
+### Context
+
+Stage 0 left the platform with open identity conflicts, and the founder asked
+for the architecture that will resolve them to be settled now and the
+resolving to wait: "our platform should function totally fine with these open
+conflicts." The founder then confirmed the direction below and asked for it to
+be recorded. Four investigations on the 28 September 2026 reference build fed
+the decision.
+
+- **Most conflicts come from sources and joins, not from real ambiguity.** Of
+  the build's 1,698 open questions, about 620 had a candidate that could reach
+  a user. Sorting all 1,698 by cause found 49 plugin or builder bugs, 526
+  source quirks the adapter can learn (for example, a venue operator's LEI
+  filed where the issuer belongs), 1,111 join or rule gaps, and 12 genuinely
+  ambiguous cases. Nearly all of them are fixable by the side that owns the
+  data.
+- **The 166 "same company?" pairs** (an SEC registrant and a GLEIF entity with
+  the same name) were judged by hand from the SEC submissions and GLEIF
+  records: 90 are the same company, 2 are different namesakes (Genesis Energy
+  LP and Genesis Energy Ltd, Rubico in the United States and in Belgium), and
+  74 stay unsure. The **two-fact rule** (the names match, and at least two independent facts
+  agree: jurisdiction, city or postcode, a shared former name, with no
+  conflicting jurisdiction) reproduced 88 of the 90 with no false positive;
+  name, jurisdiction and city alone reproduced 85. So a rule settles most
+  cases once the sources state the facts the rule needs, and judgement is
+  needed only for what is left. The SEC side currently gives the pipeline too
+  few of those facts.
+- **Two analyses of where judgement should live** favoured deciding shared
+  open-data questions once at release and shipping the verdicts, and judging
+  on the device only what is private or device-only. The founder chose
+  otherwise (J4 below).
+- **Strong models answer research questions well but chose differently on
+  convention questions** (see the amendment "data any plugin can extend" above). That limits what a
+  judgement may apply to.
+
+### Ruling
+
+This amendment's rulings are numbered J1 to J5.
+
+**J1.** **Plugins fix and complete their own source's data.**
+   - A misread of the source is a bug, fixed in the plugin.
+   - A known error in the source itself becomes a labelled **source
+     correction** inside that source's plugin. The original value stays
+     visible beside it, and the maintainer reports the error to the source. It
+     is the plugin's statement about its own source, not the investor's
+     catalogue correction ("user catalogue corrections" above), which stays a
+     local override.
+   - A missing fact is fixed by the plugin stating more: a jurisdiction, an
+     address, a former name, or a link the source itself makes.
+   - A conflict may be found between two plugins, but the plugin whose data
+     is wrong or incomplete owns the fix.
+   - One plugin never patches another plugin's data. Maintainers collaborate
+     by reports.
+   - For the reference sources, the builder's adapters are the plugin in this
+     ruling.
+
+**J2.** **The device agent resolves the rest, one question type at a time.**
+   Each type has a procedure: a prompt, a gold set of known answers and a
+   calibrated confidence threshold.
+   - **What it judges.** Only instruments that matter: a holding, a research
+     task or an operation (A2's rule for raising a question). It judges
+     facts, such as whether two records are the same company. It does not
+     judge conventions, such as which listing is primary; those stay
+     preferences and documented defaults (A5).
+   - **What it may use.** The device's own data, context, and outside
+     sources. Web content is untrusted evidence, never instructions. Every
+     verdict cites the evidence it used. A lookup carries only the
+     instrument's public identifiers or name, never a position, a holding or
+     research.
+   - **When a verdict applies.** A verdict at or above its type's threshold
+     applies for read-only use (search, pages, research). It is labelled as
+     judged, and the investor undoes it in one click. Anything that touches
+     real money needs the investor's confirmation.
+   - **Promotion.** A decision that keeps recurring is promoted into a plugin
+     rule (J1), so the next device needs no judgement.
+   - **Installations may differ.** Two devices can judge a case differently.
+     The verdict ledger records the facts each decision used, so a
+     difference can be explained and a stale verdict detected.
+
+   **Existing standards this applies (not new rulings).**
+   - **The bar.** A type's threshold is set by the gold-set bar of
+     [ADR 0042](0042-source-onboarding-standard.md) and
+     [source onboarding](../architecture/source-onboarding.md), unless the
+     founder later sets another. Every type has a versioned question set,
+     passes its verdicts through core's `decide()` and has a development
+     check; auto-confirming also needs a gold set per relation with a frozen
+     development and test split, and a test precision whose Wilson 95% lower
+     bound is at least 99% (about 385 assertions with no error). Without
+     that, the type is suggest-only.
+   - **The authority.** A verdict at or above the bar's threshold carries
+     `model_confirmed` and one below it `model_suggested`, the tiers of
+     [ADR 0037](0037-identity-backbone.md). The agent's own chat answers stay
+     `agent_confirmed`, which only suggests. `decide()` still applies to
+     every verdict: no contradicting identifier evidence, and the
+     depositary-receipt guard.
+   - **The first candidate** is question Q1 `sec_registrant_lei@1` in
+     [the SEC source note](../sources/sec.md) (section 4): the 166 pairs,
+     suggest-only today.
+
+   **New in this amendment (the founder's ruling).** That a `model_confirmed`
+   verdict applies for read-only use, which no earlier text allows, together
+   with the rest of J1 to J5.
+   - **How it relates to open questions.** The question stays visible as
+     answered by the agent until the investor confirms or undoes it; it is
+     never silently closed. A use that affects money ignores the verdict and
+     sees the question as unanswered (A6).
+   - **What is stored.** The verdict is stored as `model_confirmed` with its
+     evidence, in the verdict ledger. Whether it is applied as a binding
+     flagged read-only or as an overlay that only reads which are not
+     consequential see, is designed with the first type. Either way it is
+     undoable, labelled, changes no row a source wrote, and is not a
+     validated fact. This does not reverse the 2026-09-29 decision in ADR
+     0037 against provisional routing of the chat agent's uncalibrated
+     answer; it applies only to types that passed the bar.
+
+   **This modifies A2's rule that an agent's answer to an identity question is
+   a suggestion that changes nothing until the user confirms it** (the rule
+   the vision states as "saved interpretations are suggestions"). Exactly:
+   - A calibrated verdict at or above its type's threshold now applies for
+     read-only use, labelled and undoable.
+   - Everything else stays a suggestion: a verdict below the threshold, a
+     type with no calibrated threshold, and any answer the interactive agent
+     gives in chat.
+   - A5 and A6 are unchanged: identity, evidence and choices stay separate,
+     and an applied verdict is not a validated fact, so an
+     operation that needs validated facts stays unavailable until the
+     investor confirms it. The investor's own answers and corrections still
+     outrank a verdict.
+
+**J3.** **The loop back to the maintainer.** A report is opt-in, per report,
+   and carries identifiers and reasoning, never positions. Pythia
+   maintains the default plugins, so reports about them come to Pythia. A
+   third-party plugin's reports go to its own maintainer. Pythia in turn
+   reports errors in the sources (ESMA, SEC, GLEIF) to those sources. This
+   keeps the opt-in contribution of ruling 8 and sends it to whoever owns the
+   fix.
+
+**J4.** **Links that no source states are judged by the device agent.** If a
+   plugin's maintainer ships such links, each is labelled as judged by that
+   maintainer, and it counts as that plugin's claim like any other. **A shared
+   answer list is rejected for now, which supersedes A7.** Revisit it only if
+   measurement shows many devices judging the same cases. A8's open item
+   "subscribable answer lists beyond Pythia's own" stays open for the same
+   reason.
+
+**J5.** **Open conflicts stay open questions, and the platform works with
+   them.** Facts held back show an open-conflict indicator that links to the
+   repair. Nothing in this amendment makes a resolver a precondition for
+   using Pythia.
+
+Three details are proposals carried from earlier rulings, not stated by the
+founder in this decision: that only facts, never
+conventions, are judged (from A5); that the chat agent's own answers stay
+suggestions (from A2); and that J3's reports are per report and go to a
+third-party plugin's own maintainer.
+
+### Rationale
+
+- **The owner of the data fixes it.** A plugin's maintainer knows the source;
+  a fix there reaches every device and can be tested and retired when the
+  source improves. Reporting the error upstream is the fix that helps
+  everyone, and a labelled source correction keeps it honest in the meantime.
+- **Fixing at the root shrinks what needs judging.** The 166 pairs show it: a
+  rule reproduces 88 of the 90 same-company pairs, so judgement is for the
+  residue.
+- **Judgement still has a place.** Some links no source states and no rule
+  can derive, and the investor should not click through each one. Calibrating
+  a type against a gold set is what earns it the right to apply without a
+  click, for reads only.
+- **Reads are cheap to get wrong, operations are not.** A labelled, undoable
+  verdict on a search result or research page costs one click to reverse. The
+  same verdict behind an order does not, so real money keeps the
+  investor's confirmation.
+- **Judging where the facts are** keeps the workspace local: the investor's
+  holdings decide what is judged, and no position, holding or research
+  leaves the device. An outside lookup sends only the instrument's public
+  identifiers or name.
+- **The ledger makes differences explainable.** Installations may differ, as A3
+  already accepts, but each decision records the facts it used.
+
+### Consequences
+
+- **A7 is superseded for now,** and so are the rulings elsewhere that only
+  repeat its permission to ship a Pythia-maintained answer list
+  ([ADR 0039](0039-local-first-reference-data-and-rights.md),
+  [ADR 0042](0042-source-onboarding-standard.md), and the vision's
+  sustainability list). What ships in the default plugins is plugin data
+  (J1), and any links a maintainer judges are labelled (J4). Raw model
+  exchanges still stay out of releases.
+- **A2's last bullet is modified as J2 says.** The rejected alternative
+  "Letting the agent settle records at runtime" stands for conventions and
+  for anything consequential. It no longer stands for calibrated verdicts
+  on facts, read-only.
+- **A model call per touched, unanswered question, on the investor's own
+  key.** Cost is bounded by relevance and falls as repeated decisions become
+  plugin rules.
+- **The judge's only output is a structured verdict.** It has no tool that
+  writes elsewhere, and code, not prompt wording, enforces that an applied
+  verdict is read-only, labelled and undoable, because it reads untrusted
+  web content.
+- **Reproducibility across installations is weaker for judged links.** A
+  shared strategy pins identifier bundles (A3); a renter's device may judge a
+  link the author's device judged differently, and the ledger is what shows
+  why.
+- **Research work moves to the source side.** The SEC plugin and builder
+  adapter state jurisdiction, addresses and former names, and the builder's
+  known join and venue-operator gaps are fixed in the builder, not judged.
+
+### Status
+
+Decided; the plugin source-correction mechanism is built (amendment "a source
+adapter corrects its own source" below); the verdict
+ledger, thresholds and procedures are deferred until the first question type
+runs (their shape depends on its measurement). Open conflicts stay open
+questions. The platform works with them: facts held back show an open-conflict
+indicator linking to the repair (#135).
+
+What building the rest needs:
+
+- the procedure for each question type: prompt, gold set and threshold;
+- the verdict ledger and its provenance, recording the facts, evidence, model
+  and prompt each decision used;
+- the read-only application path: apply above threshold, label, undo in one
+  click, and never count as validated for a consequential operation;
+- the report loop of J3;
+- the SEC side stating jurisdiction, addresses and former names, so the rule
+  can settle what it can.
+
+Only one piece of J1, a plugin's labelled source correction of its own
+source, was built ahead of any question type, because it does not depend on a
+measurement; it has its own amendment below. The ledger
+fields and the per-type threshold are deferred on
+purpose: a threshold is set from a gold-set measurement, and what a verdict
+must record is learned from the first type that runs. Until a type has a
+measured threshold, its verdicts stay suggestions.
+
+**How to add a question type later.**
+
+1. Check whether a plugin can state the missing fact (J1). Add a judged type
+   only for what no source states.
+2. Write the prompt: what the question is, which evidence the dossier holds,
+   and the structured verdict it returns, with cited evidence.
+3. Build a gold set from cases with known answers, on open data where
+   possible. A gold set over licensed data stays on the device.
+4. Measure the prompt against the gold set, per model version.
+5. Add the verdict ledger fields the type needs (the facts and evidence the
+   decision used, the model and prompt version, and the threshold applied),
+   the first time a type runs, and keep them for the types after it.
+6. Set the threshold from the measured precision. Until then the type has
+   none and its verdicts stay suggestions.
+7. When a decision recurs, promote it into the owning plugin's rule (J1) and
+   retire the judged case.
+
+**Policy questions still open** (the SEC records the judge was measured on
+raise them; none blocks the foundations):
+
+- **The SEC "/ADR" programme record as issuer.** 35 of the 166 pairs are
+  "/ADR" records. Under the two-fact rule 6 are the same company and 29
+  stay unsure, because the record's address is the depositary's. If the
+  programme record is accepted as the issuer by policy, the 29 become
+  same-leaning.
+- **Predecessor and successor between issuers for redomiciles.** NEPI
+  Rockcastle (an Isle of Man company, now a Dutch N.V.) and Wave Life
+  Sciences (Delaware, now Singapore) look like one company before and after
+  a move, but the legal entities differ. Whether core models the move as
+  a relation is undecided.
+- **Labelled source corrections of SEC's jurisdiction mis-keys.** In 4 pairs SEC's
+  jurisdiction field disagrees with GLEIF and looks like a keying error
+  (Theravance's code says California although its address is in the Cayman
+  Islands, as GLEIF's is). Whether the SEC plugin states these as labelled source corrections (J1)
+  is undecided; the SEC record lists them as awaiting an emitter of incorporation.
+
+### Rejected alternatives
+
+- **The plugin author hardcoding per-entity exceptions.** As unlabelled
+  statements they pass as the source's own words, so a third-party author's
+  mistake becomes everyone's fact, there is no stopping point, and
+  [ADR 0042](0042-source-onboarding-standard.md) already rejects more rules
+  for odd cases. The labelled, reported source correction of J1 is the accepted
+  form.
+- **One plugin patching another plugin's data.** It hides a disagreement
+  behind an unlabelled override, and the plugin that is wrong never learns of
+  it. A report to the owner fixes every installation.
+- **A central "Pythia reviews" answer list shipped in the package.** It would
+  give everyone the same verdicts. But it makes Pythia answerable for
+  curated judgements like a reference-data vendor, spreads one wrong verdict
+  to every device, and covers only the packaged universe. Most of its cases
+  become plugin rules once the sources state the facts the rules need.
+  Revisit only under the measurement in J4.
+- **Every device re-judging shared facts, unmeasured.** It costs each user
+  the same model calls and lets devices diverge with no record of why. The
+  per-type gold set, threshold and ledger are what make device judgement
+  acceptable.
+- **Keeping every agent answer a suggestion (A2 as written).** It leaves
+  each investor clicking through every open conflict, which is the curator's
+  work that the amendment "data any plugin can extend" rejected.
+
+## Amendment (2026-09-30): a source adapter corrects its own source
+
+### Context
+
+The judgement amendment (J1) rules that a plugin fixes a known error in its own
+source as a labelled source correction, with the original value visible beside it,
+and that for the reference sources the builder's adapters are that plugin. Three
+cases showed the need: FIRDS states China Medical System's LEI on Concord
+Medical's ADR (found by the `receipt_name_disagrees` review flag), and SEC's
+state code is wrong for Theravance and ioneer. Until now each would be a hand
+list in a rule, or a question every device answers again.
+
+### Ruling
+
+- **One correction is `(field, original, reason)`.** The corrected value is not
+  repeated: it is the value the record or claim already states in that field, so
+  each fact is stated once with the source's original beside it. `original` is
+  the source's raw text, so it can be reported upstream. `reason` is at most 400
+  characters and says what is wrong and the evidence.
+- **It applies only while the source still states `original`.** If the source
+  fixes its error the raw value passes through and the entry is counted stale,
+  the signal to retire it.
+- **The authority stays `source_asserted`.** A corrected value is still that
+  source's own record as its adapter reads it, so there is no new authority
+  value and a conflict with another source is raised as before. One plugin never
+  corrects another's data.
+- **Runtime plugins** carry it in `RecordAttributes.source_corrections` (validated
+  against the fields the record states: an identifier scheme it states as
+  `self`, or a descriptive attribute; one per field, at most eight). The claim
+  JSON already stored by `claims` holds it, so no table or migration is added.
+  Core cannot see the plugin's source, so applying a correction only while the
+  source still states the original is the plugin's to enforce.
+  `identity/source_corrections.py` lists a subject family's corrections for the
+  page (`view["source_corrected"]`, beside `view["corrections"]`, which stays the
+  investor's own).
+- **The builder's adapters** have their claims passed through
+  `tooling/reference-builder/source_corrections.json` (by source, record key and
+  field) with the builder's own `Table`, so an adapter patches nothing itself. A corrected `Claim`
+  carries `correction`, the build decides from its value, and the reference file
+  gets an additive `source_corrections` table (subject, source, field, original,
+  value, reason). A builder entry may be a retraction (`value` null): the source's
+  statement is wrong and no right value exists, so the claim is not emitted and the
+  table's `value` is NULL. The build report counts applied, stale and absent entries.
+- **Reporting stays a maintainer's act.** `docs/sources/<source>.md` lists each
+  entry and whether it was reported upstream. Nothing is stored or sent for it.
+
+### Rationale
+
+- A labelled, reported correction is the accepted form of J1: the original is
+  visible, the source's owner can fix it for every installation, and the entry
+  stops applying when they do. A hand-coded exception passes as the source's own
+  words.
+- Stating the value once and keeping the original beside it makes the raw-data
+  question "which values did a plugin correct, and what did the source originally
+  say?" one query ([identity data](../architecture/identity-data.md)).
+- A new `Authority` value would change a closed vocabulary with checks in both
+  store schemas for something that is not a new kind of evidence.
+
+### Consequences
+
+- `source_corrections` is a new key of every wire record, so the first sync after the
+  upgrade finds each stored claim different from the re-emitted one and places it
+  once more to the same result, as `venue_note` did.
+- The reference format does not change: the table is additive, a package built
+  before it has none and core reads it only when it exists.
+- The SEC cases (Theravance's and ioneer's state codes) wait for the builder to
+  emit incorporation; they are recorded in `docs/sources/sec.md`. The first
+  entry is a retraction: Concord Medical's ADR carries China Medical System's LEI
+  in FIRDS, and Concord has no LEI in GLEIF (`docs/sources/firds.md`). The
+  second retracts the issuer FIRDS states on Vishay Precision Group's share (Vishay
+  Intertechnology's LEI; VPG has none in GLEIF); the registrant the SEC joins to
+  the share is then its issuer (`registrant_join@1`).
+- No Desk surface is added beyond the view list.
+
+### Rejected alternatives
+
+- **Repeating the corrected value in the correction.** Two copies of one fact
+  can disagree.
+- **A `source_corrected` authority.** A closed vocabulary change for no new kind
+  of evidence.
+- **A `reported` status field.** The reason can say "reported to SEC on <date>",
+  and the maintainer's list is a document.
+- **Patching across sources**, and a network reporting step or report record: the
+  second would be a query over a verdict ledger that does not exist yet.

@@ -85,3 +85,77 @@ investor rematching, code-only fixes and permanent force-match overrides leave
 incorrect associations hidden. A universal merge engine, automatic fallback,
 renumbering every reference or rewriting retained research would sacrifice
 scope, intent or evidence beyond this requirement.
+
+## Amendment (2026-09)
+
+ADR 0037 replaces the provider-bound evidence model above with a core-owned,
+subject-keyed identity backbone. The source-pair rules and the IBKR-only listing
+proof go with it. The original text is kept as the record of that model.
+
+These passages are superseded:
+
+- **Ruling, overrides paragraph:** "Positive overrides must prove the scoped
+  target against all current evidence. Negative overrides need contradiction
+  and cannot nominate a replacement."
+- **Ruling, lineage paragraph:** "Only current proven `bindings()` may route
+  canonical intent". Current *confirmed* bindings now route canonical intent,
+  including confirmations made without identifier proof.
+- **Rejected alternatives:** the rejection of "manual investor rematching" and
+  "permanent force-match overrides". Manual resolution is one allowed resolver.
+  Its confirmations stay inspectable and yield to contradicting identifiers.
+
+One invariant governs every confirmation. A resolver may confirm an association
+when no identifier proves it. It never confirms one against current
+contradicting identifier evidence.
+
+Conflicts and residuals collect in one core-owned queue. The investor chooses
+among interchangeable resolvers:
+
+- built-in rules;
+- the Hermes agent;
+- an optional matcher plugin such as Jev;
+- manual resolution.
+
+Manual resolution is allowed and never required. Plugin updates repair affected
+matches automatically.
+
+The remaining guarantees of this ADR stand:
+
+- retained intent;
+- no guessing between unknown or multiple targets;
+- quarantined contradictions;
+- inspectable revisions.
+
+ADR 0037 owns the authority vocabulary and the edge cases:
+
+- which authorities may confirm;
+- what counts as contradicting evidence across levels and validity windows;
+- what happens when several targets qualify;
+- revocation;
+- repair dependencies.
+
+It also owns the matching change to the ADR 0011 wire authority enum.
+
+## Amendment (2026-09, retirement)
+
+The implementation this ADR describes is removed. Market data keeps no identity
+store: its `IdentityStore`, source-pair matching rules, overrides and repair
+code are gone, and so are the `search`, `resolve_save`, `inspect_identity`,
+`inspect_subject`, `refresh_identity`, `inspect_repair`, `apply_override` and
+`revoke_override` actions. A subject read now names a backbone subject id and
+routes through core's bindings and source order
+([ADR 0037](0037-identity-backbone.md)); explicit provider references and
+pinned source reads are unchanged.
+
+(Later retired by [ADR 0040](0040-data-concepts-and-agent-tools.md): core's
+`source_order` is the one order and `preferences.sqlite3` is set aside.)
+Source preferences move to the feature's `preferences.sqlite3`. Global orders
+are copied as they are; scoped choices for the retired subject kinds become
+asset-class scopes, and company-scoped choices, which never applied to prices,
+are dropped. After a successful copy the old identity file is renamed
+`identity-retired.sqlite3` and left in place; a failed copy leaves it untouched
+for the next start. Its mappings are not migrated, because core derives or
+resolves addresses again from open identifiers. A retained reference to a
+retired subject fails visibly instead of being rewritten.
+[Market data and identity](../../packages/market-data/IDENTITY.md) has the
+details. The principles in the first amendment still hold, now enforced by core.

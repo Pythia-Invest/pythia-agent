@@ -25,17 +25,17 @@ async function chatLinks(page: Page) {
 
 test("separates the navigation rail from the chat list", async ({ page }) => {
   await openDesk(page);
-  // On a phone the same search waits behind its button in the top bar.
-  if (isNarrow(page))
-    await page
-      .getByRole("search")
-      .getByRole("button", { name: "Search", exact: true })
-      .click();
+  // The core bar's "Search" field, or the default investment-search top bar,
+  // whose field is a combobox. On a phone the core bar folds its field behind
+  // a "Search" button, which the investment-search bar does not.
+  const bar = page.getByRole("search");
+  const field = bar
+    .getByRole("searchbox", { name: "Search", exact: true })
+    .or(bar.getByRole("combobox", { name: "Search investments" }));
+  const fold = bar.getByRole("button", { name: "Search", exact: true });
   await expect(
-    page.getByRole("search").getByRole("searchbox", { name: "Search" }),
+    (isNarrow(page) ? field.or(fold) : field).filter({ visible: true }),
   ).toBeVisible();
-  if (isNarrow(page))
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await openNavigation(page);
   const rail = page.getByRole("complementary", { name: "Desk navigation" });
   await expect(rail.getByRole("link", { name: "Pythia home" })).toHaveAttribute(

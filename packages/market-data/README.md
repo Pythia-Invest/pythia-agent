@@ -4,7 +4,7 @@ This increment ships shared contracts and the native owner. Concrete connectors
 are separate additions; an enabled feature does not establish provider coverage.
 
 This package exports portable TypeScript backend types and `schema.json` (JSON
-Schema Draft 2020-12). It defines references, evidence, series and read results;
+Schema Draft 2020-12). It defines references, series and read results;
 it does not discover providers, match investments, execute reads or store data.
 
 This is the consumer library of the `pythia-market-data` feature, not a second
@@ -34,7 +34,7 @@ metadata alone must not truncate a multi-day or rolling chart. Without session
 evidence the requested window remains in use. Tick/unknown sampling has no invented
 millisecond interval.
 
-`runtime/managed/plugins/market-data/wire_schema.py` owns the closed structural
+`runtime/managed/core/platform/connector/wire_schema.py` owns the closed structural
 shapes. Regenerate the package artifact from the repository root with
 `python3 packages/market-data/test/export_schema.py`; `test:unit` fails when the
 artifact differs.
@@ -67,32 +67,31 @@ are inert annotations. `parameter_schema(kind)` expands only owned contract
 references and types their enums for that subset; use `read_request` and
 `provider_ref` as nested native tool properties, then validate full wire
 semantics separately. It never loads external references. Open source-detail
-maps are intentionally outside the native argument subset. `wire.py` and `wire_schema.py` are the only runtime files needed; install
-both as exact files beside the feature plugin. Package examples/tests and this
+maps are intentionally outside the native argument subset. `wire.py` and `wire_schema.py` are the only runtime files needed; they ship
+in core's connector toolkit, and plugins reach them as `pythia_platform.wire`. Package examples/tests and this
 README are not runtime/plugin scan inputs. No JSON Schema dependency is needed
 at runtime.
 
-Subject IDs are opaque scoped references (`company:…`, `instrument:…`,
-`listing:…`, `crypto:…`). A provider reference instead has `provider`,
-`native_id`, and source-owned `native_scope` (for example `contract`, `coin`,
-`catalogue`, or `unknown`). It is usable without a confirmed canonical mapping.
-Names and tickers are evidence assertions, never proof of equivalence. Evidence
-records separately assert canonical scope and authority. Mapping validation
-requires evidence references but does not establish the truth or sufficiency
-of those records; the identity owner must validate them and the matching rule.
-A positive override cannot be authorized by wire validation alone.
+A subject is a backbone subject ([ADR 0037](../../docs/decisions/0037-identity-backbone.md)):
+its deterministic subject id (`listing:isin:…`, `security:caip19:…`,
+`issuer:lei:…`, `composite:…` or `…:provisional:…`) and the level that id
+names. A provider reference instead has `provider`, `native_id`, and
+source-owned `native_scope` (for example `contract`, `coin`, `catalogue`, or
+`unknown`). It is usable without any binding. Names and tickers are evidence
+assertions, never proof of equivalence. Connector details describe a source's
+own reference (names, typed identifiers, listed contracts); identity evidence and
+its `ev:` IDs belong to core, so the wire carries no evidence records.
 
 A `series:…` ID identifies one source's measurement semantics, not an investment.
 The series owner must assign a new ID when the actual native binding, dataset,
 venue/route, measurement, interval/session/time anchor, field units/scale,
 adjustments/anchor or transformation methodology changes. Read windows,
 retrieval times, adapter releases unrelated to semantics and current capability
-lists are excluded. After proving a current identity mapping, the shared owner
-may project `series.subject` to the requested canonical subject while retaining
-the native series ID and `provider_ref`, and report `provenance.mapping_revision`.
-This proven canonical projection does not change the underlying native series
-identity. The shared owner first executes and validates a source-pinned native
-request, then projects its request/selection/subject after a generation recheck.
+lists are excluded. When a subject read selects a source through core's
+bindings, the shared owner projects `series.subject` to the requested subject
+while retaining the native series ID and `provider_ref`. This projection does not change the
+underlying native series identity. The shared owner first executes and validates
+a source-pinned native request, then projects its request/selection/subject.
 A provider's unknown/current adjustment vintage is read
 provenance, not a claim of historical reproducibility. Source details are bounded
 flat facts under the actual source namespace; they are not arbitrary endpoint
@@ -130,7 +129,7 @@ These checks do not prove actual provider coverage, freshness or identity.
 
 Synthetic shared JSON examples cover equity OHLC(V), aggregate crypto scalar
 samples, a non-price count, useful partial bars, missing source time, empty and
-unavailable results, evidence/mapping and native contribution descriptions.
+unavailable results, evidence and native contribution descriptions.
 Their descriptions identify the contract/source version that shaped them;
 none are recorded provider responses. Verification from the repository root:
 
@@ -147,8 +146,8 @@ acceptance/rejection with the independent JSON Schema implementation. Semantic
 negative fixtures remain structurally valid by design. This qualifies the
 contract, not a provider, matching algorithm or copied native integration.
 
-See [the backend action API](BACKEND.md) and [identity API](IDENTITY.md) for
-the separate native feature implementation that consumes these contracts.
+See [the backend action API](BACKEND.md) and [how reads use core identity](IDENTITY.md)
+for the separate native feature implementation that consumes these contracts.
 
 Optional `ReadResult.price_context` carries source display labels, known delay,
 evidenced session state and change values with an explicit previous-close or
@@ -158,3 +157,93 @@ window kind and optional maximum span without changing financial series identity
 Neither field certifies entitlements. The package exports `marketDataSchema`
 alongside its types so Desk validates wire shapes from the same generated schema;
 the native reader remains responsible for semantic validation.
+
+## Investment search
+
+`@pythia/market-data/search` is the provisional contract of the core local
+directory `search` operation and the only place its types live. The response
+holds ranked groups, core's search groups (ADR 0037): a company with all its
+equity listings (share classes, receipts and registry shares included), a fund,
+ETF, ETN or ETC on its own, or a crypto asset. A group carries its subject id,
+name, main kind, `listings` (how many it has in all) and only its relevant
+listing rows, at most three; a group read (`group` with the group's id instead
+of a query; `limit` does not apply) answers the same shape with its listings,
+up to 500, for "All N listings", each opened group being its own read. A row carries the listing's subject `id`, its `instrument` (the
+security the page is; a receipt's is the share it folds into), ticker, the
+listed security's own name and kind, MIC, short venue label, venue country and
+currency; `delisted: true` marks a line whose own status is inactive, which the page never prices (the
+key is absent on a live line) and `no_ticker: true` marks the one row of a
+security none of whose lines has a ticker (`ticker` is then null; ranked below
+lines that have one). Core orders the rows (see ADR 0037: a listing the query names, else
+`search_listing_preference` in `settings.json`, `primary` by default, or `EU`
+or `US`; then a flagged primary listing and other classes and receipts). A type
+filter picks groups and narrows their listings. Delisted lines are found too,
+ranked below live ones (a group with a live line first, and within a group its
+live lines first); `include_delisted: false` leaves them out. Search never offers
+or runs a provider lookup: a plugin's own functions, such as OpenFIGI's ISIN
+lookup, live on its own settings entry (Settings → Data). The core ranks and the
+client keeps the order.
+
+`@pythia/market-data/search-ui` is the search bar, composed from the SDK's
+shared Autocomplete, combobox parts and ToggleGroup. Typing reads only the local
+directory; no connector is called on that path. The first shown row is always
+highlighted and Enter opens it, but never a row of a previous query while the
+typed one loads. Each group shows the company name and type above its relevant
+listings; the heading belongs to the first listing's option, so hovering or
+choosing it highlights and opens that listing and the keyboard stops there
+once. Listings take one line each: ticker, the venue with a small country flag, what the
+listing is when it is not the plain share (Class C, registry shares), currency
+and type, "No ticker" on a security none of whose lines has one, and "Delisted" on a
+line that no longer trades. A group with more listings ends in an "All N listings" option that
+reads and reveals every listing in place ("Fewer listings" hides them again);
+the arrow keys reach it like any listing and Enter toggles it. Type pills ask the
+directory for their instrument kinds, and the "Include delisted" toggle beside
+them (on by default, kept for the session only) asks it to leave delisted lines
+out; neither takes focus from the field. Rows carry no prices and no provider logos:
+search shows what exists, and sources belong on the instrument page. The panel is anchored below the field
+with fixed geometry, keeps the previous answer while the next loads, and reopens
+instantly from `['plugin', 'pythia', 'search', …]`, the query cache of core's
+serving `pythia`/`identity-search` operation. Enter or a click on a listing
+reports its instrument's subject id and its own listing id.
+
+The feature's `top-bar` presentation composes the bar with the Desk title and
+actions under ADR 0036 and is Desk's product default top bar; a workspace
+`desk/top-bar.json` selects another bar or `renderer: null` for the core one.
+While a row is highlighted it prefetches the instrument's
+and the listing's page compositions (`pythia`/`identity-subject`) under the key
+Desk's instrument route reads (`@pythia/market-data/subject`), and a choice is
+announced as a `pythia:open-subject` window event with
+`{subject_id, listing_id}`, which Desk routes to
+`/instrument/[subject]?listing=…`. The module keeps its own query, so typing never filters
+Desk's chat lists. The Design Lab's investment search demonstration renders the
+bar over a Lab-local synthetic directory.
+
+The instrument page mounts the `instrument-chart` presentation for a section
+with history (`instrument-panel`, the standard tile filling its card, for a
+quote-only section), bound to the section's explicit provider reference (a
+widget row's `subject` may be a Pythia subject or a `ProviderRef`; the latter
+reads that source only). Its `chartBinding` (input contract
+`pythia.instrument-chart.v1`: subject, symbol, name and a host-selected period
+`1D`, `5D`, `1M`, `6M`, `YTD`, `1Y`, `5Y` or `MAX`) reads the quote and the
+source's declared series, then chooses bars per period with `chartPlan`, aiming
+at 200–800 drawn points: 1D prefers 2-minute bars including pre/post-market, 5D
+5-minute and 1M 30-minute regular-session bars, 6M–1Y share a year of daily
+bars that also supplies the statistics, and 5Y and Max prefer weekly bars. A
+period no declared series covers says so. Paths never exceed 800 points
+(largest-triangle downsampling of real bars), and the adjacent periods are read
+ahead. 1D draws the supplied `session_window`: the day with today's pre-market
+before the open divider, or before the open the prior session
+(`session_window.previous`, with its extended hours), the omitted night and
+today's pre-market. Its baseline is the quote's previous close when the quote
+belongs to the drawn session. Without a schedule, 1D shows the last returned
+session; continuous markets show the past 24 hours. Multi-day views join
+regular sessions and omit the closed time between them (daily views omit
+closed days); a gap inside a session stays. Their baseline and period change
+start from the close before the period. Open, high, low and volume come from the
+latest daily bar (with its date); when that bar is an earlier session than the
+quote's, as while Yahoo withholds the current bar's close, their labels name
+its date. The previous close comes only from the quote's
+`reference_close`, and the 52-week range from a year of daily bars; a field the
+source does not supply is omitted. A connector's `price_context.extended`
+(latest pre/post trade, qualified against the regular close) becomes the
+Pre/Post row; the regular price and change keep their own basis.

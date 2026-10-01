@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "fields": [
+    {
+      "key": "search_listing_preference",
+      "kind": "identity",
+      "label": "Search listing preference",
+      "description": "Which listing a search result shows when a company trades on several venues: primary (its primary market, the default), EU (an EU/EEA venue when it has one) or US (a US exchange when it has one). A typed ticker, symbol or venue still wins."
+    },
+    {
+      "key": "source_order",
+      "kind": "identity",
+      "label": "Source order",
+      "description": "Your preferred data sources, first choice first, separated by commas: plugin ids, provider names or common names, for example 'eodhd, coingecko, edgar'. One list for every kind of data; a source that does not cover an instrument is passed over. Leave empty for Pythia's default order: free sources first, so a paid key serves only where no free source covers."
+    },
+    {
+      "key": "markets_cards",
+      "kind": "identity",
+      "label": "Markets overview cards",
+      "description": "The subjects the Markets page shows as cards, in order, separated by commas or spaces: subject IDs such as index:pythia:sp500, market:pythia:nymex-cl-front-month, fx:pythia:EURUSD or a listing's ID from its page. Leave empty for Pythia's global default."
+    },
+    {
+      "key": "markets_watchlist",
+      "kind": "identity",
+      "label": "Markets watchlist",
+      "description": "The subjects the Markets page's watchlist shows, separated by commas or spaces: any subject IDs, such as a listing's or a crypto asset's ID from its page. Leave empty for Pythia's example list."
+    }
+  ]
+}

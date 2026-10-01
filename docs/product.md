@@ -7,8 +7,14 @@ judgment and capital decisions.
 
 The product begins with a local Desk and one manager. The manager can use
 managed research capabilities and preserve useful work, while the investor can
-inspect, edit, or reject consequential changes. Pythia is not a trading
-system, investment adviser, or substitute for independent judgment.
+inspect, edit, or reject consequential changes. Pythia is not an investment
+adviser or a substitute for independent judgment. It acts on an owner's own
+accounts only with that owner's explicit approval.
+
+This document describes what exists today. [Vision](vision.md) describes where
+Pythia is going: mandate-driven agents, a verifiable decision ledger, and data
+that any plugin can extend on equal terms, with maintained defaults
+([ADR 0044](decisions/0044-product-direction.md)).
 
 This repository is Pythia's public monorepo and implementation authority. It
 contains product source, the managed local runtime, tests, and development
@@ -53,10 +59,27 @@ remain subject to their own licenses and notices.
 
 Pythia's financial interfaces separate canonical investment identity from source
 series. Connected native provider capabilities will serve shared prices/history
-with inspectable provenance, timing and semantics. Preferred views follow eligible
-source preferences; pinned series and retained research preserve their intent.
+with inspectable provenance, timing and semantics. Preferred views follow the
+investor's one source order; pinned series and retained research preserve their intent.
 The backend foundation is available first; concrete shared connectors and reusable
 Desk widgets are separate increments. See [market data](architecture/market-data.md).
+
+Investment search reads a local directory: the installed open reference
+package, built on the device from open sources, and the subjects the investor's
+enabled plugins have added. It calls no provider, and delisted lines stay
+findable, marked as delisted. No paid provider is required. Pythia is
+personal software: each installation serves one investor, who uses provider data
+under their own agreement with the provider. Each plugin carries its provider's
+terms, and Pythia itself never publishes, pools or redistributes provider data;
+see [ADR 0039](decisions/0039-local-first-reference-data-and-rights.md).
+
+Any enabled plugin can add subjects and evidence through core's identity
+ingest, and installing a plugin means trusting it: there are no trust levels
+([ADR 0044](decisions/0044-product-direction.md)). The investor can pause a
+source at once in Settings → Data, correct a catalogue fact from an instrument's
+page, and answer the identity questions Pythia raises for instruments they open,
+watch or use (Settings → Data → Repairs). [Identity data](architecture/identity-data.md)
+shows where each fact comes from.
 
 Responsiveness and predictable resource use take priority over feature breadth.
 Pythia must remain productive as ordinary research files and chat history grow,

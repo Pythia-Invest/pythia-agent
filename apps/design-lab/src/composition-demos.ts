@@ -6,7 +6,8 @@ export interface CompositionDemoEntry {
     | "product-shell-density"
     | "research-evidence-semantics"
     | "chat-typography"
-    | "reasoning-effort-selectors";
+    | "reasoning-effort-selectors"
+    | "investment-search";
   readonly name: string;
   readonly route: CompositionDemoRoute;
   readonly scope: string;
@@ -47,6 +48,14 @@ export const reasoningEffortSelectorsCompositionDemo = {
   scope: "Three interactive compact selectors for Hermes reasoning effort.",
 } as const satisfies CompositionDemoEntry;
 
+export const investmentSearchCompositionDemo = {
+  key: "investment-search",
+  name: "Investment search",
+  route: "/demonstrations/investment-search",
+  scope:
+    "The market-data search bar and its panel states over an in-memory directory.",
+} as const satisfies CompositionDemoEntry;
+
 /** The fixed composition destinations are separate from the component catalog. */
 export const compositionDemoManifest = [
   publicProfileCompositionDemo,
@@ -54,6 +63,7 @@ export const compositionDemoManifest = [
   researchEvidenceSemanticsCompositionDemo,
   chatTypographyCompositionDemo,
   reasoningEffortSelectorsCompositionDemo,
+  investmentSearchCompositionDemo,
 ] as const satisfies readonly CompositionDemoEntry[];
 
 export function compositionDemoEntryFromPathname(

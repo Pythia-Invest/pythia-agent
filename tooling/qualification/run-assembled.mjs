@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -113,6 +113,25 @@ function verifyObservation(observation, seededState, seededSession) {
   );
 }
 
+// What an api_server turn delivers, asked of the stack's prepared pinned Hermes in a disposable profile.
+function qualifyAgentTools(stack) {
+  const result = spawnSync(
+    join(stack.paths.hermesSource, ".venv", "bin", "python"),
+    [
+      join(stack.worktree, "tooling", "qualification", "agent_tools_native.py"),
+      "--hermes-source",
+      stack.paths.hermesSource,
+      "--repository",
+      stack.worktree,
+    ],
+    { encoding: "utf8", env: { PATH: process.env.PATH }, timeout: 180_000 },
+  );
+  assert(
+    result.status === 0,
+    `Agent tool qualification failed: ${(result.stderr || result.error?.message || "").slice(-2000)}`,
+  );
+}
+
 async function waitForExit(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   await new Promise((resolve, reject) => {
@@ -167,6 +186,7 @@ export async function runAssembledQualification() {
     instrumentContextProbe(root, "one");
     runAssembledCommand(root, "one", ["just", "dev-init"]);
     if (archiveCache) keepHermesArchive(stack.environment, archiveCache);
+    qualifyAgentTools(stack);
     // The fixture has just hydrated the pinned Hermes; compare the committed
     // goldens with a fresh provider-free capture from it (ADR 0020).
     if (
@@ -198,6 +218,7 @@ export async function runAssembledQualification() {
       seededSession.native_session,
     );
     return {
+      agent_tools: "qualified",
       context_probe: CONTEXT_PASS_TOOLSET,
       native_skills: observation.native_skills,
       hermes_capture: "match",

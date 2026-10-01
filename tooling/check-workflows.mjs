@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /*
- * CI invariants (ADR 0037). Checks the properties a workflow must keep, not
+ * CI invariants (ADR 0046). Checks the properties a workflow must keep, not
  * its exact text, so jobs and pins can change without editing this file.
  */
 

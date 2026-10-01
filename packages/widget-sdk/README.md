@@ -34,7 +34,9 @@ dependency downloads and private Desk imports are unsupported.
 
 The component is the default export; the host handles rendering. Compose
 `InstrumentIdentity`, `InstrumentStatusDot`, `InstrumentPrice`, `InstrumentChange`,
-`InstrumentExtendedSummary`, `InstrumentPathView` and `InstrumentSparkline`, or
+`InstrumentExtendedSummary`, `InstrumentPathView`, `InstrumentSparkline`,
+`InstrumentChart`, `InstrumentQuoteHeader`, `InstrumentStats` and
+`InstrumentPeriodSelector`, or
 reuse `InstrumentTile`, `InstrumentCompactTile` and `InstrumentTable`. Use ordinary
 React hooks and custom markup when those components do not fit. Public SDK exports
 are the supported boundary; private Desk and Design Lab imports are not.
@@ -136,8 +138,9 @@ asset IDs to bundled `.mjs` paths. Register the tool in the native manifest.
 Descriptors include the content digest and UTF-8 byte length so hosts can enforce
 their aggregate asset budget without downloading each module a second time.
 The [market-data declaration](../../runtime/managed/plugins/market-data/presentation.py)
-is the supplied example. Check the helper exists on the declared core dependency;
-an edited older core can remain preserved across updates.
+is the supplied example. Every core that publishes `pythia_platform` v1 has the
+helper; an edited core from before v1 publishes no interface, so the plugin does
+not register at all ([ADR 0045](../../docs/decisions/0045-plugin-platform-interface.md)).
 
 For example, a plugin can register a compiled specialist view as follows, using
 its actual native toolset and a matching `provides_tools` manifest declaration:
@@ -242,12 +245,17 @@ update calls enforce read-only eligibility; call `invoke` only from a deliberate
 user action. Native ownership and permission checks are authoritative for each
 operation. Transport requests are cancelled when the contribution is withdrawn.
 
-The SDK exports Desk's actual `useQuery`, `useMutation`, `useQueryClient`, `Button`,
-`EmptyState`, `Popover`, and `Skeleton`. Feature data keys start with
-`['plugin', nativePluginId, ...]` to participate in settings-change withdrawal.
+The SDK exports Desk's actual `useQuery`, `useQueries`, `useMutation`, `useQueryClient`, `Button`,
+`EmptyState`, `Popover`, `Skeleton`, `Toggle`, `ToggleGroup`, a `Combobox` or
+`Autocomplete` root and the shared combobox parts (`ComboboxInputGroup`,
+`ComboboxInput`, `ComboboxPortal`, `ComboboxPositioner`, `ComboboxPopup`,
+`ComboboxList`, `ComboboxGroup`, `ComboboxItem`, `ComboboxEmpty`). Feature data
+keys start with `['plugin', nativePluginId, ...]` to participate in
+settings-change withdrawal.
 Consume cancellation in queries, revalidate native access before presenting
-retained data, and show native denial as unavailable. The SDK Popover portal
-preserves scoped author styles while using the shared popup implementation.
+retained data, and show native denial as unavailable. The SDK Popover and
+Combobox portals preserve scoped author styles while using the shared popup
+implementation.
 
 A feature may publish reusable source components that another plugin bundles into
 its artifact through ordinary imports. This is a build dependency, not runtime

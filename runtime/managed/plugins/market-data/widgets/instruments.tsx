@@ -13,7 +13,11 @@ export { financialBinding as binding } from "@pythia/market-data/widgets";
 export default function Instruments(
   props: WidgetProps<InstrumentRead, InstrumentWidgetOptions>,
 ) {
-  if (props.presentation === "instrument-tile") return <Tiles {...props} />;
+  if (
+    props.presentation === "instrument-tile" ||
+    props.presentation === "instrument-panel"
+  )
+    return <Tiles {...props} />;
   if (props.presentation === "instrument-compact-tile")
     return <Compact {...props} />;
   if (!props.presentation || props.presentation === "instrument-table")

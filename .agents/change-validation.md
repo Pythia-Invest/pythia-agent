@@ -31,7 +31,7 @@ matching prompt snapshots as proof of better judgment.
 
 ## Keeping CI clean
 
-CI is described in [ADR 0037](../docs/decisions/0037-one-required-ci-gate.md);
+CI is described in [ADR 0046](../docs/decisions/0046-one-required-ci-gate.md);
 `tooling/check-workflows.mjs` enforces its mechanical invariants. Beyond those:
 
 - Before pushing, run `just check-static` (seconds). Before asking for a

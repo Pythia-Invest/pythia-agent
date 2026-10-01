@@ -1,0 +1,9 @@
+name: pythia-sui
+version: 0.1.0
+description: (In development, experimental) Sui DeFi protocols, tokens and on-chain markets as subjects, read keyless from Sui's public GraphQL; personal use
+license: Apache-2.0
+requires_plugins:
+  - pythia
+provides_tools:
+  - pythia_sui_catalogue
+  - pythia_sui_metrics

@@ -1,37 +1,44 @@
-"""Synthetic source definitions and pre-proven mappings for shared-read tests.
+"""Synthetic source definitions and core routing for shared-read tests.
 
 Values are shaped by shared wire v1 and the native contribution seam, not real
-provider responses. Cross-source mapping here is a test fixture, not a new rule.
+provider responses. The subject's references stand in for core's bindings.
 """
 import copy
 from importlib import import_module
 import json
 from pathlib import Path
 
-from test_market_data_identity import PACKAGE, evidence, isin, native, identity
+from market_data_fixture import PACKAGE, TOOLKIT, isin, native
 
 Backend = import_module(f"{PACKAGE}.backend").Backend
 read_module = import_module(f"{PACKAGE}.reads")
-wire = import_module(f"{PACKAGE}.wire")
+wire = import_module(f"{TOOLKIT}.wire")
 EXAMPLE = next(f["value"] for f in json.loads((Path(__file__).resolve().parents[3] / "packages/market-data/examples/valid.json").read_text()) if f["name"] == "equity_daily")
-SUBJECT = {"kind": "instrument", "id": "instrument:synthetic-shared"}
+SUBJECT = {"kind": "security", "id": "security:isin:" + isin(31)}
 # A safe source issue that reads must pass through unchanged.
 SOURCE_ISSUE = {"code": "broker_unreachable", "message": "Check the configured broker endpoint.", "severity": "error", "source_code": "502"}
 CRITERIA = {"measurement": "ohlc", "interval": {"kind": "day", "count": 1}, "session": "regular", "price_adjustment": "split", "market_data_type": "unknown", "currency": "USD"}
 
 
 class Sources:
-    def __init__(self):
-        self.providers = ("ibkr", "synthetic_other")
+    def __init__(self, refs=None):
+        """Synthetic sources behind core's `refs` for the subject (default: two ibkr-shaped ones)."""
+        self.refs = {ref["provider"]: ref for ref in refs} if refs else {
+            provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in ("ibkr", "synthetic_other")}
+        self.providers = tuple(self.refs)
         self.ready = {provider: True for provider in self.providers}
         self.calls = []
         self.access = {"platform": "api_server", "connection": "endpoint-a"}
-        self.refs = {provider: {**native(301 if provider == "ibkr" else 302), "provider": provider} for provider in self.providers}
         self.definitions = {provider: [self.definition(provider)] for provider in self.providers}
         self.fail = set()
         self.policies = {}
         self.after_read = None
         self.read_transform = None
+        self.extra = []  # further references core routes the subject through
+        self.named = []  # providers the investor names in `source_order`
+        self.checks = []  # (subject id, reference, stated) core was asked to check
+        self.refuse = set()  # providers whose reads core refuses for the subject
+        self.unverified = set()  # providers core labels unverified
 
     def definition(self, provider, suffix="daily"):
         result = copy.deepcopy(EXAMPLE["series"])
@@ -40,20 +47,18 @@ class Sources:
         return result
 
     def project(self):
-        return [{"contribution": {"schema_version": 1, "provider": provider, "adapter_version": "1", "subject_kinds": ["instrument", "listing"], **self.policies.get(provider, {}),
-                 "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read"} for op in ("search", "details", "series", "latest", "history")]},
+        return [{"contribution": {"schema_version": 1, "provider": provider, "adapter_version": "1", **self.policies.get(provider, {}),
+                 "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read"} for op in ("details", "series", "latest", "history")]},
                  "operations": [{"operation": op, "tool": f"{provider}_{op}", "effect": "read", "available": self.ready[provider], "parameters": {}}
-                                for op in ("search", "details", "series", "latest", "history")]}
+                                for op in ("details", "series", "latest", "history")]}
                 for provider in self.providers], False
 
     def call(self, provider, operation, arguments):
         self.calls.append((provider, operation, copy.deepcopy(arguments)))
         if (provider, operation) in self.fail:
             return {"schema_version": 1, "outcome": "error", "data": None, "issues": [copy.deepcopy(SOURCE_ISSUE)]}
-        if operation in ("search", "details"):
-            ref = self.refs[provider]
-            records = evidence(ref, standard=isin(31), listing=True, version="1")
-            return {"schema_version": 1, "outcome": "ok", "data": [{"provider_ref": ref, "evidence": records, "issues": []}], "issues": []}
+        if operation == "details":
+            return {"schema_version": 1, "outcome": "ok", "data": [{"provider_ref": self.refs[provider], "issues": []}], "issues": []}
         if operation == "series":
             return {"schema_version": 1, "outcome": "ok", "data": copy.deepcopy(self.definitions[provider]), "issues": []}
         selected = next(value for value in self.definitions[provider] if value["source_detail"]["values"]["read_selector"] == arguments["source_selector"])
@@ -68,26 +73,26 @@ class Sources:
             self.after_read()
         return result
 
+    def order(self, *providers):
+        """Core's one source order for the subject (the investor's `source_order`, then core's default)."""
+        self.refs = {provider: self.refs[provider] for provider in providers}
+
+    def subjects(self, subject_id):
+        if subject_id != SUBJECT["id"]:
+            return None
+        return {"asset_class": "equity", "refs": [*self.refs.values(), *self.extra], "named": list(self.named)}
+
+    def check_read(self, subject_id, native_ref, stated):
+        self.checks.append((subject_id, native_ref, stated))
+        if native_ref["provider"] in self.refuse:
+            return {"status": "refused", "label": "venue differs"}
+        return {"status": "unverified", "label": "venue differs"} if native_ref["provider"] in self.unverified \
+            else {"status": "verified", "label": None}
+
     def backend(self, directory, canonical=True, **kwargs):
-        store = ProvenIdentity(directory, self) if canonical else identity.IdentityStore(directory)
-        return Backend(directory, identity=store, source_call=self.call, source_projection=self.project,
-                       access_scope=lambda: self.access, **kwargs)
-
-
-class ProvenIdentity(identity.IdentityStore):
-    def __init__(self, directory, sources):
-        super().__init__(directory)
-        self.sources = sources
-        self.extra = []
-
-    def bindings(self, subject):
-        if subject != SUBJECT:
-            return super().bindings(subject)
-        mappings = [{"schema_version": 1, "id": "mapping:" + provider, "provider_ref": ref,
-                     "target": SUBJECT, "status": "confirmed", "evidence_ids": ["evidence:synthetic-proof"],
-                     "rule_version": "synthetic:1", "revision": 1, "active_override": None}
-                    for provider, ref in self.sources.refs.items()]
-        return {"generation": self.cache_token(), "mappings": mappings + self.extra}
+        return Backend(directory, subjects=self.subjects if canonical else lambda subject_id: None,
+                       source_call=self.call, source_projection=self.project, access_scope=lambda: self.access,
+                       **{"check_read": self.check_read, **kwargs})
 
 
 def request(view=None, requirements=None):

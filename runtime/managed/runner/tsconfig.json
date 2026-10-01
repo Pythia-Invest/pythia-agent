@@ -8,5 +8,6 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["provider-*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist"]
 }

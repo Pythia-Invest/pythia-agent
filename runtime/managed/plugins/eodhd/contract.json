@@ -1,0 +1,81 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-eodhd",
+  "provider": "eodhd",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "catalogue",
+        "level": "listing",
+        "asset_classes": [
+          "equity"
+        ]
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "ticker_mic"
+      ]
+    },
+    "mic_table": {
+      "XAMS": ".AS",
+      "XBRU": ".BR",
+      "XLIS": ".LS",
+      "XMIL": ".MI",
+      "XDUB": ".IR",
+      "XOSL": ".OL",
+      "XPAR": ".PA",
+      "XETR": ".XETRA",
+      "XFRA": ".F",
+      "BMEX": ".MC",
+      "XHEL": ".HE",
+      "XSTO": ".ST",
+      "XCSE": ".CO",
+      "XWBO": ".VI",
+      "XWAR": ".WAR",
+      "XLON": ".LSE",
+      "XSWX": ".SW",
+      "XTSE": ".TO",
+      "XNAS": ".US",
+      "XNYS": ".US",
+      "XCBO": ".US",
+      "OTCM": ".US"
+    }
+  },
+  "concepts": {
+    "market_data": {
+      "level": "listing",
+      "via": "listing",
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      "qualities": {
+        "quote": {
+          "delay": "delayed"
+        },
+        "daily": {
+          "adjustment": [
+            "none",
+            "split_dividend"
+          ]
+        }
+      }
+    }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/eodhd.md"
+  }
+}

@@ -25,6 +25,8 @@ export function runtimeEnvironment(paths, apiKey, source = process.env) {
     HERMES_DISABLE_LAZY_INSTALLS: "1",
     PYTHIA_CONFIG_ROOT: paths.configRoot,
     PYTHIA_STATE_ROOT: paths.stateRoot,
+    PYTHIA_DATA_ROOT: paths.dataRoot,
+    PYTHIA_CACHE_ROOT: paths.cacheRoot,
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
     PYTHIA_NODE: process.execPath,
     PYTHIA_HERMES_EXECUTABLE: join(

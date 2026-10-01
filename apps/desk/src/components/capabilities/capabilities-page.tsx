@@ -32,7 +32,8 @@ const LABELS: Record<TabId, string> = {
 const LEADS: Record<TabId, string> = {
   skills:
     "Instructions Hermes can follow for a kind of task. Changes apply to new chats.",
-  tools: "Toolsets Hermes can call in Pythia's chats.",
+  tools:
+    "Toolsets Hermes can call in Pythia's chats. Pythia's own tools are always on; to stop a data source, switch it off in Settings, Data, Data sources, which shows what that hides first.",
   connectors:
     "MCP servers that give Hermes more tools. Changes apply from the next session.",
   plugins:

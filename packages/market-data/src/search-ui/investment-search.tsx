@@ -1,0 +1,296 @@
+"use client";
+
+import {
+  Autocomplete,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxPopup,
+  ComboboxPortal,
+  ComboboxPositioner,
+  cn,
+} from "@pythia/widget-sdk";
+import { LoaderCircle, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { rowTarget, type SearchGroup } from "../search";
+import {
+  type SearchBackend,
+  useDirectorySearch,
+  useGroupListings,
+} from "./controller";
+import {
+  type SearchOption,
+  searchOptions,
+  type TypeFilter,
+} from "./search-model";
+import { type PanelStatus, SearchPanel } from "./search-panel";
+
+export type InvestmentSearchProps = {
+  query: string;
+  onQueryChange(query: string): void;
+  /** Local directory read; never a connector call. */
+  search: SearchBackend;
+  /** The chosen row: its instrument's subject id, which the instrument page
+   * is, and the listing id whose price the page shows (the same id for a
+   * crypto asset or a row without a known instrument). */
+  onSelect(subjectId: string, listingId: string): void;
+  /** The same ids for a row the user highlights with pointer or keyboard (not
+   * the automatic first row), so a host can prepare that page. */
+  onHighlight?: ((subjectId: string, listingId: string) => void) | undefined;
+  /** Register the Cmd/Ctrl+K shortcut. Disable when several instances mount. */
+  shortcut?: boolean | undefined;
+  className?: string | undefined;
+};
+
+const TABBABLE = 'button:not(:disabled):not([tabindex="-1"])';
+const NO_GROUPS: SearchGroup[] = [];
+const NO_EXPANDED: ReadonlySet<string> = new Set();
+const NO_OPTIONS: SearchOption[] = [];
+
+/** Busy cues appear only when work is noticeably slow, so fast local reads
+ * never flash a spinner. */
+function useDelayedFlag(flag: boolean, delay: number) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    setShown(false);
+    if (!flag) return;
+    const timer = setTimeout(() => setShown(true), delay);
+    return () => clearTimeout(timer);
+  }, [flag, delay]);
+  return flag && shown;
+}
+
+/** One field for names, tickers and identifiers with a panel anchored to it.
+ * Base UI's combobox owns focus, highlighting, selection and dismissal; this
+ * component owns the directory read, the type filter and the delisted filter.
+ * Nothing here calls a connector: search is a read of local data. */
+export function InvestmentSearch({
+  query,
+  onQueryChange,
+  search,
+  onSelect,
+  onHighlight,
+  shortcut = true,
+  className,
+}: InvestmentSearchProps) {
+  const input = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<TypeFilter>("all");
+  // Delisted lines are searchable, ranked below live ones; this only hides
+  // them. Kept for the session (the top bar stays mounted), not persisted.
+  const [includeDelisted, setIncludeDelisted] = useState(true);
+  // Groups showing all their listings; a new query or type starts collapsed.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(NO_EXPANDED);
+  const toggled = useRef(false);
+
+  const trimmed = query.trim();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on a new query or type only
+  useEffect(() => setExpanded(NO_EXPANDED), [trimmed, filter, includeDelisted]);
+  // Every keystroke is its own local read; React Query cancels the superseded
+  // one and keeps the previous rows on screen until the new ones arrive.
+  const result = useDirectorySearch(
+    search,
+    trimmed,
+    filter,
+    open,
+    includeDelisted,
+  );
+  const response = trimmed ? result.data : undefined;
+  const fresh = Boolean(response) && !result.isPlaceholderData;
+  // "All N listings" is a group read of its own, only once a group is opened.
+  const groupReads = useGroupListings(
+    search,
+    trimmed,
+    filter,
+    includeDelisted,
+    (response?.groups ?? NO_GROUPS).filter(
+      (group) => expanded.has(group.id) && group.listings > group.rows.length,
+    ),
+  );
+  const options = useMemo(
+    () =>
+      searchOptions(response?.groups ?? NO_GROUPS, expanded, groupReads.rows),
+    [response, expanded, groupReads.rows],
+  );
+  const status: PanelStatus = !trimmed
+    ? "prompt"
+    : result.isError && !result.isFetching
+      ? "error"
+      : response
+        ? "ready"
+        : "loading";
+  const busy = useDelayedFlag(
+    open && Boolean(trimmed) && result.isFetching,
+    250,
+  );
+
+  useEffect(() => {
+    if (!shortcut) return;
+    const onShortcut = (event: KeyboardEvent) => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.altKey ||
+        event.key.toLowerCase() !== "k"
+      )
+        return;
+      event.preventDefault();
+      setOpen(true);
+      input.current?.focus();
+      input.current?.select();
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, [shortcut]);
+
+  return (
+    // An autocomplete: the field's text is the value and rows are
+    // destinations, so a choice reports its subject id and keeps the query.
+    <Autocomplete<SearchOption>
+      value={query}
+      onValueChange={(value, details) => {
+        // Base UI also writes the chosen row's label into the field; only
+        // typing and Escape change the query.
+        if (
+          details.reason !== "input-change" &&
+          details.reason !== "escape-key"
+        )
+          return;
+        onQueryChange(value);
+      }}
+      open={open}
+      onOpenChange={(next, details) => {
+        // Choosing a group's toggle expands it in place; the panel stays.
+        if (!next && details.reason === "item-press" && toggled.current) {
+          toggled.current = false;
+          return;
+        }
+        setOpen(next);
+      }}
+      openOnInputClick
+      // Only a highlight the user moved (keyboard or pointer); the automatic
+      // first-row highlight follows every keystroke and is not a signal.
+      onItemHighlighted={(option, details) => {
+        if (option?.row && details.reason !== "none") {
+          const { subjectId, listingId } = rowTarget(option.row);
+          onHighlight?.(subjectId, listingId);
+        }
+      }}
+      itemToStringValue={(option) => option.row?.ticker ?? option.group.name}
+      filter={null}
+      // The first shown row is always highlighted, so Enter opens the row the
+      // user sees highlighted.
+      autoHighlight="always"
+      // The rows the panel shows, in its order, so the highlight follows
+      // arriving results.
+      items={status === "ready" ? options : NO_OPTIONS}
+    >
+      <ComboboxInputGroup
+        data-slot="investment-search"
+        className={cn(
+          "h-8 min-h-8 w-104 min-w-0 max-w-full cursor-text gap-2 px-2.5 text-foreground-secondary hover:bg-raised",
+          className,
+        )}
+      >
+        {busy ? (
+          <LoaderCircle
+            aria-hidden="true"
+            className="size-3.5 flex-none animate-spin motion-reduce:animate-none"
+          />
+        ) : (
+          <Search aria-hidden="true" className="size-3.5 flex-none" />
+        )}
+        <ComboboxInput
+          ref={input}
+          aria-label="Search investments"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Search by name, ticker or ISIN"
+          type="search"
+          maxLength={512}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            // The combobox leaves the panel's pills and toggle out of the tab
+            // order; Tab reaches them instead of leaving the panel.
+            const next = popup.current?.querySelector<HTMLElement>(TABBABLE);
+            if (event.key === "Tab" && !event.shiftKey && open && next) {
+              event.preventDefault();
+              next.focus();
+              return;
+            }
+            if (event.key !== "Enter" || !open || !trimmed) return;
+            // Enter opens the highlighted row of the typed query only: rows of
+            // the previous query, still shown while it loads, are not a choice.
+            if (!fresh) {
+              event.preventDefault();
+              event.preventBaseUIHandler();
+            }
+          }}
+          className="min-h-0 px-0 text-body"
+        />
+        {shortcut ? (
+          <kbd className="hidden flex-none font-sans text-foreground-secondary text-xs min-[600px]:block">
+            ⌘K
+          </kbd>
+        ) : null}
+      </ComboboxInputGroup>
+      <ComboboxPortal>
+        {/* Always below the bar: the panel shifts sideways and shortens to
+            fit rather than jumping to another side. */}
+        <ComboboxPositioner
+          side="bottom"
+          align="start"
+          collisionPadding={8}
+          collisionAvoidance={{
+            side: "none",
+            align: "shift",
+            fallbackAxisSide: "none",
+          }}
+        >
+          <ComboboxPopup
+            ref={popup}
+            aria-label="Investment search"
+            onKeyDown={(event) => {
+              // Tab past either end of the panel's controls returns to the field.
+              if (event.key !== "Tab") return;
+              const controls = [
+                ...event.currentTarget.querySelectorAll<HTMLElement>(TABBABLE),
+              ];
+              const edge = event.shiftKey ? controls[0] : controls.at(-1);
+              if (event.target !== edge) return;
+              event.preventDefault();
+              input.current?.focus();
+            }}
+            className="motion-fast h-[min(28rem,var(--available-height))] w-136 max-w-[calc(100vw-1rem)] origin-(--transform-origin) p-0 shadow-overlay transition-[opacity,transform] data-ending-style:scale-[0.97] data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none"
+          >
+            <SearchPanel
+              query={trimmed}
+              status={status}
+              fresh={fresh}
+              filter={filter}
+              includeDelisted={includeDelisted}
+              options={options}
+              onFilter={setFilter}
+              onIncludeDelisted={setIncludeDelisted}
+              onRetry={() => void result.refetch()}
+              onChoose={(option) => {
+                if (!option.row) return;
+                const { subjectId, listingId } = rowTarget(option.row);
+                onSelect(subjectId, listingId);
+              }}
+              expanded={expanded}
+              pending={groupReads.pending}
+              onToggle={(groupId) => {
+                toggled.current = true;
+                setExpanded((current) => {
+                  const next = new Set(current);
+                  if (!next.delete(groupId)) next.add(groupId);
+                  return next;
+                });
+              }}
+            />
+          </ComboboxPopup>
+        </ComboboxPositioner>
+      </ComboboxPortal>
+    </Autocomplete>
+  );
+}

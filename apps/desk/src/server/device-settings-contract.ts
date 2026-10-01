@@ -12,6 +12,8 @@ export type DeviceSkill = HermesSkill & {
   mutable: boolean;
 };
 
+export type PluginPause = { plugin: string; paused: boolean };
+
 export type DeviceSettingsSnapshot = {
   workspace: {
     root: string | null;
@@ -29,10 +31,21 @@ export type DeviceSettingsSnapshot = {
 };
 
 export interface DeviceSettingsService {
-  initializeModel(selection: ModelSelection): Promise<void>;
+  /** Save an empty profile's first-send model; true when this call saved it. */
+  initializeModel(selection: ModelSelection): Promise<boolean>;
+  /** Clear a first-send model if its run fails on provider credentials (null: it never started). */
+  settleInitialModel(
+    selection: ModelSelection,
+    runId: string | null,
+  ): Promise<void>;
   snapshot(): Promise<DeviceSettingsSnapshot>;
   setSkillEnabled(name: string, enabled: boolean): Promise<DeviceSkill>;
   setToolsetEnabled(name: string, enabled: boolean): Promise<HermesToolset>;
+  /**
+   * Pause or resume a data source in Pythia's own settings (Settings → Data
+   * sources). Core reads the file on every use, so neither needs a restart.
+   */
+  setPluginPaused(name: string, paused: boolean): Promise<PluginPause>;
 }
 
 export type CommandRunner = (args: string[]) => Promise<{ stdout: string }>;
@@ -44,6 +57,8 @@ export type DeviceSettingsOptions = {
   restartHermes?: () => Promise<void>;
   readbackAttempts?: number;
   readbackDelayMs?: number;
+  /** Poll interval while watching a first-send run (default 500 ms, for two minutes). */
+  firstRunPollMs?: number;
 };
 
 export class DeviceSettingsError extends Error {

@@ -205,9 +205,17 @@ claim an independent doctor pass for a preserved replacement or dependent featur
 A fresh profile explicitly enables the same ten base toolsets for `cli`,
 `cron`, and `api_server`: `cronjob`, `delegation`, `file`, `memory`,
 `session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. The Pythia
-core adapter supplies `pythia-desk` for bounded Desk context. The retired SEC
-and EODHD toolsets are no longer fresh-profile defaults. These are initial
-values only; later native user edits are preserved.
+core adapter supplies `pythia-desk`, the agent's concept tools and Desk context,
+on `api_server` only. Each enabled data plugin offers its provider tools in a
+toolset named after the plugin (`pythia-sec`, `pythia-gleif`, ...), on
+`api_server` only. Every plugin operation is registered in core's hidden
+`pythia-core` toolset, recorded as known and off, so the model is offered the
+concept and provider tools, loaded or behind Tool Search as the investor chooses
+([agent tools](architecture/agent-tools.md)). These are initial values only;
+later native user edits are preserved. The update migration
+`0002-agent-tool-surface` applies the same toolset and skill-writing choices to
+an existing profile with native commands. It does not enable plugins an update
+adds: see [Updating a stack that predates the identity backbone](development.md#updating-a-stack-that-predates-the-identity-backbone).
 
 Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to
@@ -258,8 +266,9 @@ The default removes the installed command, managed runtime, and user services
 but retains the checkout, configuration, state, workspace, and Markdown
 knowledge for reinstallation. `pythia uninstall --purge` also removes Pythia
 configuration, state, and cache, but still does not delete the checkout,
-workspace, or Markdown knowledge. Back up and remove retained data separately
-only when that destructive result is intended.
+workspace, Markdown knowledge, or Pythia's store (`<data>/store`, which holds
+the investor's identity answers and the reference data). Back up and remove
+retained data separately only when that destructive result is intended.
 
 Uninstall and purge refuse a pending Workspace transition or a retained Basic
 Memory unit before stopping or removing anything. Complete the transition first;

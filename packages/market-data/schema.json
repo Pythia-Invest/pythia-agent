@@ -16,12 +16,13 @@
       "type": "object",
       "properties": {
         "kind": {
-          "enum": ["company", "instrument", "listing", "crypto"]
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
         },
         "id": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-          "maxLength": 256
+          "maxLength": 370,
+          "pattern": "^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}$"
         }
       },
       "required": ["kind", "id"],
@@ -162,174 +163,6 @@
         }
       },
       "required": ["start", "end"],
-      "additionalProperties": false
-    },
-    "evidence": {
-      "type": "object",
-      "properties": {
-        "schema_version": {
-          "enum": [1]
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-          "maxLength": 256
-        },
-        "provider_ref": {
-          "$ref": "#/$defs/provider_ref"
-        },
-        "scope": {
-          "enum": ["company", "instrument", "listing", "crypto"]
-        },
-        "scheme": {
-          "enum": [
-            "isin",
-            "figi",
-            "lei",
-            "cik",
-            "cusip",
-            "native",
-            "ticker",
-            "name",
-            "contract_address"
-          ]
-        },
-        "value": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "qualifiers": {
-          "$ref": "#/$defs/qualifiers"
-        },
-        "adapter_version": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "observed_at": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "retrieved_at": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
-        },
-        "effective": {
-          "$ref": "#/$defs/window"
-        },
-        "authority": {
-          "enum": ["source_asserted", "query_only", "unknown"]
-        }
-      },
-      "required": [
-        "schema_version",
-        "id",
-        "provider_ref",
-        "scope",
-        "scheme",
-        "value",
-        "qualifiers",
-        "adapter_version",
-        "observed_at",
-        "retrieved_at",
-        "effective",
-        "authority"
-      ],
-      "additionalProperties": false
-    },
-    "mapping": {
-      "type": "object",
-      "properties": {
-        "schema_version": {
-          "enum": [1]
-        },
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-          "maxLength": 256
-        },
-        "provider_ref": {
-          "$ref": "#/$defs/provider_ref"
-        },
-        "target": {
-          "$ref": "#/$defs/subject"
-        },
-        "status": {
-          "enum": ["candidate", "confirmed", "conflicting", "rejected"]
-        },
-        "evidence_ids": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-            "maxLength": 256
-          },
-          "minItems": 0,
-          "maxItems": 10000
-        },
-        "rule_version": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "active_override": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-                  "maxLength": 256
-                },
-                "effect": {
-                  "enum": ["positive", "negative"]
-                },
-                "evidence_ids": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9_-]*:[A-Za-z0-9._:/-]+$",
-                    "maxLength": 256
-                  },
-                  "minItems": 1,
-                  "maxItems": 10000
-                }
-              },
-              "required": ["id", "effect", "evidence_ids"],
-              "additionalProperties": false
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "schema_version",
-        "id",
-        "provider_ref",
-        "target",
-        "status",
-        "evidence_ids",
-        "rule_version",
-        "revision",
-        "active_override"
-      ],
       "additionalProperties": false
     },
     "unit": {
@@ -982,9 +815,78 @@
               },
               "required": ["start", "end"],
               "additionalProperties": false
+            },
+            "previous": {
+              "type": "object",
+              "properties": {
+                "regular": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+                    },
+                    "end": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+                    }
+                  },
+                  "required": ["start", "end"],
+                  "additionalProperties": false
+                },
+                "extended": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+                    },
+                    "end": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+                    }
+                  },
+                  "required": ["start", "end"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["regular", "extended"],
+              "additionalProperties": false
             }
           },
           "required": ["date", "timezone", "regular", "extended"],
+          "additionalProperties": false
+        },
+        "extended": {
+          "type": "object",
+          "properties": {
+            "session": {
+              "enum": ["pre", "post"]
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "maxLength": 256
+            },
+            "time": {
+              "$ref": "#/$defs/time"
+            },
+            "absolute": {
+              "type": "string",
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "maxLength": 256
+            },
+            "percent": {
+              "type": "string",
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "maxLength": 256
+            }
+          },
+          "required": ["session", "value", "time"],
           "additionalProperties": false
         },
         "reference_close": {
@@ -1234,17 +1136,6 @@
             }
           ]
         },
-        "mapping_revision": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "source_detail": {
           "anyOf": [
             {
@@ -1263,7 +1154,6 @@
         "retrieved_at",
         "source_time",
         "revision_vintage",
-        "mapping_revision",
         "source_detail"
       ],
       "additionalProperties": false
@@ -1285,17 +1175,6 @@
             "unavailable"
           ]
         },
-        "preference_revision": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "alternatives": {
           "type": "array",
           "items": {
@@ -1307,7 +1186,7 @@
           "maxItems": 10000
         }
       },
-      "required": ["view", "reason", "preference_revision", "alternatives"],
+      "required": ["view", "reason", "alternatives"],
       "additionalProperties": false
     },
     "coverage": {
@@ -1482,14 +1361,7 @@
             "type": "object",
             "properties": {
               "operation": {
-                "enum": [
-                  "search",
-                  "details",
-                  "series",
-                  "latest",
-                  "history",
-                  "read_batch"
-                ]
+                "enum": ["details", "series", "latest", "history", "read_batch"]
               },
               "tool": {
                 "type": "string",
@@ -1502,14 +1374,6 @@
             },
             "required": ["operation", "tool", "effect"],
             "additionalProperties": false
-          },
-          "minItems": 1,
-          "maxItems": 10000
-        },
-        "subject_kinds": {
-          "type": "array",
-          "items": {
-            "enum": ["company", "instrument", "listing", "crypto"]
           },
           "minItems": 1,
           "maxItems": 10000
@@ -1547,8 +1411,7 @@
         "schema_version",
         "provider",
         "adapter_version",
-        "operations",
-        "subject_kinds"
+        "operations"
       ],
       "additionalProperties": false
     }

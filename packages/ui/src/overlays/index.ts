@@ -1,3 +1,4 @@
+export { ActionDialog, type ActionDialogProps } from "./action-dialog";
 export { AlertDialog, Dialog } from "./dialog";
 export { Drawer, Sheet } from "./drawer";
 export { Popover } from "./popover";

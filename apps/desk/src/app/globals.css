@@ -2,4 +2,5 @@
 @import "@pythia/ui/styles.css";
 @import "streamdown/styles.css";
 @source "../../../../packages/ui/src";
+@source "../../../../packages/market-data/src/search-ui";
 @source "../../node_modules/streamdown/dist/*.js";

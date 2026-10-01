@@ -15,7 +15,10 @@ function input(id: string): ReadInput {
   const request = fixture().request;
   request.view = {
     kind: "pythia",
-    subject: { kind: "crypto", id: `crypto:${id}` },
+    subject: {
+      kind: "security",
+      id: `security:provisional:fictional:coin:${id}`,
+    },
   };
   return { request, criteria: { measurement: "aggregate_price" } };
 }
@@ -167,28 +170,4 @@ it("failed native reads never become reusable cache entries even with a supplied
   await service.read({ reads: [input("failed")] }, signal);
   await service.read({ reads: [input("failed")] }, signal);
   expect(scopes).toEqual([undefined, undefined]);
-});
-
-it("preference revision adapters reject malformed native revisions and preserve read-only authority", async () => {
-  for (const [value, expected] of [
-    [{ schema_version: 1, outcome: "ok", data: { revision: 3 } }, 3],
-    [{ outcome: "ok", data: { revision: 1 } }, null],
-    [{ schema_version: 1, outcome: "ok", data: { revision: -1 } }, null],
-    [{ schema_version: 1, outcome: "ok", data: { revision: 1.5 } }, null],
-  ] as const) {
-    const service = createFinancialDataService(
-      { NODE_ENV: "test" },
-      async (call) => {
-        expect(call).toMatchObject({
-          readOnly: true,
-          arguments: { action: "get_preferences" },
-        });
-        return JSON.stringify(value);
-      },
-    );
-    const preferences = service.preferences(new AbortController().signal);
-    await (expected === null
-      ? expect(preferences).rejects.toThrow("preferences_unavailable")
-      : expect(preferences).resolves.toEqual({ revision: expected }));
-  }
 });

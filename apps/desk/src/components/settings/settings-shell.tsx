@@ -7,6 +7,7 @@ import {
   useHermesConfig,
   useProviders,
 } from "@/client/hermes-settings-queries";
+import { useRepairs } from "@/client/repairs";
 import { useReleaseStatus } from "@/client/settings-queries";
 import { foundLabel, type SearchResult, searchSettings } from "./search";
 import { resolvePage } from "./sections";
@@ -21,6 +22,7 @@ const control =
 function useAttention() {
   const release = useReleaseStatus().data;
   const providers = useProviders().data;
+  const repairs = useRepairs();
   const sections = new Set<string>();
   if (release?.updater === "failed" || release?.update_available === true)
     sections.add("about");
@@ -30,6 +32,8 @@ function useAttention() {
     !providers.keys.some((key) => key.set && key.secret)
   )
     sections.add("providers");
+  // Issues Pythia could not settle on its own wait for the investor.
+  if (repairs.open.length) sections.add("data");
   return sections;
 }
 

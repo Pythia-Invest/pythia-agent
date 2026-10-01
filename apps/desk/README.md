@@ -172,8 +172,8 @@ not repository defaults. Tailscale is never required for local access.
 Settings follows Hermes Desktop's Settings ([ADR 0008](../../docs/decisions/0008-desk-client-conventions.md#settings-2026-09-hermes-desktops-structure),
 [notices](NOTICE.md)). It fills the window over the current page, which keeps
 running underneath. The sidebar holds Back, search and a section tree (Model,
-Chat, Appearance, Workspace, Safety, Memory & Context, Advanced; Providers;
-About); the open section lists its pages, and a dot marks one
+Chat, Appearance, Workspace, Safety, Memory & Context, Data, Advanced;
+Providers; About); the open section lists its pages, and a dot marks one
 that needs you. Pages show a breadcrumb and rows with the control on the
 right. Every setting, Hermes's or Pythia's, is a field in the same schema and
 renders through `components/settings/config-field.tsx`: Hermes fields come
@@ -206,15 +206,6 @@ the profile's global `skills.disabled` list, while Desk tools change only the
 mutation lock, asks the lifecycle owner to restart Hermes, and reports success
 only after the authenticated native API shows the requested state. It does not
 infer mismatches or modify another platform.
-
-Settings › Updates shows the version and update status: Check now, Update
-now for an available installed-device build, progress through the restart,
-and **Reload Desk** once the selected build is active. Desk checks once a day
-while open; an entry in the navigation footer appears only when an update is
-ready, installing or needs a reload, and opens the same controls. Dirty source
-is preserved and refused; development cannot apply installed updates. See
-[ADR 0017](../../docs/decisions/0017-updates-from-desk.md) for the update,
-reconnection and host recovery boundaries.
 
 Provider setup belongs to the respective connector. Core no longer exposes
 the original SEC identity and EODHD token controls or their write routes.
@@ -277,11 +268,85 @@ header names the current file, and other files reopen from the list.
 The Name/Type/Size listing shares file icons with search results. Sidebar pins
 and width preferences from the earlier layout are retained but unused by this
 variant.
-The default shared shell header retains its window title, chat search field and
-Cmd/Ctrl+K shortcut. Workspace does not replace that header. Users may select a
-complete native plugin top bar through workspace `desk/top-bar.json`; see
+The product default header is the market-data investment-search top bar; when
+that feature is unavailable the core header (window title, chat search field and
+Cmd/Ctrl+K shortcut) appears without a warning. Workspace does not replace that
+header. Users may select another complete native plugin top bar, or
+`renderer: null` for the core one, through workspace `desk/top-bar.json`; see
 [the SDK guide](../../packages/widget-sdk/README.md#replace-the-desk-top-bar).
-Invalid or unavailable contributions retain the core header and navigation actions.
+Invalid or unavailable selections retain the core header and navigation actions
+and say so.
+
+`/settings/repairs` (Settings → Data → Repairs, not in the main navigation) lists the
+issues Pythia could not settle on its own, modelled on Home Assistant's Repairs.
+Rules and the agent normally fix them, so the Data section of Settings is marked
+only while issues are open. The page uses the back-office `DataTable` and
+`ActionDialog` from `@pythia/ui`. An issue is generic (kind, title, description,
+subject, plugin, times, status); a kind (`components/repairs/`) only supplies a
+row's context and actions. Two kinds exist. An identity question from
+core's `identity-queue`: its context shows the provider's record beside the
+instrument and the evidence. "Match" (one per candidate) and "Not a match"
+send `identity-verdict` with an optional note; an agent's suggestion, whose
+badge reads "Agent suggests: match" (or "depositary receipt", "not a match"),
+adds "Confirm", which sends it as the user's answer through the same short
+dialog. A catalogue correction from core's `identity-corrections`: the agent's
+proposal (badge "Agent suggests: set ISIN") is open until "Confirm" or
+"Decline" sends `identity-correction`, and an applied correction is Resolved
+with "Undo". Answered and settled questions and corrections are shown through
+the Status filter.
+
+The investor corrects the catalogue from the instrument page itself: an
+identifier in the header has an Edit link that opens an inline input (Enter
+saves, Escape cancels, an empty value removes the identifier) and sends
+`identity-correction`; a price section's "Always use" beside "Back" pins the
+source picked for this view. A corrected item says "Corrected by you" with an
+Undo. Core refuses a value that is malformed for its scheme and Desk shows its
+reason in place. Where an open question holds a fact back (the company of a
+share whose issuer the data does not settle, a contested identifier), the page
+shows "open data conflict" with a link to its repair, never a blank.
+
+Settings → Data → Data sources lists each data plugin that Hermes has enabled
+and that ships a contract. A switch beside each pauses it at once, with no
+restart: a paused source counts as disabled for data. The subjects only it
+supplies are hidden from search and selection, while a saved reference still
+opens, labelled as paused. Beside the switch, before it is
+turned off, a line says how many subjects only that source supplies and which
+saved watchlist and card entries name them. A source with a bulk catalogue has
+"Sync now", and one that can resolve an identifier has a form that looks one up
+(`identity-sync`, `identity-lookup`); nothing else calls a plugin for the
+directory, and search never does. Settings → Data → Reference data shows the
+installed reference package, its sources and notices, and why a package was
+refused or is too old. Enabling a plugin Hermes does not run stays
+`hermes plugins enable` and a Hermes restart.
+
+`/instrument/[subject]` is one instrument's page (URL-encoded subject id,
+normally the instrument's security); `?listing=` names the listing whose quote
+and chart it shows, and without it core prices the page through the selector's
+first line (a flagged primary, else the best exchange line). The price card
+waits for the chosen listing's own composition rather than showing another
+line meanwhile. A search row opens its instrument with its own listing, so
+a receipt's row opens the share's page on the receipt's line. The header's
+listing selector (`TICKER · Venue · CCY ▾`) lists every line of the instrument
+as core folds it (ADR 0037): the security's own listings, then those of its
+depositary receipts and registry shares. Choosing one updates `?listing=` in
+place (`history.replaceState`); only the price and chart follow it, while the
+header and the issuer's profile and filings stay and keep their reads
+(sections core marks `via: issuer` resolve once per instrument). A `?listing=`
+that is not one of the instrument's lines is ignored, and one that cannot be
+read fails in the price card only. A line no price source covers still has
+its price card: core's `not_covering` quote section says "No price source
+covers this listing" and lists each source's reason, and a source whose saved
+binding core suspended (the line no longer trades, so its ticker may name
+another company) is a `suspended` card saying so. The shell routes
+`pythia:open-subject` window events there. The page renders core's
+local `pythia`/`identity-subject` composition at once, then loads each section
+on its own: `resolving` sections through `identity-resolve` (an explicit invoke,
+because core stores the resulting binding), quote and chart through the
+market-data `instrument-chart` widget bound to the section's provider reference
+(the page keeps the selected chart period, 1D by default; a quote-only section
+uses `instrument-panel`),
+and profile and filings through the section's own read. Sections that cannot be
+served show why and which configuration key would change that.
 A separate toolbar inside the Workspace page, beneath the shell header, owns
 Back/Forward, Up, Workspace home, the current folder path and a folder-scoped
 search field.
@@ -515,8 +580,8 @@ subscription has at most 64 resources and 64 KiB of actual encoded request bytes
 malformed intent requires explicit correction or Retry. Connection establishment,
 frame size, inactivity and cancellation are bounded separately.
 
-Canonical financial `DeskApi.financialRead` / `financialPreferences` adapters are
-available under `/api/markets/read` and `/api/markets/preferences`; the server's
+The canonical financial `DeskApi.financialRead` adapter is available under
+`/api/markets/read`; the server's
 `financialDataService` also supports future request-local hydration. The public
 `@pythia/market-data/widgets` library owns financial requests, decoders, bindings
 and display semantics. Desk only batches duplicate reads, bounds its cache and

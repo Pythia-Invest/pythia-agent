@@ -14,7 +14,10 @@ import {
 import { financialInstrument } from "../src/widgets/display";
 
 const row: FinancialRow = {
-  subject: { kind: "listing", id: "listing:synthetic-history" },
+  subject: {
+    kind: "listing",
+    id: "listing:provisional:synthetic:symbol:history",
+  },
   symbol: "FIX",
   name: "Synthetic history",
   price: { mode: "preferred", criteria: {} },
@@ -138,7 +141,10 @@ function path(result: ReadResult, subject = row) {
 describe("financial history presentation", () => {
   it("uses native-valid fixtures for unbucketed and timed history", () => {
     const source = fileURLToPath(
-      new URL("../../../runtime/managed/plugins/market-data", import.meta.url),
+      new URL(
+        "../../../runtime/managed/core/platform/connector",
+        import.meta.url,
+      ),
     );
     execFileSync(
       "python3",

@@ -1,32 +1,47 @@
 # Connector execution support
 
 [ADR 0031](../decisions/0031-connector-execution-and-visible-failures.md) describes
-the execution and error boundary. The existing market-data plugin supplies its
-`connector` module through the connector's resolved native dependency. There is
-no additional registration or authentication mechanism.
+the execution and error boundary. Pythia core owns the connector toolkit
+(`core/platform/connector/`) and offers it to plugins through the platform
+interface, as `pythia_platform.connector`, `wire` and `process`
+([ADR 0045](../decisions/0045-plugin-platform-interface.md)). A connector declares
+`requires_plugins: [pythia]` and needs no other plugin: disabling market-data
+leaves identity and filings sources working. There is no additional registration
+or authentication mechanism.
 
 ## Library
 
 | Primitive | Responsibility |
 | --- | --- |
 | `connection` | Connection-scoped concurrency, quota accounting and provider cooldown |
-| `WorkerReads` | Bounded successful-response cache and shared in-flight reads with consumer cancellation |
+| `WorkerReads` | Bounded successful-response cache and shared in-flight reads with consumer cancellation; an optional `prepare_result` validates or projects a success before it is cached, under a policy `cache_scope` |
+| `Transport` | In-process bounded HTTPS JSON GET for keyless public APIs: fixed origins, no redirects, size/deadline bounds, budget permits and the same failure vocabulary as workers |
 | `NativeBatch`, `worker_batch`, `worker_item` | Collect compatible IDs, deduplicate overlapping requests, retain each ID's result or failure |
+| `parallel` | Bounded parallel reads of a batch's items on one shared pool; nested calls run in turn |
+| `ReadCache` | A small in-memory cache with shared in-flight reads, for a connector's own metadata |
 | `process.run_worker` | Bounded disposable process, actual outbound permits, safe execution diagnostics |
 | `ResidentTransport` | Optional bounded RPC worker, connection-state reuse, deadlines, idle expiry and cleanup |
+| `StreamingWorker` | An owned, bounded streaming child for a supported push feed; core closes it when the API server stops |
+| `retry_after` | A provider's `Retry-After` header as bounded seconds |
 | `SourceFailure`, `qualify_failure` | Preserve error code, origin and retry qualification through domain results |
 | `failed_item`, `qualify_items` | Preserve per-item errors and successful siblings in display batches |
 | `emit` | Allowlisted structured events through native Hermes logging |
 
-Use the already resolved native module, for example:
+Take the toolkit from the platform interface inside `register(ctx)`, for example:
 
 ```python
-connector = importlib.import_module(market_data_module.__name__ + '.connector')
-reads = connector.WorkerReads(process)
+import pythia_platform as platform
+platform.require(1)
+connector = platform.connector
+reads = connector.WorkerReads(platform.process)
 budget = connector.connection('provider', connection_identity, per_minute=60)
 raw = reads.read(command, request, explicit_environment,
                  age=60, cancelled=cancelled, budget=budget, timeout=30)
 ```
+
+`platform.wire` validates the market-data wire values a price connector returns
+and expands its tool parameters, including the common series criteria
+(`wire.CRITERIA`). ADR 0045 lists the members each of these modules offers.
 
 The plugin still owns supported operations, request validation, provider mapping,
 units, sessions, entitlement interpretation, native batch limits and cadence.
@@ -111,9 +126,11 @@ per-item partial failures, cache exclusion, safe logging and resident process
 reuse/cleanup. The copied native HTTP qualification checks auth/profile/access,
 shared tool/HTTP lifetime and responsiveness without model or CLI subprocesses.
 
-This increment includes no concrete shared connector. Consequently it makes no
-live-provider, browser, broker, paid-stream or production-service claim. Provider
-PRs must exercise registered tools, real worker admission sizes and actual response
+Connector packages carry their own evidence; the bundled Yahoo connector is
+tested with synthetic Yahoo-shaped values and [EODHD](eodhd.md) with synthetic
+EODHD-shaped values. This document makes no live-provider,
+browser, broker, paid-stream or production-service claim. Provider PRs must
+exercise registered tools, real worker admission sizes and actual response
 layouts with synthetic fixtures, then qualify live behavior separately when
 explicitly authorized. A passing helper test cannot establish a connector's units,
 coverage, entitlements or API billing. Local counters cannot enforce account-wide

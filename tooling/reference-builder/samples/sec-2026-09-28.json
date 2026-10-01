@@ -1,0 +1,70 @@
+{
+  "description": "Frozen stratified random sample of SEC filers for the SEC onboarding audit and the content drift probe (docs/sources/sec.md). CIKs only; names are for reading.",
+  "drawn": "2026-09-28",
+  "seed": 20260928,
+  "method": "Filers in company_tickers_exchange.json grouped by the forms they filed in EDGAR's form.idx for 2025 Q3 to 2026 Q3, sampled with random.Random(seed): 20-F on Nasdaq or NYSE (8), 20-F on OTC only (2), 40-F (6); recent IPOs, a 424B4 plus S-1 or F-1 and no filing before 2025 (3 operating companies, 3 SPACs, SIC 6770); 10-K filers in draw order split by the submissions category into accelerated or large accelerated (10) and others (10). Named hard cases are added, not drawn.",
+  "strata": {
+    "20f_listed": [
+      { "cik": 1928340, "name": "GOLDEN HEAVEN GROUP HOLDINGS LTD." },
+      { "cik": 1839799, "name": "GRANDSTAND Ltd" },
+      { "cik": 2029471, "name": "Heidmar Maritime Holdings Corp." },
+      { "cik": 1584371, "name": "IceCure Medical Ltd." },
+      { "cik": 1928948, "name": "High-Trend International Group" },
+      { "cik": 1978867, "name": "Cadeler A/S" },
+      { "cik": 1963439, "name": "Turbo Energy, S.A." },
+      { "cik": 1997637, "name": "iOThree Ltd" }
+    ],
+    "20f_otc": [
+      { "cik": 849997, "name": "FEC Resources Inc." },
+      { "cik": 1304409, "name": "ATHENA GOLD CORP" }
+    ],
+    "40f": [
+      { "cik": 1013605, "name": "PRECISION DRILLING Corp" },
+      { "cik": 1791703, "name": "Titan Mining Corp" },
+      { "cik": 1670061, "name": "Almonty Industries Inc." },
+      { "cik": 1293135, "name": "VERMILION ENERGY INC." },
+      { "cik": 1627272, "name": "OR Royalties Inc." },
+      { "cik": 1854640, "name": "Centerra Gold Inc." }
+    ],
+    "ipo": [
+      { "cik": 2065601, "name": "Central Bancompany, Inc." },
+      { "cik": 2079720, "name": "BUDA JUICE, INC." },
+      { "cik": 2051985, "name": "Iron Horse Acquisition II Corp." },
+      { "cik": 2099095, "name": "Patriot Acquisition Corp./CI" },
+      { "cik": 2081536, "name": "White Pearl Acquisition Corp." },
+      { "cik": 2125551, "name": "Alpex Acquisition Corp" }
+    ],
+    "10k_accelerated": [
+      { "cik": 812011, "name": "VAIL RESORTS INC" },
+      { "cik": 315293, "name": "Aon plc" },
+      { "cik": 1379785, "name": "Barings BDC, Inc." },
+      { "cik": 1958140, "name": "Atlanta Braves Holdings, Inc." },
+      { "cik": 1283699, "name": "T-Mobile US, Inc." },
+      { "cik": 1050441, "name": "EAGLE BANCORP INC" },
+      { "cik": 820027, "name": "AMERIPRISE FINANCIAL INC" },
+      { "cik": 1290677, "name": "Turning Point Brands, Inc." },
+      { "cik": 1024795, "name": "HELIOS TECHNOLOGIES, INC." },
+      { "cik": 1573516, "name": "Murphy USA Inc." }
+    ],
+    "10k_small": [
+      { "cik": 1070296, "name": "FIRST CAPITAL INC" },
+      { "cik": 54187, "name": "MAYS J W INC" },
+      { "cik": 1816708, "name": "Owlet, Inc." },
+      { "cik": 2052568, "name": "Legence Corp." },
+      { "cik": 1419806, "name": "RARE ELEMENT RESOURCES LTD" },
+      { "cik": 1528287, "name": "NeuroPace Inc" },
+      { "cik": 1039828, "name": "American National Group Inc." },
+      { "cik": 1123494, "name": "HARVARD BIOSCIENCE INC" },
+      { "cik": 1165002, "name": "WESTWOOD HOLDINGS GROUP INC" },
+      { "cik": 1707910, "name": "Reborn Coffee, Inc." }
+    ],
+    "named": [
+      { "cik": 937966, "name": "ASML HOLDING NV" },
+      { "cik": 1039765, "name": "ING GROEP NV" },
+      { "cik": 1306965, "name": "Shell plc" },
+      { "cik": 1094517, "name": "TOYOTA MOTOR CORP/" },
+      { "cik": 1067983, "name": "BERKSHIRE HATHAWAY INC" },
+      { "cik": 320193, "name": "Apple Inc." }
+    ]
+  }
+}

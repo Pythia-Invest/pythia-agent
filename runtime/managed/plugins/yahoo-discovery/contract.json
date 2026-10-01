@@ -1,0 +1,251 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-yahoo-discovery",
+  "provider": "yahoo",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "symbol",
+        "level": "listing",
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      {
+        "native_scope": "symbol",
+        "level": "market"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "index"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "fx"
+      },
+      {
+        "native_scope": "symbol",
+        "level": "series"
+      }
+    ],
+    "schemes": {
+      "listing": [
+        "ticker_mic"
+      ]
+    },
+    "mic_table": {
+      "XAMS": ".AS",
+      "XBRU": ".BR",
+      "XLIS": ".LS",
+      "XMIL": ".MI",
+      "XDUB": ".IR",
+      "XOSL": ".OL",
+      "XPAR": ".PA",
+      "XETR": ".DE",
+      "XFRA": ".F",
+      "XSTU": ".SG",
+      "XMUN": ".MU",
+      "XDUS": ".DU",
+      "XHAM": ".HM",
+      "XHAN": ".HA",
+      "XBER": ".BE",
+      "BMEX": ".MC",
+      "XHEL": ".HE",
+      "XSTO": ".ST",
+      "XCSE": ".CO",
+      "XWBO": ".VI",
+      "XWAR": ".WA",
+      "ASEX": ".AT",
+      "XBUD": ".BD",
+      "XPRA": ".PR",
+      "XICE": ".IC",
+      "XTAL": ".TL",
+      "XRIS": ".RG",
+      "XLIT": ".VS",
+      "XLON": ".L",
+      "XSWX": ".SW",
+      "XTSE": ".TO",
+      "XASX": ".AX",
+      "XHKG": ".HK",
+      "XJSE": ".JO",
+      "XJPX": ".T",
+      "XSES": ".SI",
+      "XTAE": ".TA",
+      "XNAS": "",
+      "XNYS": "",
+      "XCBO": "",
+      "OTCM": ""
+    },
+    "venue_codes": {
+      "NMS": "XNAS",
+      "NGM": "XNAS",
+      "NCM": "XNAS",
+      "NYQ": "XNYS",
+      "ASE": "XNYS",
+      "PCX": "XNYS",
+      "BTS": "XCBO",
+      "PNK": "OTCM",
+      "OQX": "OTCM",
+      "OID": "OTCM",
+      "GER": "XETR",
+      "FRA": "XFRA",
+      "STU": "XSTU",
+      "MUN": "XMUN",
+      "DUS": "XDUS",
+      "HAM": "XHAM",
+      "HAN": "XHAN",
+      "AMS": "XAMS",
+      "BRU": "XBRU",
+      "PAR": "XPAR",
+      "LIS": "XLIS",
+      "MIL": "XMIL",
+      "ISE": "XDUB",
+      "MCE": "BMEX",
+      "OSL": "XOSL",
+      "HEL": "XHEL",
+      "STO": "XSTO",
+      "CPH": "XCSE",
+      "ICE": "XICE",
+      "TAL": "XTAL",
+      "RIS": "XRIS",
+      "LIT": "XLIT",
+      "VIE": "XWBO",
+      "WSE": "XWAR",
+      "ATH": "ASEX",
+      "BUD": "XBUD",
+      "PRA": "XPRA"
+    },
+    "subjects": {
+      "index:pythia:sp500": {
+        "native_scope": "symbol",
+        "native_id": "^GSPC"
+      },
+      "index:pythia:nasdaq100": {
+        "native_scope": "symbol",
+        "native_id": "^NDX"
+      },
+      "index:pythia:nasdaq-composite": {
+        "native_scope": "symbol",
+        "native_id": "^IXIC"
+      },
+      "index:pythia:dow-jones": {
+        "native_scope": "symbol",
+        "native_id": "^DJI"
+      },
+      "index:pythia:russell2000": {
+        "native_scope": "symbol",
+        "native_id": "^RUT"
+      },
+      "market:pythia:cme-es-front-month": {
+        "native_scope": "symbol",
+        "native_id": "ES=F"
+      },
+      "market:pythia:cme-nq-front-month": {
+        "native_scope": "symbol",
+        "native_id": "NQ=F"
+      },
+      "index:pythia:euro-stoxx-50": {
+        "native_scope": "symbol",
+        "native_id": "^STOXX50E"
+      },
+      "index:pythia:ftse100": {
+        "native_scope": "symbol",
+        "native_id": "^FTSE"
+      },
+      "index:pythia:dax": {
+        "native_scope": "symbol",
+        "native_id": "^GDAXI"
+      },
+      "index:pythia:cac40": {
+        "native_scope": "symbol",
+        "native_id": "^FCHI"
+      },
+      "index:pythia:aex": {
+        "native_scope": "symbol",
+        "native_id": "^AEX"
+      },
+      "index:pythia:nikkei225": {
+        "native_scope": "symbol",
+        "native_id": "^N225"
+      },
+      "index:pythia:hang-seng": {
+        "native_scope": "symbol",
+        "native_id": "^HSI"
+      },
+      "index:pythia:sse-composite": {
+        "native_scope": "symbol",
+        "native_id": "000001.SS"
+      },
+      "series:pythia:us-treasury-10y-yield": {
+        "native_scope": "symbol",
+        "native_id": "^TNX"
+      },
+      "fx:pythia:EURUSD": {
+        "native_scope": "symbol",
+        "native_id": "EURUSD=X"
+      },
+      "fx:pythia:USDJPY": {
+        "native_scope": "symbol",
+        "native_id": "JPY=X"
+      },
+      "fx:pythia:GBPUSD": {
+        "native_scope": "symbol",
+        "native_id": "GBPUSD=X"
+      },
+      "market:pythia:comex-gc-front-month": {
+        "native_scope": "symbol",
+        "native_id": "GC=F"
+      },
+      "market:pythia:nymex-cl-front-month": {
+        "native_scope": "symbol",
+        "native_id": "CL=F"
+      },
+      "market:pythia:nymex-bz-front-month": {
+        "native_scope": "symbol",
+        "native_id": "BZ=F"
+      }
+    }
+  },
+  "concepts": {
+    "market_data": {
+      "level": "listing",
+      "via": "listing",
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "equity"
+        ]
+      },
+      "qualities": {
+        "intraday": {
+          "extended_hours": true
+        },
+        "daily": {
+          "adjustment": [
+            "split_dividend"
+          ]
+        }
+      }
+    },
+    "market_movers": {
+      "operations": {
+        "most_active": "movers",
+        "gainers": "movers",
+        "losers": "movers"
+      }
+    }
+  },
+  "rights": {
+    "licence": "personal",
+    "cache": "none",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/yahoo.md"
+  }
+}

@@ -34,6 +34,7 @@ check-static:
     bash -n install.sh scripts/install/platform.sh scripts/install/preflight.sh
     node tooling/check-structure.mjs
     node tooling/check-boundaries.mjs
+    python3 tooling/reference-builder/check_names.py
     node tooling/check-public-source.mjs
     node tooling/check-tests.mjs
     just check-ai-workspace
@@ -99,6 +100,42 @@ build-desk:
 # Every Desk browser test, including e2e/live, against a Desk that is already running (see `just dev-paths`).
 test-e2e desk_url:
     PYTHIA_DESK_URL="{{desk_url}}" pnpm --filter @pythia/desk test:e2e
+
+# Opt-in live agent eval against a running Desk: it uses the investor's model and sources, so never in CI.
+agent-eval desk_url *ids:
+    python3 tooling/agent-eval/run.py "{{desk_url}}" {{ids}}
+
+# Build the open reference snapshot from public sources (network; see tooling/reference-builder/README.md).
+reference-snapshot *args:
+    python3 tooling/reference-builder/run.py {{args}}
+
+# Verify a reference package (directory or package.json) and install it for this worktree's stack.
+reference-install package:
+    node scripts/dev/cli.mjs reference-install "{{package}}"
+
+# Show the reference package installed for this worktree's stack.
+reference-status:
+    node scripts/dev/cli.mjs reference-status
+
+# Set this worktree's installed reference package aside: search and pages read the device's subjects alone.
+reference-remove:
+    node scripts/dev/cli.mjs reference-remove
+
+# Score a reference snapshot against the identity truth set; fails on regressions against the committed baseline.
+reference-audit *args:
+    python3 tooling/reference-builder/audit.py {{args}}
+
+# Fingerprint SEC submissions and companyfacts for the frozen audit sample (network; fails on drift).
+reference-sec-probe *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.sec_probe {{args}}
+
+# Re-run the SEC onboarding audit: fetch (network) fills the cache; draw and label read only the cache.
+reference-sec-audit step *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.sec_audit {{step}} {{args}}
+
+# Check core's curated crypto assets against CoinGecko and CoinMarketCap (network; fails on drift).
+canonical-assets-drift *args:
+    PYTHONPATH=tooling/reference-builder python3 -m reference_builder.drift {{args}}
 
 # Production dependency advisories (needs the registry).
 audit:

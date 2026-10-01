@@ -1,0 +1,53 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-sec",
+  "provider": "sec",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "cik",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "cik"
+      ]
+    }
+  },
+  "concepts": {
+    "filings": {
+      "level": "issuer",
+      "via": "issuer",
+      "operations": {
+        "list": "filings",
+        "read": "document"
+      },
+      "authorities": [
+        "sec"
+      ]
+    }
+  },
+  "resolve": {
+    "operation": "resolve",
+    "input_schemes": [
+      "cik",
+      "ticker_mic"
+    ],
+    "echoes": []
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/sec.md"
+  },
+  "limits": {
+    "plan": "EDGAR fair access",
+    "unit": "request",
+    "per_second": 10
+  }
+}

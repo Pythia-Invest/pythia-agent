@@ -1,0 +1,376 @@
+"use client";
+
+import { KIND_LABELS } from "@pythia/market-data/search-ui";
+import type { SubjectListing, SubjectPage } from "@pythia/market-data/subject";
+import { Menu, Skeleton } from "@pythia/ui";
+import { Check, ChevronDown } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import type { CorrectFn } from "@/client/corrections";
+import { IdentifierCorrection } from "./identifier-correction";
+import { instrumentHref } from "./instrument-href";
+import { listingGroups, listingLabel, listingVenue } from "./listing-groups";
+import {
+  OpenConflict,
+  optionsNote,
+  ReviewLink,
+  type WithheldFact,
+} from "./open-conflict";
+import { RelatedLinks } from "./related-links";
+
+const IDENTIFIERS = [
+  ["isin", "ISIN"],
+  ["lei", "LEI"],
+  ["cik", "CIK"],
+  ["figi", "FIGI"],
+  ["caip19", "CAIP-19"],
+] as const;
+const CRYPTO_KINDS = new Set(["coin", "token"]);
+/** The facts the header itself places: the issuer's line and each identifier's
+ * row. Any other fact an open question holds back gets a line of its own. */
+const PLACED = new Set(["issuer", ...IDENTIFIERS.map(([key]) => key)]);
+const FACT_LABELS: Record<string, string> = {
+  security: "Security",
+  underlying: "Underlying share",
+  kind: "Share or receipt",
+  composite_figi: "Composite FIGI",
+  share_class_figi: "Share class FIGI",
+};
+
+/** The listing whose price the composition shows: its own subject when it
+ * is a listing, else the one core priced it through. */
+function currentListing(page: SubjectPage): SubjectListing | undefined {
+  const priced = page.subject.listing ?? page.subject.id;
+  return (
+    page.listings.find((listing) => listing.id === priced) ??
+    page.listings.find((listing) => listing.primary) ??
+    page.listings[0]
+  );
+}
+
+/** The subject an identifier's scheme identifies, where the investor's
+ * correction of it is recorded: the security for an ISIN, the issuer for an
+ * LEI or CIK, the priced listing for a FIGI or CAIP-19. */
+function correctionSubject(page: SubjectPage, key: string) {
+  if (key === "isin") return page.security?.id ?? null;
+  if (key === "lei" || key === "cik") return page.issuer?.id ?? null;
+  return (
+    page.subject.listing ??
+    (page.subject.level === "listing" ? page.subject.id : null)
+  );
+}
+
+/** The page is the instrument; `subjectId` is its route subject and `page`
+ * its composition, so the kind badge, name and identifiers stay the
+ * instrument's while the selector follows the chosen listing. With
+ * `onCorrect`, each identifier can be corrected in place. */
+export function InstrumentHeader({
+  page,
+  subjectId,
+  onCorrect,
+}: {
+  page: SubjectPage;
+  subjectId: string;
+  onCorrect?: CorrectFn | undefined;
+}) {
+  const ids = page.identifiers;
+  const identifiers = IDENTIFIERS.flatMap(([key, label]) => {
+    const value =
+      ids[key] ??
+      (key === "isin" ? page.security?.isin : undefined) ??
+      (key === "lei" || key === "cik" ? page.issuer?.[key] : undefined);
+    const contested = page.contested[key] ?? [];
+    const held = page.withheld.find((item) => item.fact === key);
+    // The investor's correction of this identifier, which a removal leaves
+    // without a value to show.
+    const corrected =
+      page.corrections.find(
+        (item) =>
+          item.kind === "identifier" &&
+          item.state === "active" &&
+          item.scheme === key,
+      ) ?? null;
+    return value || contested.length || held || corrected
+      ? [{ key, label, value, contested, held, corrected }]
+      : [];
+  });
+  const heldIssuer = page.withheld.find((item) => item.fact === "issuer");
+  const issuer =
+    page.issuer && page.issuer.name !== page.subject.name
+      ? page.issuer.name
+      : null;
+  // A share (not a crypto asset) the reference names no issuer for: its
+  // issuer is undecided (R2), and its profile and filings wait for it.
+  const issuerUnknown =
+    !page.issuer &&
+    Boolean(page.security) &&
+    !CRYPTO_KINDS.has(page.subject.kind ?? "coin");
+  return (
+    <header data-slot="instrument-header" className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-foreground-secondary text-xs">
+        {page.subject.kind ? (
+          <span className="rounded-pill border border-border bg-subtle px-2 py-0.5 font-semibold">
+            {KIND_LABELS[page.subject.kind]}
+          </span>
+        ) : null}
+        <ListingSelector page={page} subjectId={subjectId} />
+      </div>
+      <h1 className="font-semibold text-2xl text-foreground leading-tight tracking-tight">
+        {page.subject.name}
+      </h1>
+      {/* Core's line of context: a market's, or why a saved instrument opens
+          as a stub (no reference data installed). */}
+      {page.subject.description ? (
+        <p className="text-foreground-secondary text-xs">
+          {page.subject.description}
+        </p>
+      ) : null}
+      <SourceLine page={page} />
+      {issuer ? (
+        <p className="text-foreground-secondary text-xs">Issued by {issuer}</p>
+      ) : heldIssuer ? (
+        <OpenConflict label="Company" held={heldIssuer} />
+      ) : issuerUnknown ? (
+        <p className="text-foreground-secondary text-xs">
+          Issuer unknown: the reference data doesn't settle which company issued
+          this
+        </p>
+      ) : null}
+      {page.withheld
+        .filter((held) => !PLACED.has(held.fact))
+        .map((held) => (
+          <OpenConflict
+            key={held.fact}
+            label={FACT_LABELS[held.fact] ?? held.fact.replaceAll("_", " ")}
+            held={held}
+          />
+        ))}
+      <RelatedLinks related={page.related} />
+      {identifiers.length ? (
+        <dl
+          data-slot="instrument-identifiers"
+          className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+        >
+          {identifiers.map(
+            ({ key, label, value, contested, held, corrected }) => (
+              <div
+                key={key}
+                className="flex min-w-0 max-w-full flex-wrap gap-x-1.5 gap-y-1"
+              >
+                <dt className="text-foreground-secondary">{label}</dt>
+                {contested.length ? (
+                  <ContestedValues values={contested} held={held} />
+                ) : value ? (
+                  <dd
+                    title={value}
+                    className="truncate font-mono text-foreground tabular-nums"
+                  >
+                    {value}
+                  </dd>
+                ) : held ? (
+                  <dd
+                    data-slot="instrument-identifier-contested"
+                    className="text-foreground-secondary"
+                  >
+                    open data conflict{optionsNote(held)} ·{" "}
+                    <ReviewLink question={held.question} />
+                  </dd>
+                ) : (
+                  <dd className="text-foreground-secondary">none</dd>
+                )}
+                <IdentifierCorrection
+                  label={label}
+                  scheme={key}
+                  value={value}
+                  subjectId={correctionSubject(page, key)}
+                  corrected={corrected}
+                  onCorrect={onCorrect}
+                />
+              </div>
+            ),
+          )}
+        </dl>
+      ) : null}
+    </header>
+  );
+}
+
+/** Where a subject a plugin introduced comes from, and whether that plugin
+ * is still on (neither paused nor disabled) and still offers it. Its page, and
+ * a saved reference to it, stay readable either way (ADR 0044 A3). */
+export function SourceLine({ page }: { page: SubjectPage }) {
+  const source = page.contributors.find((item) => item.introduced);
+  if (!source) return null;
+  const clauses = [
+    ...(source.status === "paused" ? ["is paused"] : []),
+    ...(source.status === "disabled" ? ["is disabled"] : []),
+    ...(source.status === "removed" ? ["is no longer installed"] : []),
+    ...(source.not_offered_since
+      ? [`no longer offers it (since ${source.not_offered_since.slice(0, 10)})`]
+      : []),
+  ];
+  return (
+    <p
+      data-slot="instrument-source"
+      className="text-foreground-secondary text-xs"
+    >
+      From {source.label}
+      {clauses.length ? `, which ${clauses.join(" and ")}` : ""}
+    </p>
+  );
+}
+
+/** An identifier whose sources disagree: core applies neither
+ * value, so each is shown with the sources stating it, never a blank, and
+ * links to the open question that settles it. */
+function ContestedValues({
+  values,
+  held,
+}: {
+  values: SubjectPage["contested"][string];
+  held: WithheldFact | undefined;
+}) {
+  return (
+    <dd
+      data-slot="instrument-identifier-contested"
+      className="flex min-w-0 flex-wrap gap-x-1.5"
+    >
+      {values.map(({ value, sources }) => (
+        <span key={value} className="flex min-w-0 gap-1">
+          <span
+            title={value}
+            className="truncate font-mono text-foreground tabular-nums"
+          >
+            {value}
+          </span>
+          <span className="text-foreground-secondary">
+            ({sources.join(", ")})
+          </span>
+        </span>
+      ))}
+      <span className="text-foreground-secondary">sources disagree</span>
+      {held ? (
+        <span className="text-foreground-secondary">
+          · <ReviewLink question={held.question} />
+        </span>
+      ) : null}
+    </dd>
+  );
+}
+
+/** `TICKER · Venue · CCY ▾`: which line of the instrument the price and
+ * chart follow. Every line of the instrument as core folds it: the security's
+ * own listings, then its depositary receipts. Choosing one keeps the page
+ * (profile and filings are the issuer's) and records the listing in the URL. */
+function ListingSelector({
+  page,
+  subjectId,
+}: {
+  page: SubjectPage;
+  subjectId: string;
+}) {
+  // The URL's listing is the choice at once; the composition that follows
+  // it may still be loading.
+  const requested = useSearchParams().get("listing");
+  const current =
+    page.listings.find((listing) => listing.id === requested) ??
+    currentListing(page);
+  const ids = page.identifiers;
+  const label = current
+    ? listingLabel(current, page.listings)
+    : [ids.ticker, ids.mic, ids.currency].filter(Boolean).join(" · ");
+  if (!label) return null;
+  if (page.listings.length < 2)
+    return (
+      <span data-slot="instrument-listing" className="text-foreground">
+        {label}
+      </span>
+    );
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        data-slot="instrument-listing"
+        aria-label={`Listing: ${label}. Choose another listing`}
+        className="motion-fast -mx-1 flex h-7 min-w-0 items-center gap-1 rounded-control px-1.5 font-semibold text-foreground outline-ring transition-colors hover:bg-interaction-hover focus-visible:outline-2 data-popup-open:bg-interaction-active"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-3.5 flex-none stroke-[1.8] text-foreground-secondary"
+        />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner align="start" side="bottom">
+          <Menu.Popup className="max-h-[min(24rem,var(--available-height))] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto">
+            <Menu.RadioGroup
+              value={current?.id}
+              // Native history updates keep Next's search params in sync
+              // without a server round trip or remounting the page.
+              onValueChange={(id: string) =>
+                window.history.replaceState(
+                  null,
+                  "",
+                  instrumentHref(subjectId, id),
+                )
+              }
+            >
+              {listingGroups(page.listings).map((group, _index, groups) => (
+                <Menu.Group key={group.key}>
+                  {groups.length > 1 ? (
+                    <Menu.GroupLabel>{group.label}</Menu.GroupLabel>
+                  ) : null}
+                  {group.listings.map((listing) => (
+                    <Menu.RadioItem
+                      key={listing.id}
+                      value={listing.id}
+                      closeOnClick
+                      data-slot="instrument-listing-option"
+                      className="min-h-9 gap-3 py-1.5 text-xs"
+                    >
+                      <Menu.RadioItemIndicator>
+                        <Check aria-hidden="true" />
+                      </Menu.RadioItemIndicator>
+                      <span className="w-16 flex-none truncate font-semibold text-body">
+                        {listing.ticker ?? listing.mic}
+                      </span>
+                      {/* The venue truncates; the currency, which tells a
+                          receipt's lines apart, stays. The group names the
+                          kind. */}
+                      <span className="min-w-0 flex-1 truncate text-foreground-secondary">
+                        {listingVenue(listing, page.listings)}
+                      </span>
+                      <span className="flex-none text-foreground-secondary">
+                        {listing.currency}
+                      </span>
+                    </Menu.RadioItem>
+                  ))}
+                </Menu.Group>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+
+/** Reserved geometry while the page composition itself loads. */
+export function InstrumentPageSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading instrument"
+      data-slot="instrument-page-loading"
+      className="@container mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 min-[600px]:px-6"
+    >
+      <div className="flex flex-col gap-2">
+        <Skeleton className="w-40 text-xs" />
+        <Skeleton className="h-7 w-72 max-w-full" shape="block" />
+        <Skeleton className="w-96 max-w-full text-xs" />
+      </div>
+      <div className="grid @3xl:grid-cols-3 grid-cols-1 gap-3">
+        <Skeleton shape="block" className="@3xl:col-span-2 h-48" />
+        <Skeleton shape="block" className="h-48" />
+      </div>
+    </div>
+  );
+}

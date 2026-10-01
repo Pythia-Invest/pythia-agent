@@ -79,6 +79,8 @@ export function serviceEnvironmentValues(paths, executables) {
     HERMES_HOME: paths.hermesRoot,
     HERMES_DISABLE_LAZY_INSTALLS: "1",
     PYTHIA_CONFIG_ROOT: paths.configRoot,
+    PYTHIA_DATA_ROOT: paths.dataRoot,
+    PYTHIA_CACHE_ROOT: paths.cacheRoot,
     PYTHIA_MANAGED_ROOT: paths.managedRoot,
     PYTHIA_WORKSPACE: paths.workspace,
     PYTHIA_DESK_VIEW_STATE: paths.deskViewState,

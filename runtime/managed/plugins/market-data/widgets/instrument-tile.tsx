@@ -7,10 +7,13 @@ import {
   type WidgetProps,
 } from "@pythia/widget-sdk";
 
+/** `instrument-panel` is the same tile filling its host, for a page section. */
 export default function Tiles({
   data,
   options,
+  presentation,
 }: WidgetProps<InstrumentRead, InstrumentWidgetOptions>) {
+  const panel = presentation === "instrument-panel";
   if (data.state === "error" || data.state === "empty" || !data.rows.length)
     return <InstrumentReadState read={data} />;
   return (
@@ -25,9 +28,11 @@ export default function Tiles({
           item={item}
           options={options}
           className={
-            options.compact
-              ? "w-64 max-w-full shrink-0 border-border/55"
-              : "w-44 max-w-full shrink-0 border-border/55"
+            panel
+              ? "w-full border-transparent bg-transparent p-0"
+              : options.compact
+                ? "w-64 max-w-full shrink-0 border-border/55"
+                : "w-44 max-w-full shrink-0 border-border/55"
           }
           loading={data.state === "loading"}
         />

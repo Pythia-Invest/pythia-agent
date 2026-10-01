@@ -1,5 +1,6 @@
 "use client";
 
+import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { Check, ChevronDown } from "lucide-react";
 import { createContext, useContext } from "react";
@@ -17,6 +18,18 @@ import { pickerClasses } from "./shared";
  * do not mirror its item schema or manage active descendants yourself.
  */
 export const Combobox = ComboboxPrimitive.Root;
+
+/**
+ * Native Base UI search-field state owner whose input text is the value.
+ *
+ * Items are suggestions or destinations rather than a remembered selection:
+ * choose one through the item's own action. The `value`, `mode`, filtering,
+ * `autoHighlight` (including `"always"`), open and item props remain Base UI's
+ * API. It renders no themed element and composes the same `Combobox*` parts,
+ * which Base UI shares between both roots. Base UI owns focus, highlighting
+ * and dismissal; do not add a second key handler for them.
+ */
+export const Autocomplete = AutocompletePrimitive.Root;
 
 export type ComboboxInputGroupProps = ComboboxPrimitive.InputGroup.Props;
 

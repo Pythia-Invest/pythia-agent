@@ -15,7 +15,9 @@ consume the Lab.
 
 Use shared tokens and components before adding app-local styling. App-local
 code may compose components and synthetic fixtures, but reusable primitives
-belong in `packages/ui`.
+belong in `packages/ui`. A composition demonstration may also render a feature
+package's shared UI, such as `@pythia/market-data/search-ui`; its synthetic
+fixtures stay in the Lab and the feature never imports them.
 
 Next.js APIs can change between versions. Before changing framework behavior,
 read the matching guide in this workspace's installed `next/dist/docs`.

@@ -1,0 +1,208 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-coinmarketcap",
+  "provider": "coinmarketcap",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "coin",
+        "level": "security",
+        "asset_classes": [
+          "crypto"
+        ]
+      }
+    ],
+    "subjects": {
+      "security:caip19:bip122:000000000019d6689c085ae165831e93/slip44:0": {
+        "native_scope": "coin",
+        "native_id": "1"
+      },
+      "security:caip19:eip155:1/slip44:60": {
+        "native_scope": "coin",
+        "native_id": "1027"
+      },
+      "security:caip19:eip155:1/erc20:0xdac17f958d2ee523a2206206994597c13d831ec7": {
+        "native_scope": "coin",
+        "native_id": "825"
+      },
+      "security:caip19:eip155:56/slip44:714": {
+        "native_scope": "coin",
+        "native_id": "1839"
+      },
+      "security:caip19:xrpl:0/slip44:144": {
+        "native_scope": "coin",
+        "native_id": "52"
+      },
+      "security:caip19:eip155:1/erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+        "native_scope": "coin",
+        "native_id": "3408"
+      },
+      "security:caip19:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501": {
+        "native_scope": "coin",
+        "native_id": "5426"
+      },
+      "security:caip19:tron:728126428/slip44:195": {
+        "native_scope": "coin",
+        "native_id": "1958"
+      },
+      "security:caip19:bip122:00040fe8ec8471911baa1db1266ea15d/slip44:133": {
+        "native_scope": "coin",
+        "native_id": "1437"
+      },
+      "security:caip19:bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3": {
+        "native_scope": "coin",
+        "native_id": "74"
+      },
+      "security:caip19:eip155:1/erc20:0x514910771af9ca656af840dff83e8264ecf986ca": {
+        "native_scope": "coin",
+        "native_id": "1975"
+      },
+      "security:caip19:monero:418015bb9ae982a1975da7d79277c270/slip44:128": {
+        "native_scope": "coin",
+        "native_id": "328"
+      },
+      "security:caip19:eip155:1/erc20:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": {
+        "native_scope": "coin",
+        "native_id": "3717"
+      },
+      "security:caip19:cip34:1-764824073/slip44:1815": {
+        "native_scope": "coin",
+        "native_id": "2010"
+      },
+      "security:caip19:stellar:pubnet/slip44:148": {
+        "native_scope": "coin",
+        "native_id": "512"
+      },
+      "security:caip19:bip122:000000000000000000651ef99cb9fcbe/slip44:145": {
+        "native_scope": "coin",
+        "native_id": "1831"
+      },
+      "security:caip19:eip155:1/erc20:0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": {
+        "native_scope": "coin",
+        "native_id": "7083"
+      },
+      "security:caip19:bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2": {
+        "native_scope": "coin",
+        "native_id": "2"
+      },
+      "security:caip19:eip155:1/erc20:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
+        "native_scope": "coin",
+        "native_id": "2396"
+      },
+      "security:caip19:hedera:mainnet/slip44:3030": {
+        "native_scope": "coin",
+        "native_id": "4642"
+      },
+      "security:caip19:eip155:43114/slip44:9000": {
+        "native_scope": "coin",
+        "native_id": "5805"
+      },
+      "security:caip19:sui:mainnet/slip44:784": {
+        "native_scope": "coin",
+        "native_id": "20947"
+      },
+      "security:caip19:tvm:-239/slip44:607": {
+        "native_scope": "coin",
+        "native_id": "11419"
+      },
+      "security:caip19:eip155:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f": {
+        "native_scope": "coin",
+        "native_id": "4943"
+      },
+      "security:caip19:eip155:1/erc20:0x6c3ea9036406852006290770bedfcaba0e23a0e8": {
+        "native_scope": "coin",
+        "native_id": "27772"
+      },
+      "security:caip19:eip155:1/erc20:0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": {
+        "native_scope": "coin",
+        "native_id": "7278"
+      },
+      "security:caip19:polkadot:91b171bb158e2d3848fa23a9f1c25182/slip44:354": {
+        "native_scope": "coin",
+        "native_id": "6636"
+      },
+      "security:caip19:eip155:61/slip44:61": {
+        "native_scope": "coin",
+        "native_id": "1321"
+      },
+      "security:caip19:algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k/slip44:283": {
+        "native_scope": "coin",
+        "native_id": "4030"
+      },
+      "security:caip19:cosmos:cosmoshub-4/slip44:118": {
+        "native_scope": "coin",
+        "native_id": "3794"
+      },
+      "security:caip19:fil:f/slip44:461": {
+        "native_scope": "coin",
+        "native_id": "2280"
+      },
+      "security:caip19:bip122:00000ffd590b1485b3caadc19b22e637/slip44:5": {
+        "native_scope": "coin",
+        "native_id": "131"
+      },
+      "security:caip19:vechain:b1ac3413d346d43539627e6be7ec1b4a/slip44:818": {
+        "native_scope": "coin",
+        "native_id": "3077"
+      },
+      "security:caip19:aptos:1/slip44:637": {
+        "native_scope": "coin",
+        "native_id": "21794"
+      }
+    },
+    "chain_codes": {
+      "coin:1027:ethereum": "eip155:1",
+      "coin:11840:optimism": "eip155:10",
+      "coin:28321:polygon": "eip155:137",
+      "coin:27716:base": "eip155:8453",
+      "coin:11841:arbitrum": "eip155:42161",
+      "coin:5805:avalanche-c-chain": "eip155:43114",
+      "coin:5426:solana": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "coin:20947:sui-network": "sui:mainnet"
+    }
+  },
+  "concepts": {
+    "market_data": {
+      "level": "security",
+      "via": "security",
+      "operations": {
+        "quote": "latest",
+        "intraday": "history",
+        "daily": "history"
+      },
+      "coverage": {
+        "asset_classes": [
+          "crypto"
+        ]
+      }
+    }
+  },
+  "catalogue": {
+    "mode": "bulk",
+    "operation": "catalogue",
+    "scopes": [
+      "coins"
+    ]
+  },
+  "rights": {
+    "licence": "business",
+    "cache": {
+      "ttl_seconds": 86400
+    },
+    "hostable": false,
+    "attribution": {
+      "text": "Data provided by CoinMarketCap.com",
+      "url": "https://coinmarketcap.com"
+    }
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/coinmarketcap.md"
+  },
+  "limits": {
+    "plan": "Basic",
+    "unit": "credit",
+    "per_minute": 50,
+    "per_month": 15000
+  }
+}

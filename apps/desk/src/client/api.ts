@@ -31,8 +31,9 @@ import type {
 import type {
   DeviceSettingsSnapshot,
   DeviceSkill,
+  PluginPause,
 } from "@/server/device-settings";
-import type { HermesToolset } from "@/server/types";
+import type { HermesToolset, WidgetPresentation } from "@/server/types";
 import type { DeskReleaseStatus } from "@/server/release-status";
 import type { ModelCatalog, ModelSelection } from "@/server/model-catalog";
 
@@ -90,6 +91,11 @@ export class DeskApi extends BrowserRequest {
     });
   }
 
+  widgetPresentation(plugin: string, signal?: AbortSignal) {
+    const path = `/api/plugins/${encodeURIComponent(plugin)}/widgets`;
+    return this.json<WidgetPresentation>(path, signal ? { signal } : {});
+  }
+
   topBar(signal?: AbortSignal) {
     return this.json<import("@/top-bar/config").TopBarSelection>(
       "/api/desk/top-bar",
@@ -111,13 +117,6 @@ export class DeskApi extends BrowserRequest {
       body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
     });
-  }
-
-  financialPreferences(signal?: AbortSignal) {
-    return this.json<{ revision: number }>(
-      "/api/markets/preferences",
-      signal ? { signal } : {},
-    );
   }
 
   workspaceEntry(path: string, signal?: AbortSignal) {
@@ -243,6 +242,13 @@ export class DeskApi extends BrowserRequest {
         { body: JSON.stringify({ enabled }), method: "POST" },
       )
     ).toolset;
+  }
+
+  async setPluginPaused(name: string, paused: boolean) {
+    return this.json<PluginPause>(
+      `/api/settings/plugins/${encodeURIComponent(name)}`,
+      { body: JSON.stringify({ paused }), method: "POST" },
+    );
   }
 
   async createSession(title?: string) {

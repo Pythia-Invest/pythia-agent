@@ -1,3 +1,4 @@
+import { hermesRun } from "../dev/runtime-config.mjs";
 import { bootstrapRuntime, readApiKey } from "../dev/runtime.mjs";
 import { isPinnedHermesHealth } from "../dev/hermes-pin.mjs";
 import { applyMigrations } from "../update/migrations.mjs";
@@ -49,6 +50,7 @@ export async function prepareInstallation(
     const preview = channel === "preview" ? " --preview" : "";
     await bootstrapRuntime(paths, {
       inheritSharedModel: false,
+      localReference: false,
       initializationRecoveryCommand: `./install.sh --recover-initialization${preview}`,
     });
     buildManagedSource(paths, executables);
@@ -66,8 +68,10 @@ export async function prepareInstallation(
   assertInstallationSource(paths, channel, expectedRevision, options);
   installTrustRoot(paths);
   copyCommand(paths);
-  applyMigrations(paths);
   const apiKey = readApiKey(paths);
+  applyMigrations(paths, {
+    hermes: (args) => hermesRun(paths, args, apiKey),
+  });
   writeServiceEnvironment(paths, apiKey, executables);
   installUnits(paths, renderUnits(paths, executables));
   refreshUnitManager();

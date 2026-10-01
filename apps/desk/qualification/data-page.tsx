@@ -10,7 +10,10 @@ import {
 } from "@pythia/market-data/widgets/contract";
 
 const row: FinancialRow = {
-  subject: { kind: "crypto", id: "crypto:fictional" },
+  subject: {
+    kind: "security",
+    id: "security:provisional:fictional:coin:fictional-coin",
+  },
   symbol: "SYN",
   name: "Synthetic instrument",
   price: { mode: "preferred", criteria: { measurement: "aggregate_price" } },
@@ -31,7 +34,15 @@ const duplicateInput = {
   ...input,
   source: {
     ...input.source,
-    subjects: [{ ...row, subject: { id: "crypto:fictional", kind: "crypto" } }],
+    subjects: [
+      {
+        ...row,
+        subject: {
+          id: "security:provisional:fictional:coin:fictional-coin",
+          kind: "security",
+        },
+      },
+    ],
   },
 };
 
@@ -87,14 +98,9 @@ function Harness() {
         onClick={() => {
           const request = financialInput(row, "latest", Date.now());
           if (request)
-            void Promise.all([
-              api.financialRead([request]),
-              api.financialPreferences(),
-            ]).then(([reads, preferences]) =>
-              setRead(
-                `Read ${reads.length}; preference ${preferences.revision}`,
-              ),
-            );
+            void api
+              .financialRead([request])
+              .then((reads) => setRead(`Read ${reads.length}`));
         }}
       >
         Read financial snapshot

@@ -61,7 +61,8 @@ function fakeClient() {
 
 function fakeSettings() {
   return {
-    initializeModel: vi.fn(async () => {}),
+    initializeModel: vi.fn(async () => false),
+    settleInitialModel: vi.fn(async () => {}),
     snapshot: vi.fn(async () => ({
       model_auth: {
         provider: "openai-codex" as const,
@@ -90,6 +91,10 @@ function fakeSettings() {
       enabled,
       configured: true,
       tools: [],
+    })),
+    setPluginPaused: vi.fn(async (plugin: string, paused: boolean) => ({
+      plugin,
+      paused,
     })),
   } satisfies DeviceSettingsService;
 }
@@ -225,6 +230,12 @@ describe("Desk routes", () => {
     ).toBe(202);
     expect(client.startRun).toHaveBeenCalledWith("s", "hello", selection);
     expect(settings.initializeModel).toHaveBeenCalledWith(selection);
+    expect(settings.settleInitialModel).not.toHaveBeenCalled();
+    settings.initializeModel.mockResolvedValueOnce(true);
+    await routes.startRun(
+      mutation("/api/runs", { session_id: "s", input: "hello", selection }),
+    );
+    expect(settings.settleInitialModel).toHaveBeenCalledWith(selection, "r-1");
     client.startRun.mockClear();
     expect(
       (
@@ -365,6 +376,22 @@ describe("Desk routes", () => {
     expect(settings.setToolsetEnabled).toHaveBeenCalledWith("example", true);
   });
 
+  it("pauses a data source from an admitted request and refuses a malformed one", async () => {
+    const settings = fakeSettings();
+    const routes = createDeskRoutes(fakeClient(), settings);
+    const pause = (body: unknown) =>
+      routes.setPluginPaused(
+        mutation("/api/settings/plugins/example", body, "T".repeat(43)),
+        { params: Promise.resolve({ name: "example" }) },
+      );
+    const response = await pause({ paused: true });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ plugin: "example", paused: true });
+    expect(settings.setPluginPaused).toHaveBeenCalledWith("example", true);
+    expect((await pause({ paused: "yes" })).status).toBe(400);
+    expect(settings.setPluginPaused).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["read", "work", "/api/sessions/s-1/work", "client.listMessages"],
     ["read", "modelOptions", "/api/models", "client.modelOptions"],
@@ -383,6 +410,12 @@ describe("Desk routes", () => {
       "setSkillEnabled",
       "/api/settings/skills/x",
       "settings.setSkillEnabled",
+    ],
+    [
+      "mutation",
+      "setPluginPaused",
+      "/api/settings/plugins/x",
+      "settings.setPluginPaused",
     ],
     ["mutation", "startUpdate", "/api/update-status", "releases.start"],
   ] as const)(

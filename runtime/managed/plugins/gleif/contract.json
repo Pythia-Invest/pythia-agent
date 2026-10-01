@@ -1,0 +1,45 @@
+{
+  "contract_version": 2,
+  "plugin": "pythia-gleif",
+  "provider": "gleif",
+  "addressing": {
+    "native": [
+      {
+        "native_scope": "lei",
+        "level": "issuer"
+      }
+    ],
+    "schemes": {
+      "issuer": [
+        "lei"
+      ]
+    }
+  },
+  "concepts": {
+    "profile": {
+      "level": "issuer",
+      "via": "issuer",
+      "operations": {
+        "fields": "profile"
+      }
+    }
+  },
+  "resolve": {
+    "operation": "resolve",
+    "input_schemes": [
+      "lei"
+    ],
+    "echoes": [
+      "lei"
+    ]
+  },
+  "rights": {
+    "licence": "open",
+    "cache": "unlimited",
+    "hostable": false
+  },
+  "signoff": {
+    "status": "grandfathered",
+    "record": "docs/sources/gleif.md"
+  }
+}

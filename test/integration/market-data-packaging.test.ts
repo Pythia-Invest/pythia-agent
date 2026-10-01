@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -17,23 +18,38 @@ import { MANAGED_WIDGET_BUILDS } from "../../scripts/dev/managed-widget-builds.m
 import { buildWidget } from "../../packages/widget-sdk/build.mjs";
 import {
   MANAGED_PLUGINS,
+  managedRunnerBuilds,
   refreshManagedPlugins,
 } from "../../scripts/dev/managed-plugins.mjs";
 import { PLUGIN_COPY_RECEIPT } from "../../scripts/dev/files.mjs";
 
 const repository = new URL("../../", import.meta.url).pathname;
+const runnerBuilds = managedRunnerBuilds(MANAGED_PLUGINS);
+// Compiled once per file into a private directory, so no other test shares
+// (or races on) the checkout's runner output.
+const runnerOutput = mkdtempSync(join(tmpdir(), "pythia-runner-dist-"));
 // Packaging consumes actual compiled release inputs, just like explicit runtime
 // preparation. Never rely on committed bundles or a previous contributor build,
-// and build into the suite's own directory rather than the checkout.
+// and build into the suite's own directories rather than the checkout.
 const built = mkdtempSync(join(tmpdir(), "pythia-widget-build-"));
 const builtOutputs = new Set<string>(
   MANAGED_WIDGET_BUILDS.map(({ output }) => output),
 );
 beforeAll(async () => {
+  execFileSync(process.execPath, [
+    join(repository, "node_modules/typescript/bin/tsc"),
+    "--project",
+    join(repository, "runtime/managed/runner/tsconfig.json"),
+    "--outDir",
+    runnerOutput,
+  ]);
   for (const { entry, output } of MANAGED_WIDGET_BUILDS)
     await buildWidget(join(repository, entry), join(built, output));
-}, 30_000);
-afterAll(() => rmSync(built, { recursive: true, force: true }));
+}, 60_000);
+afterAll(() => {
+  rmSync(runnerOutput, { recursive: true, force: true });
+  rmSync(built, { recursive: true, force: true });
+});
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0))
@@ -57,16 +73,44 @@ function fixture(profile = "fixture") {
       );
     }
   }
-  return {
+  const dist = "runtime/managed/runner/dist/";
+  for (const path of runnerBuilds.flatMap(({ entry, output }) =>
+    output ? [entry, output] : [entry],
+  )) {
+    const destination = join(managedRoot, path.replace("runtime/managed/", ""));
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(
+      path.startsWith(dist)
+        ? join(runnerOutput, path.slice(dist.length))
+        : join(repository, path),
+      destination,
+    );
+  }
+  const paths = {
     root,
     profile,
     profileRoot,
     managedRoot,
     managedCore: join(managedRoot, "core"),
   };
+  return paths;
 }
 
 describe("native market-data lifecycle payload", () => {
+  it("copies every Python module a managed plugin imports", () => {
+    // A module left out of the list breaks the plugin's import in a profile.
+    for (const { source, name, files } of MANAGED_PLUGINS) {
+      const modules = readdirSync(join(repository, "runtime/managed", source), {
+        recursive: true,
+      })
+        .map(String)
+        .filter(
+          (path) => path.endsWith(".py") && !path.includes("__pycache__"),
+        );
+      expect(files, name).toEqual(expect.arrayContaining(modules));
+    }
+  });
+
   it("copies allowlisted nested inputs and preserves native choices and plugin state", () => {
     const paths = fixture("profile with spaces");
     const config = `plugins:
@@ -108,10 +152,15 @@ platform_toolsets:
           .filter((name) => lstatSync(join(destination, String(name))).isFile())
           .sort(),
       ).toEqual([...files, PLUGIN_COPY_RECEIPT].sort());
+      // Buffer.equals, not toEqual: a deep equality walk over the compiled
+      // widget and runner bundles byte by byte exceeded the test timeout in CI.
       for (const file of files)
-        expect(readFileSync(join(destination, file))).toEqual(
-          readFileSync(join(paths.managedRoot, source, file)),
-        );
+        expect(
+          readFileSync(join(destination, file)).equals(
+            readFileSync(join(paths.managedRoot, source, file)),
+          ),
+          file,
+        ).toBe(true);
     }
     expect(readFileSync(join(paths.profileRoot, "config.yaml"), "utf8")).toBe(
       config,
@@ -135,7 +184,12 @@ platform_toolsets:
         // Native validation begins only after the complete set is copied.
         expect(
           existsSync(
-            join(paths.profileRoot, "plugins", "pythia-market-data", "wire.py"),
+            join(
+              paths.profileRoot,
+              "plugins",
+              "pythia-market-data",
+              "reads.py",
+            ),
           ),
         ).toBe(true);
         commands.push(args);
@@ -145,6 +199,14 @@ platform_toolsets:
       "doctor",
       "enable",
       "enable",
+      "enable",
+      "enable",
+      "enable",
+      "enable",
+      "enable",
+      "enable",
+      "enable",
+      "enable",
     ]);
     expect(
       commands.filter((args) => args[3] === "doctor").map((args) => args[4]),
@@ -152,6 +214,14 @@ platform_toolsets:
     expect(commands.slice(1).map((args) => args[4])).toEqual([
       "pythia",
       "pythia-market-data",
+      "pythia-yahoo-discovery",
+      "pythia-sec",
+      "pythia-openfigi",
+      "pythia-gleif",
+      "pythia-xbrl-filings",
+      "pythia-coingecko",
+      "pythia-coinmarketcap",
+      "pythia-eodhd",
     ]);
     const failed: string[][] = [];
     expect(() =>
@@ -171,8 +241,8 @@ platform_toolsets:
     const core = join(paths.profileRoot, "plugins", "pythia");
     mkdirSync(core, { recursive: true });
     writeFileSync(join(core, "marker"), "previous");
-    const wire = join(paths.managedRoot, "plugins/market-data/wire.py");
-    rmSync(wire);
+    const reads = join(paths.managedRoot, "plugins/market-data/reads.py");
+    rmSync(reads);
     const execute = () => {
       throw new Error("must not run native commands");
     };
@@ -181,17 +251,17 @@ platform_toolsets:
     ).toThrow();
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
     symlinkSync(
-      join(paths.managedRoot, "plugins/market-data/wire_schema.py"),
-      wire,
+      join(paths.managedRoot, "plugins/market-data/selection.py"),
+      reads,
     );
     expect(() =>
       refreshManagedPlugins(paths, "synthetic", { execute }),
     ).toThrow(/regular file/u);
     expect(readFileSync(join(core, "marker"), "utf8")).toBe("previous");
-    rmSync(wire);
+    rmSync(reads);
     copyFileSync(
-      join(repository, "runtime/managed/plugins/market-data/wire.py"),
-      wire,
+      join(repository, "runtime/managed/plugins/market-data/reads.py"),
+      reads,
     );
     rmSync(core, { recursive: true });
     const foreign = join(paths.root, "foreign");
@@ -209,24 +279,27 @@ platform_toolsets:
     expect(readFileSync(join(foreign, "keep"), "utf8")).toBe("untouched");
   });
 
-  it("requires explicit widget compilation before any package is replaced", () => {
-    const paths = fixture();
-    const artifact = MANAGED_WIDGET_BUILDS[0];
-    if (!artifact) throw Error("Missing managed widget build input.");
-    rmSync(
-      join(paths.managedRoot, artifact.output.replace("runtime/managed/", "")),
-    );
-    const commands: string[][] = [];
-    expect(() =>
-      refreshManagedPlugins(paths, "synthetic", {
-        execute: (_paths: unknown, args: string[]) => {
-          commands.push(args);
-        },
-      }),
-    ).toThrow();
-    expect(commands).toEqual([]);
-    expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
-  });
+  it.each([
+    ["widget", MANAGED_WIDGET_BUILDS[0]?.output],
+    ["connector worker", runnerBuilds.find(({ output }) => output)?.output],
+  ])(
+    "requires explicit %s compilation before any package is replaced",
+    (_kind, output) => {
+      if (!output) throw Error("Missing managed build output.");
+      const paths = fixture();
+      rmSync(join(paths.managedRoot, output.replace("runtime/managed/", "")));
+      const commands: string[][] = [];
+      expect(() =>
+        refreshManagedPlugins(paths, "synthetic", {
+          execute: (_paths: unknown, args: string[]) => {
+            commands.push(args);
+          },
+        }),
+      ).toThrow();
+      expect(commands).toEqual([]);
+      expect(existsSync(join(paths.profileRoot, "plugins"))).toBe(false);
+    },
+  );
 
   it("installs optional payloads without enabling them and leaves omitted/community plugins alone", () => {
     const paths = fixture();
@@ -236,6 +309,21 @@ platform_toolsets:
     const commands: string[][] = [];
     const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
     if (!core) throw new Error("Missing core payload fixture");
+    // Sui, NAVI, DeFiLlama, NSM and Hyperliquid ship installed and off: turning
+    // one on is the investor's choice, a product default in their payload
+    // entries, not a trust level.
+    for (const name of [
+      "pythia-sui",
+      "pythia-navi",
+      "pythia-defillama",
+      "pythia-nsm",
+      "pythia-hyperliquid",
+    ])
+      expect(
+        MANAGED_PLUGINS.find((plugin) => plugin.name === name)
+          ?.enabledByDefault,
+        name,
+      ).toBe(false);
     const payloads = [
       ...MANAGED_PLUGINS,
       {
@@ -261,12 +349,28 @@ platform_toolsets:
     expect(
       existsSync(join(paths.profileRoot, "plugins/optional/plugin.yaml")),
     ).toBe(true);
+    expect(
+      existsSync(
+        join(paths.profileRoot, "plugins/pythia-hyperliquid/contract.json"),
+      ),
+    ).toBe(true);
     expect(existsSync(join(paths.profileRoot, "plugins/not-installed"))).toBe(
       false,
     );
     expect(
       commands.filter((args) => args[3] === "enable").map((args) => args[4]),
-    ).toEqual(["pythia", "pythia-market-data"]);
+    ).toEqual([
+      "pythia",
+      "pythia-market-data",
+      "pythia-yahoo-discovery",
+      "pythia-sec",
+      "pythia-openfigi",
+      "pythia-gleif",
+      "pythia-xbrl-filings",
+      "pythia-coingecko",
+      "pythia-coinmarketcap",
+      "pythia-eodhd",
+    ]);
     expect(readFileSync(join(community, "plugin.yaml"), "utf8")).toBe(
       "name: community\n",
     );

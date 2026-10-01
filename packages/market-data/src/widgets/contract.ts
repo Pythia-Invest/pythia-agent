@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { marketDataSchema as wire } from "../index";
 import type {
+  Binding,
+  ProviderRef,
   ReadCriteria,
   ReadInput,
   ReadResult,
@@ -16,6 +18,14 @@ function shape<T>(kind: keyof typeof wire.$defs) {
   >[0]) as z.ZodType<T>;
 }
 export const subjectSchema = shape<Subject>("subject");
+export const providerRefSchema = shape<ProviderRef>("provider_ref");
+export const bindingSchema = shape<Binding>("binding");
+/** Stable text key of a Pythia subject or an explicit provider reference. */
+export function bindingKey(binding: Binding) {
+  return "provider" in binding
+    ? `${binding.provider}:${binding.native_scope}:${binding.native_id}`
+    : binding.id;
+}
 export const seriesSchema = shape<Series>("series");
 export const readResultSchema = shape<ReadResult>("read_result");
 export const criteriaSchema = z
@@ -92,7 +102,9 @@ export const financialSourceSchema = z
       .array(
         z
           .object({
-            subject: subjectSchema,
+            /** A Pythia subject, or an explicit provider reference such as a
+             * page section's binding; the latter reads that source only. */
+            subject: bindingSchema,
             symbol: z.string().max(64),
             name: z.string().min(1).max(256),
             price: selection,
@@ -117,7 +129,7 @@ export const financialSourceSchema = z
   })
   .strict()
   .superRefine((source, ctx) => {
-    const ids = source.subjects.map((row) => row.subject.id);
+    const ids = source.subjects.map((row) => bindingKey(row.subject));
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({
         code: "custom",
@@ -127,9 +139,7 @@ export const financialSourceSchema = z
       for (const selected of [row.price, row.history?.selection]) {
         if (
           selected?.mode === "pinned" &&
-          (!("kind" in selected.series.subject) ||
-            selected.series.subject.kind !== row.subject.kind ||
-            selected.series.subject.id !== row.subject.id)
+          bindingKey(selected.series.subject) !== bindingKey(row.subject)
         )
           ctx.addIssue({
             code: "custom",

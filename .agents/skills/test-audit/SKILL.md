@@ -83,7 +83,7 @@ candidate, read:
 - the whole test and its production owner, with entry points, callers and
   sibling implementations;
 - overlapping tests, including `apps/desk/e2e`;
-- which CI job runs it (`.agents/change-validation.md`, ADR 0037);
+- which CI job runs it (`.agents/change-validation.md`, ADR 0046);
 - `git log` for why it exists.
 
 For each candidate, record:

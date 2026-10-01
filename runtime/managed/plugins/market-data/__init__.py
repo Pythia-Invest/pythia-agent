@@ -3,13 +3,14 @@ import json
 from pathlib import Path
 from threading import RLock
 
-from .definition import SCHEMA, TOOL_NAME, TOOLSET
-
 
 def register(ctx):
+    import pythia_platform as platform  # published by Pythia core (ADR 0045); absent while core is missing or disabled
+    platform.require(1)
+    from .definition import SCHEMA, TOOL_NAME, TOOLSET
     ctx.register_skill(
         'market-data', Path(__file__).parent / 'skills/market-data/SKILL.md',
-        description='Find investments, inspect identity evidence, choose series and read bounded market data.',
+        description='Choose price series and read bounded latest and historical market data for a subject or source.',
         frontmatter={'platforms': ['linux', 'macos']},
     )
     # Discovery describes schemas only; one lazy backend belongs to this native
@@ -28,8 +29,7 @@ def register(ctx):
 
     def handle(arguments, **_context):
         from .execution import dispatch
-        from .request_context import cancel_signal
-        from tools.interrupt import is_thread_interrupted
+        cancel_signal = platform.request_context.cancel_signal
         from threading import get_ident
         caller = get_ident()
         inherited = cancel_signal.get()
@@ -37,7 +37,7 @@ def register(ctx):
         # Native agent cancellation belongs to its calling thread. Carry that
         # signal into coordinated child threads alongside HTTP cancellation.
         token = cancel_signal.set(lambda: bool((inherited and inherited()) or
-            (provided and provided()) or is_thread_interrupted(caller)))
+            (provided and provided()) or platform.interrupted(caller)))
         try:
             if _context.get('_subscription') is not None:
                 from .subscriptions import watch
@@ -60,10 +60,8 @@ def register(ctx):
         parser.add_argument("--reuse-scope", help="Conditional reuse of unexpired caller-held read results")
 
     def command(args):
-        from gateway.session_context import set_session_vars, clear_session_vars
-        from .execution import dispatch, failure
-        tokens = set_session_vars(platform=args.platform)
-        try:
+        from .execution import failure
+        with platform.session(args.platform):
             try:
                 request = json.loads(args.request)
                 from .delivery import deliver
@@ -71,8 +69,6 @@ def register(ctx):
             except (ValueError, TypeError, RecursionError):
                 result = failure("invalid_request")
             print(json.dumps(result, allow_nan=False, ensure_ascii=False))
-        finally:
-            clear_session_vars(tokens)
 
     ctx.register_cli_command("market-data", "Inspect and read connected market data", setup, command)
     from .presentation import register as register_presentation

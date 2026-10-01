@@ -7,6 +7,7 @@ import stat
 import time
 from threading import RLock
 
+from . import configuration
 from .request_context import usage, read_only_required
 
 _eligibility_lock = RLock()
@@ -28,12 +29,17 @@ def canonical_access_revision():
         return None
     try:
         directory = Path(root).lstat()
-        info = (Path(root) / 'secrets.json').lstat()
-        if (not stat.S_ISDIR(directory.st_mode) or not stat.S_ISREG(info.st_mode)
-                or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, info))
-                or not directory.st_mode & stat.S_IXUSR or not info.st_mode & stat.S_IRUSR):
+        files = [(Path(root) / 'secrets.json').lstat()]
+        # Plugin identity configuration lives in settings.json; it may be absent.
+        try:
+            files.append((Path(root) / 'settings.json').lstat())
+        except FileNotFoundError:
+            pass
+        if (not stat.S_ISDIR(directory.st_mode) or not directory.st_mode & stat.S_IXUSR
+                or any(not stat.S_ISREG(item.st_mode) or not item.st_mode & stat.S_IRUSR for item in files)
+                or any(item.st_uid != os.getuid() or item.st_mode & 0o077 for item in (directory, *files))):
             return None
-        return [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns]
+        return [value for item in files for value in (item.st_dev, item.st_ino, item.st_mtime_ns, item.st_ctime_ns)]
     except OSError:
         return None
 
@@ -50,15 +56,13 @@ def native_access_scope():
 
 def native_tool_owners():
     """Project the actual native ledger, never a separately maintained inventory."""
-    from hermes_cli.plugins import get_plugin_manager
-    manager = get_plugin_manager()
-    owners = {}
-    for registration in tuple(manager._registration_order):
-        if registration.active and registration.kind == 'tool':
-            plugin = manager._plugins.get(registration.plugin_key)
-            if plugin is not None:
-                owners[registration.key] = (registration.plugin_key, plugin)
-    return owners
+    from .harness import tool_owners
+    return tool_owners()
+
+
+def owned_tools():
+    """Names of the active tools that have an actual native plugin owner."""
+    return frozenset(native_tool_owners())
 
 
 def native_plugin_enabled(key, plugin, config):
@@ -75,39 +79,64 @@ def native_plugin_enabled(key, plugin, config):
     return isinstance(enabled, list) and (key in enabled or name in enabled)
 
 
+def plugin_paused(key, plugin, config):
+    """Whether the investor paused this source in Settings → Data sources (`configuration.paused_plugins`).
+
+    Only a source Hermes runs can be paused: a plugin that ships a contract and that Hermes has enabled. Core and the
+    feature backends never are."""
+    paused = configuration.paused_plugins()
+    manifest = plugin.manifest
+    if not paused or not ({key, getattr(manifest, 'name', None)} & paused):
+        return False
+    from ..identity import MANIFEST_FILE
+    path = getattr(manifest, 'path', None)
+    return (bool(path) and Path(path).is_absolute() and (Path(path) / MANIFEST_FILE).is_file()
+            and native_plugin_enabled(key, plugin, config))
+
+
+def plugin_active(key, plugin, config):
+    """Whether Pythia serves the plugin now: enabled in Hermes and not paused. A paused plugin counts as disabled
+    for data, search, ingest and agent tools; Hermes still runs it, so unpausing needs no restart."""
+    return native_plugin_enabled(key, plugin, config) and not plugin_paused(key, plugin, config)
+
+
 def owns_tool(tool, declared_plugin):
     owner = native_tool_owners().get(tool)
     return owner is not None and declared_plugin in (owner[0], owner[1].manifest.name)
 
 
 def eligible_tools():
+    """Plugin tools Pythia may run for a trusted caller (``may_run``), whether or not the model sees them.
+
+    Authority is native: the owning plugin is enabled and not paused, and the tool's availability check passes. Toolset
+    choices (a platform's list, `agent.disabled_toolsets`) only decide what the model sees; Desk, core's concept
+    tools and the plugins' provider tools still run the tool. The investor turns a source off by pausing it
+    (`plugin_paused`) or disabling its plugin (docs/architecture/agent-tools.md)."""
     from gateway.session_context import get_session_env
     from hermes_cli.config import load_config_readonly
-    from hermes_cli.tools_config import _get_platform_tools
     from model_tools import get_tool_definitions, _clear_tool_defs_cache
     from tools.registry import registry, invalidate_check_fn_cache
-    from agent.skill_utils import parse_config_string_list
     platform = get_session_env('HERMES_SESSION_PLATFORM', '')
     if not platform:
         raise ContextUnavailable('execution: trusted platform is required')
     config = load_config_readonly()
-    enabled = _get_platform_tools(config, platform, include_default_mcp_servers=False)
-    disabled = parse_config_string_list((config.get('agent') or {}).get('disabled_toolsets', []))
     owners = native_tool_owners()
+    enabled = {getattr(registry.get_entry(name), 'toolset', None) for name, (owner, plugin) in owners.items()
+               if plugin_active(owner, plugin, config)} - {None}
     ownership = tuple((name, key, id(plugin), plugin.enabled) for name, (key, plugin) in sorted(owners.items()))
     key = (native_access_scope()['scope'], id(registry), id(get_tool_definitions),
-           tuple(registry.get_all_tool_names()), ownership)
+           tuple(registry.get_all_tool_names()), ownership, configuration.paused_plugins())  # a pause applies at once
     with _eligibility_lock:
         cached = _eligibility.get(key)
         if cached and cached[0] > time.monotonic():
             return set(cached[1])
         invalidate_check_fn_cache()
         _clear_tool_defs_cache()
-        definitions = get_tool_definitions(enabled_toolsets=sorted(enabled), disabled_toolsets=disabled,
-            quiet_mode=True, skip_tool_search_assembly=True)
+        definitions = get_tool_definitions(enabled_toolsets=sorted(enabled), quiet_mode=True,
+            skip_tool_search_assembly=True)
         result = {entry['function']['name'] for entry in definitions}
         result.difference_update(name for name, (owner, plugin) in owners.items()
-                                if not native_plugin_enabled(owner, plugin, config))
+                                if not plugin_active(owner, plugin, config))
         _eligibility.clear()
         _eligibility[key] = (time.monotonic() + .5, frozenset(result))
         return result

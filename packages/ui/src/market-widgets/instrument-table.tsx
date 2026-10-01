@@ -49,7 +49,7 @@ export function InstrumentTable({
       data-slot="instrument-table"
       aria-busy={loading || undefined}
       className={cn(
-        "@container w-88 min-w-0 max-w-full rounded-control border border-border bg-raised px-2.5",
+        "@container relative w-88 min-w-0 max-w-full rounded-control border border-border bg-raised px-2.5",
         className,
       )}
     >

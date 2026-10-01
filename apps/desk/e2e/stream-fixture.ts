@@ -1,3 +1,4 @@
+import { emptyCoreRead } from "./core-reads";
 import type { WorkPage, AgentPage } from "../src/work/types";
 import type { WorkspaceTurn } from "../src/workspace/references";
 import type { DeskViewPublication } from "../src/view-context/types";
@@ -68,6 +69,7 @@ export async function fixture(
       });
     if (path === "/api/browser-session")
       return route.fulfill({ json: { csrf_token: "synthetic" } });
+    // The shell asks which top bar to render: the core header.
     if (path === "/api/desk/top-bar")
       return route.fulfill({ json: { renderer: null, settings: {} } });
     if (path === "/api/capabilities")
@@ -231,7 +233,16 @@ export async function fixture(
         json: { run_id: "synthetic-run", accepted: true },
       });
     }
-    unexpected.push(path);
+    // Pages and Settings read core for what is saved on the device: nothing.
+    if (path === "/api/data/read") {
+      const answer = emptyCoreRead(route.request().postDataJSON()?.operation);
+      if (answer) return route.fulfill({ json: answer });
+    }
+    unexpected.push(
+      path === "/api/data/read"
+        ? `${path} ${route.request().postDataJSON()?.operation}`
+        : path,
+    );
     return route.fulfill({
       status: 500,
       json: { error: { message: "Unexpected synthetic request" } },

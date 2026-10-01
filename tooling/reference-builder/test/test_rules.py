@@ -1,0 +1,123 @@
+"""Audit rules on hand-made rows."""
+
+import unittest
+
+from reference_builder import rules
+
+from .fixtures import figi_row
+
+
+def status(**overrides):
+    values = dict(as_of="2026-09-25", termination=None, full_name="ACME NV", cfi="ESVUFR", entity_status="ACTIVE",
+                  registration_status="ISSUED", venue_count=3, has_transparency=True, has_figi=True)
+    values.update(overrides)
+    return rules.admission_status(**values)
+
+
+class ActivityTest(unittest.TestCase):
+    def test_live_line_is_active(self):
+        self.assertEqual(status()[0], "active")
+
+    def test_dead_signals_make_a_line_inactive(self):
+        self.assertEqual(status(termination="2026-09-01"), ("inactive", ["terminated"]))
+        self.assertEqual(status(registration_status="RETIRED")[0], "inactive")
+        self.assertEqual(status(full_name="PSI SOFTWARE z.Verk.", has_figi=False)[0], "inactive")
+
+    def test_unclassified_cfi_alone_is_not_dead(self):
+        # FIRDS gives ESXXXX to live shares such as some Luxembourg issuers on XAMS.
+        self.assertEqual(status(cfi="ESXXXX")[0], "active")
+        self.assertEqual(status(cfi="ESXXXX", has_figi=False)[0], "inactive")
+
+    def test_traded_corporate_action_line_is_demoted_not_dropped(self):
+        self.assertEqual(status(full_name="PHILIPS BUY BACK"), ("suspect", ["corporate_action_line"]))
+
+    def test_silent_line_without_transparency_is_suspect(self):
+        self.assertEqual(status(has_figi=False, has_transparency=False)[0], "suspect")
+        self.assertEqual(status(has_figi=False, has_transparency=None)[0], "active", "FITRS not loaded is not evidence")
+
+
+class HomeRowTest(unittest.TestCase):
+    def test_a_uk_issuer_has_its_home_line_when_openfigi_shows_one(self):
+        fanout = [figi_row("0QB8", "LN", "F1", "S1"), figi_row("SHEL", "LN", "F2", "S1"), figi_row("SHELL", "NA", "F3", "S1")]
+        mic, row = rules.home_row("GB00BP6MXD84", fanout)
+        self.assertEqual((mic, row["ticker"]), ("XLON", "SHEL"))
+
+    def test_an_order_book_code_or_an_eea_isin_is_no_home_line(self):
+        self.assertIsNone(rules.home_row("GB00BP6MXD84", [figi_row("0QB8", "LN", "F1", "S1")]))
+        self.assertIsNone(rules.home_row("NL0010273215", [figi_row("ASML", "UW", "F1", "S2")]))
+
+
+class FigiPickTest(unittest.TestCase):
+    def test_prefers_main_exchange_code_over_currency_suffixed_mtf_line(self):
+        rows = [figi_row("ADYENEUR", "EU", "F1", "S"), figi_row("ADYEN", "NA", "F2", "S")]
+        self.assertEqual(rules.pick_figi_row(rows, "XAMS")[0]["ticker"], "ADYEN")
+
+    def test_prefers_plain_ticker_among_several_main_code_rows(self):
+        rows = [figi_row("STR1", "AV", "F1", "S"), figi_row("STR", "AV", "F2", "S")]
+        self.assertEqual(rules.pick_figi_row(rows, "XWBO")[0]["ticker"], "STR")
+
+
+class CurrencyAndHomeTickerTest(unittest.TestCase):
+    def test_a_countrys_currency_follows_its_changes(self):
+        self.assertEqual(rules.country_currency("BG", "2025-12-31"), "BGN")
+        self.assertEqual(rules.country_currency("BG", "2026-09-28"), "EUR")  # euro from 2026
+        self.assertIsNone(rules.country_currency("KY", "2026-09-28"))
+
+    def test_home_tickers_drop_bloombergs_slashes_and_hong_kong_keeps_four_digits(self):
+        self.assertEqual([rules.home_ticker(t) for t in ("BP/", "BT/A", "RCI/B", "SHEL")], ["BP", "BT-A", "RCI-B", "SHEL"])
+        self.assertEqual(rules.home_ticker("11", "XHKG"), "0011")
+
+
+class NamesAndClassesTest(unittest.TestCase):
+    def test_name_keys_ignore_legal_forms_but_keep_distinguishing_words(self):
+        self.assertEqual(rules.normalized_name("ASML Holding N.V."), rules.normalized_name("ASML HOLDING NV"))
+        self.assertNotEqual(rules.normalized_name("NN Group N.V."), rules.normalized_name("NN INC"))
+        self.assertNotEqual(rules.normalized_name("FERRARI GROUP PLC"), rules.normalized_name("Ferrari N.V."))
+
+    def test_share_class_split(self):
+        self.assertEqual(rules.split_ticker("BRK-B"), ("BRK", "B"))
+        self.assertEqual(rules.split_ticker("BRK/B"), ("BRK", "B"))
+        self.assertEqual(rules.split_glued_class("NCCA", "NCC AB/SH A"), ("NCC", "A"))
+        self.assertIsNone(rules.split_glued_class("ASML", "ASML HOLDING/SH"))
+        self.assertEqual(rules.split_glued_class("CARLB", "Carlsberg AS/B Aktie"), ("CARL", "B"))
+        self.assertIsNone(rules.split_glued_class("KRY", "KRY/SHS VTG FPD EUR 0.125"))
+
+    def test_nasdaq_nordic_writes_the_class_after_a_space(self):
+        self.assertEqual(rules.exchange_ticker("VOLV", "B", "XSTO"), "VOLV B")
+        self.assertEqual(rules.exchange_ticker("NOVO", "B", "XCSE"), "NOVO B")
+        self.assertIsNone(rules.exchange_ticker("BRK", "B", "XNYS"))
+        self.assertIsNone(rules.exchange_ticker("KESKO", "B", "XHEL"))  # Helsinki keeps KESKOB
+        self.assertIsNone(rules.exchange_ticker("ASML", None, "XAMS"))
+
+    def test_sec_non_share_lines_are_labelled(self):
+        self.assertEqual(rules.sec_row_class("Common Stock", "AAPL"), "share")
+        self.assertEqual(rules.sec_row_class(None, "BRKH-WS"), "warrant")
+        self.assertEqual(rules.sec_row_class(None, "JPM-PC"), "preferred")
+        self.assertEqual(rules.sec_row_class(None, "ODDX"), "unknown")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class DisplayNameTest(unittest.TestCase):
+    def test_all_capitals_names_are_recased_keeping_acronyms_and_legal_forms(self):
+        cases = {("ASML HOLDING N.V.", "ASML"): "ASML Holding N.V.", ("ING GROEP N.V.", ""): "ING Groep N.V.",
+                 ("KONINKLIJKE KPN N.V.", ""): "Koninklijke KPN N.V.", ("BANK OF AMERICA CORP", ""): "Bank of America Corp",
+                 ("COMPAGNIE DE SAINT-GOBAIN", ""): "Compagnie de Saint-Gobain", ("THE MAGNUM ICE CREAM COMPANY N.V.", ""):
+                 "The Magnum Ice Cream Company N.V.", ("O'REILLY AUTOMOTIVE INC", ""): "O'Reilly Automotive Inc",
+                 ("SHELL PLC", "SHELL"): "Shell PLC",
+                 ("JPMORGAN CHASE & CO", "JPM"): "JPMorgan Chase & Co",
+                 ("NESTLÉ S.A.", ""): "Nestlé S.A.", ("A.P. MØLLER - MÆRSK A/S", "MAERSK"): "A.P. Møller - Mærsk A/S",
+                 ("INDUSTRIA DE DISEÑO TEXTIL, S.A.", ""): "Industria de Diseño Textil, S.A.",
+                 ("ORLEN SPÓŁKA AKCYJNA", ""): "Orlen Spółka Akcyjna",
+                 ("TÜRKİYE HALK BANKASI", ""): "Türkiye Halk Bankasi"}
+        for (name, ticker), shown in cases.items():
+            self.assertEqual(rules.display_case(name, frozenset({ticker})), shown)
+
+    def test_sec_titles_drop_state_and_adr_markers_other_names_keep_them(self):
+        self.assertEqual(rules.display_case("BANK OF AMERICA CORP /DE/", sec=True), "Bank of America Corp")
+        self.assertEqual(rules.display_case("US BANCORP DE", frozenset({"USB"}), sec=True), "US Bancorp")
+        self.assertEqual(rules.display_case("CVC Capital Partners plc/ADR", sec=True), "CVC Capital Partners plc")
+        self.assertEqual(rules.display_case("Anheuser-Busch InBev SA/NV", sec=True), "Anheuser-Busch InBev SA/NV")
+        self.assertEqual(rules.display_case("BANCO DE"), "Banco de")  # not an SEC title: "DE" is a word

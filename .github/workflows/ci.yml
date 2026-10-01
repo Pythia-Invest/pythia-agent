@@ -118,7 +118,7 @@ jobs:
       - uses: ./.github/actions/setup
       - run: just audit
 
-  # The one required status check (ADR 0037).
+  # The one required status check (ADR 0046).
   gate:
     name: CI gate
     if: always()

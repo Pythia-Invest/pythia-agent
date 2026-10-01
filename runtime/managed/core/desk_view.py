@@ -14,7 +14,7 @@ REFERENCE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 MAX_BYTES = 16_384
 SCHEMA = {
     "name": "pythia_desk_view",
-    "description": "Read the current Pythia Desk page and observable file selection for the view reference supplied with this turn. This is a brief description, not browser control or full document content. If unavailable, use explicit references or ask the user.",
+    "description": "The Desk page the investor is looking at. Pass the view reference supplied with this turn to read that page and its observable file selection. This is a brief description, not browser control or full document content. If unavailable, use explicit references or ask the user.",
     "parameters": {
         "type": "object",
         "properties": {"view_reference": {"type": "string", "description": "The view reference supplied with the current turn.", "pattern": "^[A-Za-z0-9_-]{43}$"}},

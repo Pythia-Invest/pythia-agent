@@ -1,0 +1,729 @@
+{
+  "provenance_note": "Hand-written fixture for the consequential-failure tests (test_identity_failures.py). Identifiers come from the identity truth set (tooling/reference-builder/truth/instruments.json, version 2026-09-26, checked against ESMA FIRDS, GLEIF, SEC and OpenFIGI on that date): Ericsson A, B and its ADS (one LEI and CIK, two share classes and a receipt of class B); Alphabet A and C (one issuer, two classes); GSK's current ISIN and its pre-2022 ISIN GB0009252882 as an inactive security linked by successor_of (the truth set's former.isins; no source emits that relation yet); Shell's London line, which quotes in pence, so no trading currency is decided; and US Steel's X@XNYS, delisted in 2025, so the ticker may be reassigned. US Steel is modelled as a SEC-only line (CIK and ticker, no share-class FIGI in the truth set), keyed by the CIK-qualified provisional IDs a build mints for one. trading_currency is set only where the venue decides it (the US exchanges, Nasdaq Stockholm home lines), never for London. Each row's source_record names the truth-set entry it comes from. No provider response is recorded.",
+  "issuers": [
+    {
+      "id": "issuer:lei:549300W9JLPW15XIFM52",
+      "name": "Telefonaktiebolaget LM Ericsson",
+      "country": "SE"
+    },
+    {
+      "id": "issuer:lei:5493006MHB84DD0ZWV18",
+      "name": "Alphabet Inc.",
+      "country": "US"
+    },
+    {
+      "id": "issuer:lei:5493000HZTVUYLO1D793",
+      "name": "GSK plc",
+      "country": "GB"
+    },
+    {
+      "id": "issuer:lei:21380068P1DRHMJ8KU70",
+      "name": "Shell plc",
+      "country": "GB"
+    },
+    {
+      "id": "issuer:lei:JNLUVFYJT1OZSIQ24U47",
+      "name": "United States Steel Corporation",
+      "country": "US"
+    }
+  ],
+  "securities": [
+    {
+      "id": "security:isin:SE0000108649",
+      "issuer_id": "issuer:lei:549300W9JLPW15XIFM52",
+      "name": "Telefonaktiebolaget LM Ericsson Class A",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:isin:SE0000108656",
+      "issuer_id": "issuer:lei:549300W9JLPW15XIFM52",
+      "name": "Telefonaktiebolaget LM Ericsson Class B",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:figi:BBG001S5QXT3",
+      "issuer_id": "issuer:lei:549300W9JLPW15XIFM52",
+      "name": "Ericsson ADS (Class B)",
+      "asset_class": "equity",
+      "kind": "depositary_receipt"
+    },
+    {
+      "id": "security:figi:BBG009S39JY5",
+      "issuer_id": "issuer:lei:5493006MHB84DD0ZWV18",
+      "name": "Alphabet Inc. Class A",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:figi:BBG009S3NB21",
+      "issuer_id": "issuer:lei:5493006MHB84DD0ZWV18",
+      "name": "Alphabet Inc. Class C",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:isin:GB00BN7SWP63",
+      "issuer_id": "issuer:lei:5493000HZTVUYLO1D793",
+      "name": "GSK plc",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:isin:GB0009252882",
+      "issuer_id": "issuer:lei:5493000HZTVUYLO1D793",
+      "name": "GlaxoSmithKline plc (before the 2022 consolidation)",
+      "asset_class": "equity",
+      "kind": "ordinary",
+      "status": "inactive"
+    },
+    {
+      "id": "security:isin:GB00BP6MXD84",
+      "issuer_id": "issuer:lei:21380068P1DRHMJ8KU70",
+      "name": "Shell plc",
+      "asset_class": "equity",
+      "kind": "ordinary"
+    },
+    {
+      "id": "security:provisional:sec:id:1163302.X",
+      "issuer_id": "issuer:lei:JNLUVFYJT1OZSIQ24U47",
+      "name": "United States Steel Corporation",
+      "asset_class": "equity",
+      "kind": "ordinary",
+      "status": "inactive"
+    }
+  ],
+  "listings": [
+    {
+      "id": "listing:isin:SE0000108649:XSTO:SEK",
+      "trading_currency": "SEK",
+      "security_id": "security:isin:SE0000108649",
+      "ticker": "ERIC A",
+      "mic": "XSTO",
+      "operating_mic": "XSTO",
+      "currency": "SEK",
+      "primary": true
+    },
+    {
+      "id": "listing:isin:SE0000108656:XSTO:SEK",
+      "trading_currency": "SEK",
+      "security_id": "security:isin:SE0000108656",
+      "ticker": "ERIC B",
+      "mic": "XSTO",
+      "operating_mic": "XSTO",
+      "currency": "SEK",
+      "primary": true
+    },
+    {
+      "id": "listing:figi:BBG000BB13V0",
+      "trading_currency": "USD",
+      "security_id": "security:figi:BBG001S5QXT3",
+      "ticker": "ERIC",
+      "mic": "XNAS",
+      "operating_mic": "XNAS",
+      "currency": "USD",
+      "primary": true
+    },
+    {
+      "id": "listing:figi:BBG009S4MT03",
+      "trading_currency": "USD",
+      "security_id": "security:figi:BBG009S39JY5",
+      "ticker": "GOOGL",
+      "mic": "XNAS",
+      "operating_mic": "XNAS",
+      "currency": "USD",
+      "primary": true
+    },
+    {
+      "id": "listing:figi:BBG009S4MVF2",
+      "trading_currency": "USD",
+      "security_id": "security:figi:BBG009S3NB21",
+      "ticker": "GOOG",
+      "mic": "XNAS",
+      "operating_mic": "XNAS",
+      "currency": "USD",
+      "primary": true
+    },
+    {
+      "id": "listing:isin:GB00BN7SWP63:XLON:GBP",
+      "security_id": "security:isin:GB00BN7SWP63",
+      "ticker": "GSK",
+      "mic": "XLON",
+      "operating_mic": "XLON",
+      "currency": "GBP",
+      "primary": true
+    },
+    {
+      "id": "listing:isin:GB00BP6MXD84:XLON:GBP",
+      "security_id": "security:isin:GB00BP6MXD84",
+      "ticker": "SHEL",
+      "mic": "XLON",
+      "operating_mic": "XLON",
+      "currency": "GBP",
+      "primary": true
+    },
+    {
+      "id": "listing:provisional:sec:ticker:XNYS.1163302.X",
+      "trading_currency": "USD",
+      "security_id": "security:provisional:sec:id:1163302.X",
+      "ticker": "X",
+      "mic": "XNYS",
+      "operating_mic": "XNYS",
+      "currency": "USD",
+      "primary": true,
+      "status": "inactive"
+    }
+  ],
+  "assertions": [
+    {
+      "subject_id": "issuer:lei:549300W9JLPW15XIFM52",
+      "scheme": "lei",
+      "value": "549300W9JLPW15XIFM52",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "gleif",
+        "source": "gleif",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:549300W9JLPW15XIFM52",
+      "scheme": "cik",
+      "value": "717826",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "security:isin:SE0000108649",
+      "scheme": "isin",
+      "value": "SE0000108649",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "esma_firds",
+        "source": "esma_firds",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-a"
+      }
+    },
+    {
+      "subject_id": "security:isin:SE0000108649",
+      "scheme": "share_class_figi",
+      "value": "BBG001SCFF19",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-a"
+      }
+    },
+    {
+      "subject_id": "listing:isin:SE0000108649:XSTO:SEK",
+      "scheme": "figi",
+      "value": "BBG000BX2VW8",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-a"
+      }
+    },
+    {
+      "subject_id": "listing:isin:SE0000108649:XSTO:SEK",
+      "scheme": "ticker_mic",
+      "value": "ERIC A@XSTO",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-a"
+      }
+    },
+    {
+      "subject_id": "security:isin:SE0000108656",
+      "scheme": "isin",
+      "value": "SE0000108656",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "esma_firds",
+        "source": "esma_firds",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "security:isin:SE0000108656",
+      "scheme": "share_class_figi",
+      "value": "BBG001S688B5",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "listing:isin:SE0000108656:XSTO:SEK",
+      "scheme": "figi",
+      "value": "BBG000BX2SW5",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "listing:isin:SE0000108656:XSTO:SEK",
+      "scheme": "ticker_mic",
+      "value": "ERIC B@XSTO",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-b"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG001S5QXT3",
+      "scheme": "isin",
+      "value": "US2948216088",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-adr"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG001S5QXT3",
+      "scheme": "share_class_figi",
+      "value": "BBG001S5QXT3",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-adr"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG000BB13V0",
+      "scheme": "figi",
+      "value": "BBG000BB13V0",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-adr"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG000BB13V0",
+      "scheme": "ticker_mic",
+      "value": "ERIC@XNAS",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-adr"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:5493006MHB84DD0ZWV18",
+      "scheme": "lei",
+      "value": "5493006MHB84DD0ZWV18",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "gleif",
+        "source": "gleif",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:5493006MHB84DD0ZWV18",
+      "scheme": "cik",
+      "value": "1652044",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG009S39JY5",
+      "scheme": "isin",
+      "value": "US02079K3059",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG009S39JY5",
+      "scheme": "share_class_figi",
+      "value": "BBG009S39JY5",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG009S4MT03",
+      "scheme": "figi",
+      "value": "BBG009S4MT03",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG009S4MT03",
+      "scheme": "ticker_mic",
+      "value": "GOOGL@XNAS",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-a"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG009S3NB21",
+      "scheme": "isin",
+      "value": "US02079K1079",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-c"
+      }
+    },
+    {
+      "subject_id": "security:figi:BBG009S3NB21",
+      "scheme": "share_class_figi",
+      "value": "BBG009S3NB21",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-c"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG009S4MVF2",
+      "scheme": "figi",
+      "value": "BBG009S4MVF2",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-c"
+      }
+    },
+    {
+      "subject_id": "listing:figi:BBG009S4MVF2",
+      "scheme": "ticker_mic",
+      "value": "GOOG@XNAS",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:alphabet-c"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:5493000HZTVUYLO1D793",
+      "scheme": "lei",
+      "value": "5493000HZTVUYLO1D793",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "gleif",
+        "source": "gleif",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:5493000HZTVUYLO1D793",
+      "scheme": "cik",
+      "value": "1131399",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "security:isin:GB00BN7SWP63",
+      "scheme": "isin",
+      "value": "GB00BN7SWP63",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "esma_firds",
+        "source": "esma_firds",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "security:isin:GB00BN7SWP63",
+      "scheme": "share_class_figi",
+      "value": "BBG001SGNPK8",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "listing:isin:GB00BN7SWP63:XLON:GBP",
+      "scheme": "figi",
+      "value": "BBG000CT5GJ1",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "listing:isin:GB00BN7SWP63:XLON:GBP",
+      "scheme": "ticker_mic",
+      "value": "GSK@XLON",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "security:isin:GB0009252882",
+      "scheme": "isin",
+      "value": "GB0009252882",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "esma_firds",
+        "source": "esma_firds",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:21380068P1DRHMJ8KU70",
+      "scheme": "lei",
+      "value": "21380068P1DRHMJ8KU70",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "gleif",
+        "source": "gleif",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:21380068P1DRHMJ8KU70",
+      "scheme": "cik",
+      "value": "1306965",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "security:isin:GB00BP6MXD84",
+      "scheme": "isin",
+      "value": "GB00BP6MXD84",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "esma_firds",
+        "source": "esma_firds",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "security:isin:GB00BP6MXD84",
+      "scheme": "share_class_figi",
+      "value": "BBG0149N4YG4",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "listing:isin:GB00BP6MXD84:XLON:GBP",
+      "scheme": "figi",
+      "value": "BBG0149N4YC8",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "listing:isin:GB00BP6MXD84:XLON:GBP",
+      "scheme": "ticker_mic",
+      "value": "SHEL@XLON",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "openfigi",
+        "source": "openfigi",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:shell"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:JNLUVFYJT1OZSIQ24U47",
+      "scheme": "lei",
+      "value": "JNLUVFYJT1OZSIQ24U47",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "gleif",
+        "source": "gleif",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:us-steel"
+      }
+    },
+    {
+      "subject_id": "issuer:lei:JNLUVFYJT1OZSIQ24U47",
+      "scheme": "cik",
+      "value": "1163302",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:us-steel"
+      }
+    },
+    {
+      "subject_id": "listing:provisional:sec:ticker:XNYS.1163302.X",
+      "scheme": "ticker_mic",
+      "value": "X@XNYS",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "sec",
+        "source": "sec",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:us-steel"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "type": "depositary_receipt_of",
+      "from_id": "security:figi:BBG001S5QXT3",
+      "to_id": "security:isin:SE0000108656",
+      "ratio": "1",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:ericsson-adr relations"
+      }
+    },
+    {
+      "type": "successor_of",
+      "from_id": "security:isin:GB00BN7SWP63",
+      "to_id": "security:isin:GB0009252882",
+      "authority": "source_asserted",
+      "provenance": {
+        "plugin": "pythia",
+        "source": "fixture",
+        "adapter_version": "fixture-1",
+        "retrieved_at": "2026-09-26T00:00:00Z",
+        "source_record": "truth:gsk former.isins"
+      }
+    }
+  ]
+}

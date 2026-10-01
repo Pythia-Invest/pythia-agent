@@ -112,6 +112,9 @@ describe("private roots, environment, seeds, and copied assets", () => {
     expect(clean.HERMES_HOME).toBe(paths.hermesRoot);
     expect(clean.PYTHIA_CONFIG_ROOT).toBe(paths.configRoot);
     expect(clean.PYTHIA_STATE_ROOT).toBe(paths.stateRoot);
+    // Pythia's store and document cache are per stack, never shared config.
+    expect(clean.PYTHIA_DATA_ROOT).toBe(paths.dataRoot);
+    expect(clean.PYTHIA_CACHE_ROOT).toBe(paths.cacheRoot);
     expect(clean.PYTHIA_DESK_VIEW_STATE).toBe(paths.deskViewState);
     expect(clean.PYTHIA_MANAGED_ROOT).toBe(paths.managedRoot);
     expect(clean.PYTHIA_NODE).toBe(process.execPath);

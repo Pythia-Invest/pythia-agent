@@ -62,8 +62,8 @@ def register(ctx, *, workers=4, timeout=30):
 
         def host_enabled():
             from hermes_cli.config import load_config_readonly
-            from hermes_cli.plugins import get_plugin_manager
-            plugin = get_plugin_manager()._plugins.get(ctx.plugin_id)
+            from .harness import plugins
+            plugin = plugins().get(ctx.plugin_id)
             return plugin is not None and native_plugin_enabled(ctx.plugin_id, plugin, load_config_readonly())
 
         def error(code, status):
@@ -194,10 +194,12 @@ def register(ctx, *, workers=4, timeout=30):
         install(app, authorize, read_body, error, poll, access, subscribe)
 
         async def cleanup(_app):
+            from .connector.process_stream import close_all  # the connector toolkit's streaming children
             for reader in readers.values(): await reader.close()
             await admission.close()
             await histories.close()
             await control.close()
+            await asyncio.to_thread(close_all)
         app.on_cleanup.append(cleanup)
         path = '/v1/pythia/plugins/{plugin:.+}/{operation}'
         app.router.add_post(path, handler)

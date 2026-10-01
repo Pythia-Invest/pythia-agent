@@ -22,7 +22,7 @@ globs:
 
 # CI hygiene
 
-[ADR 0037](../../docs/decisions/0037-one-required-ci-gate.md) owns the design and
+[ADR 0046](../../docs/decisions/0046-one-required-ci-gate.md) owns the design and
 [keeping CI clean](../change-validation.md#keeping-ci-clean) the full guidance;
 `tooling/check-workflows.mjs` enforces the mechanical invariants.
 

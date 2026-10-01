@@ -10,7 +10,9 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@pythia/market-data": "workspace:*",
     "@pythia/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "react": "catalog:",

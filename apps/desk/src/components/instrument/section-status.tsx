@@ -1,0 +1,391 @@
+"use client";
+
+import { ConnectorMark } from "@pythia/market-data/search-ui";
+import type { SubjectSection } from "@pythia/market-data/subject";
+import { Button, Skeleton } from "@pythia/ui";
+import { CircleSlash, Scale, SearchX, Settings2, Shapes } from "lucide-react";
+import type { ReactNode } from "react";
+import { useSectionRead } from "@/client/instrument-queries";
+import { SectionConflict } from "./open-conflict";
+
+const STATUS_LABELS: Record<string, string> = {
+  resolving: "finding match",
+  needs_configuration: "needs configuration",
+  unresolved: "no match",
+  conflict: "under review",
+  disabled: "turned off",
+};
+
+/** An unresolved section whose match waits in the resolution queue is under
+ * review, not "no match". */
+function statusLabel(section: Pick<SubjectSection, "status" | "queued">) {
+  if (section.status === "unresolved" && section.queued)
+    return "awaiting review";
+  return STATUS_LABELS[section.status] ?? section.status.replaceAll("_", " ");
+}
+
+function levelName(level: string) {
+  return level.replaceAll("_", " ");
+}
+
+/** What the page says when no section could serve the subject. A pool or a
+ * protocol has no price or data concept yet, so the note says that instead of
+ * suggesting an installable plugin; other subjects lack a covering source. */
+export function NoDataNote({ level }: { level: string }) {
+  return (
+    <p
+      data-slot="instrument-no-data"
+      className="text-body text-foreground-secondary"
+    >
+      {level === "market" || level === "protocol"
+        ? `Pythia has no price or data for this ${level} yet.`
+        : `No installed plugin can show data for this ${levelName(level)} yet.`}
+    </p>
+  );
+}
+
+/** Core's reason often repeats the title ("X needs configuration: add k to
+ * f"); keep only what the title does not already say. */
+function reasonDetail({ reason, label }: SubjectSection) {
+  if (!reason) return "";
+  const colon = reason.indexOf(": ");
+  const rest =
+    reason.startsWith(label) && colon > 0 ? reason.slice(colon + 2) : reason;
+  if (rest.startsWith(`${label} is `)) return "";
+  return sentence(rest);
+}
+
+function sentence(text: string) {
+  const trimmed = text.trim();
+  const first = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/u.test(first) ? first : `${first}.`;
+}
+
+/** Honest limitation, not a failure: why a section has no content and what
+ * would change that. Neutral styling on purpose (docs/design.md). */
+export function SectionPlaceholder({
+  section,
+  level,
+}: {
+  section: SubjectSection;
+  level: string;
+}) {
+  const known: Record<
+    string,
+    { icon: ReactNode; title: string; fallback: string }
+  > = {
+    needs_configuration: {
+      icon: <Settings2 />,
+      title: `${section.label} needs configuration`,
+      fallback: "Add the plugin's required settings, then reopen this page.",
+    },
+    unresolved: section.queued
+      ? {
+          icon: <Scale />,
+          title: `${section.label} match awaits review`,
+          fallback: section.question ? "" : "Review it in Repairs.",
+        }
+      : {
+          icon: <SearchX />,
+          title: `${section.label} has no match for this ${levelName(level)}`,
+          fallback:
+            "The source did not recognise this instrument's identifiers.",
+        },
+    conflict: {
+      icon: <Scale />,
+      title: `${section.label} match is under review`,
+      fallback:
+        "The source's identifiers disagree with the reference data; the agent reviews it.",
+    },
+    disabled: {
+      icon: <CircleSlash />,
+      title: `${section.label} is turned off`,
+      fallback: `Enable it with "hermes plugins enable ${section.plugin}" for this profile, then reopen this page.`,
+    },
+    // A confirmed binding core keeps but does not use: the line no longer
+    // trades and its ticker may name another company, so core's reason says so.
+    suspended: {
+      icon: <CircleSlash />,
+      title: `${section.label} is suspended for this line`,
+      fallback: "",
+    },
+    // Core's own answer when no source covers the listing: each source's
+    // reason follows.
+    not_covering: {
+      icon: <SearchX />,
+      title: section.reason ?? "No source covers this",
+      fallback: "",
+    },
+    // Core's own answer when the issuer is undecided: the card says what it needs.
+    not_addressable: {
+      icon: <SearchX />,
+      title: section.reason?.split(": ")[0] ?? "No source can address this",
+      fallback: "",
+    },
+  };
+  const status = known[section.status];
+  const unsupported = ![
+    "quote",
+    "chart",
+    "live",
+    "profile",
+    "filings",
+  ].includes(section.section);
+  const shown = unsupported
+    ? {
+        icon: <Shapes />,
+        title: `This Desk cannot show ${section.section.replaceAll("_", " ")} sections yet`,
+        fallback: "",
+      }
+    : (status ?? {
+        icon: <Shapes />,
+        title: `${section.label}: ${section.status.replaceAll("_", " ")}`,
+        fallback: "",
+      });
+  const uncovered = !unsupported && section.status === "not_covering";
+  const detail =
+    unsupported || uncovered || section.status === "not_addressable"
+      ? null
+      : reasonDetail(section) || shown.fallback;
+  return (
+    <div
+      role="note"
+      data-slot="instrument-section-placeholder"
+      className="flex min-h-24 items-start gap-3 rounded-control border border-border border-dashed px-3 py-3 [&_svg]:size-4 [&_svg]:flex-none [&_svg]:stroke-[1.6] [&_svg]:text-foreground-secondary"
+    >
+      <span aria-hidden="true" className="pt-0.5">
+        {shown.icon}
+      </span>
+      <div className="min-w-0">
+        <p className="font-semibold text-body text-foreground">{shown.title}</p>
+        {detail ? (
+          <p className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
+            {detail}
+          </p>
+        ) : null}
+        <SectionConflict question={section.question} />
+        {uncovered && section.skipped.length ? (
+          <ul className="mt-0.5 text-foreground-secondary text-xs [overflow-wrap:anywhere]">
+            {section.skipped.map((item) => (
+              <li key={item.plugin}>{sentence(item.reason)}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The quiet source line under a section: the source (or the sources
+ * combined), "Also:" alternatives that read another source once, and an amber
+ * reason only when a source ranked ahead of this one was passed over. A source
+ * picked for this view can be kept for good ("Always use"), and a price source
+ * the investor pinned says so, with an Undo. */
+export function SourcesLine({
+  section,
+  chosen,
+  onUse,
+  onAlways,
+  pinned,
+  onUnpin,
+}: {
+  section: SubjectSection;
+  /** The source the investor picked for this view, if not core's choice. */
+  chosen?: string | null | undefined;
+  onUse?: ((plugin: string | null) => void) | undefined;
+  /** Pins the picked source as this subject's price source. */
+  onAlways?: ((plugin: string) => void) | undefined;
+  /** The investor pinned a source for this subject. */
+  pinned?: boolean | undefined;
+  onUnpin?: (() => void) | undefined;
+}) {
+  const sources = section.sources?.length
+    ? section.sources
+    : [{ source: section.label, plugin: section.plugin }];
+  const notice = chosen ? null : section.notice;
+  return (
+    <div
+      data-slot="instrument-sources"
+      className="flex min-w-0 flex-col gap-1 border-border/60 border-t pt-2 text-foreground-secondary text-xs"
+    >
+      <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <span>
+          {chosen ? "Using" : sources.length > 1 ? "Sources" : "Source"}
+        </span>
+        {sources.map((item, index) => (
+          <span key={item.plugin} className="inline-flex items-center gap-1">
+            {index ? <span aria-hidden="true">+</span> : null}
+            <ConnectorMark />
+            <span className="text-foreground">{item.source}</span>
+          </span>
+        ))}
+        {section.status !== "ready" ? (
+          <span>· {statusLabel(section)}</span>
+        ) : null}
+        {section.unverified && !chosen ? (
+          <span>· unverified ({section.unverified})</span>
+        ) : section.verified_at && !chosen ? (
+          <span title={`Checked against the reference ${section.verified_at}`}>
+            · verified
+          </span>
+        ) : null}
+        {chosen && onUse ? (
+          <>
+            <span>for this view ·</span>
+            <button
+              type="button"
+              onClick={() => onUse(null)}
+              className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+            >
+              Back
+            </button>
+            {onAlways ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  title={`Use ${sources[0]?.source} for this price from now on`}
+                  onClick={() => onAlways(chosen)}
+                  className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  Always use
+                </button>
+              </>
+            ) : null}
+          </>
+        ) : null}
+        {pinned && !chosen ? (
+          <span data-slot="instrument-source-pinned">
+            · Corrected by you
+            {onUnpin ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={onUnpin}
+                  className="underline underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  Undo
+                </button>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+        {section.alternatives.length && !chosen ? (
+          <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">
+            · Also:
+            {section.alternatives.map((item, index) => {
+              const comma = index < section.alternatives.length - 1 ? "," : "";
+              // Only a ready source can be read once; others say why not.
+              return item.status === "ready" && onUse ? (
+                <button
+                  key={item.plugin}
+                  type="button"
+                  title={`Show ${item.label} here instead, this time only`}
+                  onClick={() => onUse(item.plugin)}
+                  className="underline decoration-dotted underline-offset-2 outline-ring hover:text-foreground focus-visible:outline-2"
+                >
+                  {item.label}
+                  {comma}
+                </button>
+              ) : (
+                <span key={item.plugin}>
+                  {item.label} (
+                  {STATUS_LABELS[item.status] ??
+                    item.status.replaceAll("_", " ")}
+                  ){comma}
+                </span>
+              );
+            })}
+          </span>
+        ) : null}
+      </p>
+      {notice ? (
+        <p data-slot="instrument-source-notice" className="text-warning">
+          {sentence(notice.reason)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Per-section loading geometry; one slow source never holds up the page. */
+export function SectionLoading({
+  label,
+  lines = 3,
+}: {
+  label: string;
+  lines?: number;
+}) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      data-slot="instrument-section-loading"
+      className="flex flex-col gap-2 py-1"
+    >
+      <span className="text-foreground-secondary text-xs">{label}</span>
+      {Array.from({ length: lines }, (_, index) => (
+        <Skeleton key={index} className={index % 2 ? "w-2/3" : "w-5/6"} />
+      ))}
+    </div>
+  );
+}
+
+/** A read that failed, distinct from an honest absence of data. */
+export function SectionFailure({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: (() => void) | undefined;
+}) {
+  return (
+    <div
+      role="alert"
+      data-slot="instrument-section-error"
+      className="flex flex-col items-start gap-2"
+    >
+      <p className="text-error text-xs">{message}</p>
+      {onRetry ? (
+        <Button size="sm" variant="ghost" onClick={onRetry}>
+          Retry
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** One section's own read through the protected read route. */
+export function SectionRead({
+  section,
+  label,
+  children,
+}: {
+  section: SubjectSection;
+  label: string;
+  children(value: unknown): ReactNode;
+}) {
+  const query = useSectionRead(section.request);
+  if (!section.request)
+    return <SectionFailure message="This section has no read to show." />;
+  if (query.error)
+    return (
+      <SectionFailure
+        message={`${section.label} could not be read. ${query.error.message}`}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  if (query.isPending) return <SectionLoading label={label} />;
+  try {
+    return children(query.data);
+  } catch (error) {
+    const shape = error instanceof Error && error.name === "ZodError";
+    return (
+      <SectionFailure
+        message={`${section.label}: ${shape || !(error instanceof Error) ? "the answer had an unexpected shape." : error.message}`}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  }
+}

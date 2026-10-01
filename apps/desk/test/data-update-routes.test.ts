@@ -36,7 +36,7 @@ test("one admitted stream preserves explicit plugin ownership for otherwise equa
     {
       plugin: "pythia-market-data",
       operation: "query",
-      arguments: { action: "get_preferences" },
+      arguments: { action: "describe" },
     },
     {
       plugin: "research/local-feature",

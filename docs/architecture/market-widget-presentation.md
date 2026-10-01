@@ -34,7 +34,9 @@ with this reduced model for research or agent use.
 - The static dot means activity. Status icons describe delay, extended trading,
   closure or data problems. Concise labels convey the same meaning without
   relying on color. A known delay is supplied explicitly, never inferred from
-  quote age. Both controls retain a 32px keyboard/touch target around their small
+  quote age. A source that reports a zero delay supplies current data unless
+  it marks the result stale; without a reported delay or freshness, the data
+  state stays unknown. Both controls retain a 32px keyboard/touch target around their small
   visual mark. Routine snapshots need no extra icon.
 - Changes retain their supplied basis and unit. Previous-close, rolling-window
   and basis-point changes must not be relabelled or calculated interchangeably.
@@ -64,7 +66,13 @@ rejected. Choosing suitable sampling or aggregation belongs before rendering.
 are subdued and dashed boundaries separate them. `sessionGap` may omit a known
 closed interval between the prior regular session and pre-market; timestamps are
 unchanged, and the supplied accessible chart description must explain that
-omission. An absent baseline stays neutral instead of inventing a gain/loss basis.
+omission. `sessionGaps` applies the same rule to several intervals.
+Multi-day charts may compress closed-market time between sessions; a gap inside
+a session (a halt or a missing bar) stays visible. Page charts join multi-day
+regular sessions into one line and mark the day boundaries on the axis
+([ADR 0041](../decisions/0041-instrument-page-price-chart.md)). An
+absent baseline stays neutral instead of inventing a gain/loss basis. Axis and
+readout times use the viewer's zone; `dates` marks session-date coordinates.
 
 `InstrumentPathView` reserves chart height during loading and unavailable states.
 It can display its small loading indicator while the price is already visible.
@@ -80,6 +88,13 @@ both themes; this layer adds no palette.
 Public exports are `InstrumentIdentity`, `InstrumentStatusDot`,
 `InstrumentPrice`, `InstrumentChange`, `InstrumentExtendedSummary`,
 `InstrumentPathView` and `InstrumentSparkline`, plus their display types.
+Page-scale parts share the same drawing: `InstrumentChart` adds price and time
+axes and a pointer readout to the sparkline's path, `InstrumentQuoteHeader`
+shows the tiles' identity row (activity dot and status icon), the regular price
+and change, an extended quote and an
+optional labelled period change, `InstrumentStats` renders supplied statistics
+with their provenance, and `InstrumentPeriodSelector` is an exclusive period
+choice. They add no palette and compute no returns.
 Use `InstrumentPathView` with a complete display item when activity and loading
 should govern the chart. Use `InstrumentSparkline` directly for an already
 qualified path and explicitly choose its tail behavior. Geometry and tooltip

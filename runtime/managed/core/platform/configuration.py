@@ -1,0 +1,217 @@
+"""Plugin configuration: a static package declaration read against device custody.
+
+A plugin ships ``configuration.json`` beside its ``plugin.yaml``. The investor
+sets values in the Pythia config folder: secrets in ``secrets.json`` and identity
+text in ``settings.json``. This module only reads; it never writes or logs a value.
+Declared keys name store fields; they are not a security boundary between
+in-process plugins.
+"""
+import json
+import os
+from pathlib import Path
+import re
+import stat
+from urllib.parse import urlsplit
+
+FILENAME = 'configuration.json'
+KEY = re.compile(r'[a-z][a-z0-9_]{2,63}')
+STORES = {'secret': 'secrets.json', 'identity': 'settings.json'}
+# Custody fields a declaration may not name. Keep these the only lists.
+RESERVED = frozenset({'schema_version'})
+RESERVED_PREFIXES = ('hermes_', 'pythia_')
+FIELD_KEYS = frozenset({'key', 'kind', 'label', 'description', 'url', 'required'})
+MAX_BYTES = 65536
+MAX_SECRET = 512
+PAUSED = 'pythia_paused_plugins'  # settings.json: the plugins the investor paused in Settings → Data sources
+
+
+def _control(value):
+    return any(ord(character) < 32 or ord(character) == 127 for character in value)
+
+
+def _text(value, maximum):
+    return isinstance(value, str) and 0 < len(value.strip()) <= maximum and not _control(value)
+
+
+def _reserved(key):
+    return key in RESERVED or key.startswith(RESERVED_PREFIXES)
+
+
+def _https(value):
+    if not isinstance(value, str) or len(value) > 512 or _control(value) or any(c.isspace() for c in value):
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.hostname) and not parts.username and not parts.password
+
+
+def _plugin_dir(ctx):
+    """The plugin package directory: the only host-specific input to this module.
+
+    None for an entry-point plugin, whose manifest path is ``module:attr``.
+    """
+    path = Path(ctx.manifest.path)
+    return path if path.is_absolute() else None
+
+
+def parse(raw):
+    """Validate a declaration; return its fields or raise ValueError."""
+    if not isinstance(raw, dict) or set(raw) != {'schema_version', 'fields'} or raw['schema_version'] != 1:
+        raise ValueError('configuration.json needs exactly schema_version 1 and fields')
+    if not isinstance(raw['fields'], list):
+        raise ValueError('fields must be a list')
+    parsed, keys = [], set()
+    for item in raw['fields']:
+        if (not isinstance(item, dict) or not {'key', 'kind', 'label'} <= set(item) <= FIELD_KEYS
+                or not isinstance(item['key'], str) or not KEY.fullmatch(item['key'])
+                or _reserved(item['key']) or item['key'] in keys or item['kind'] not in STORES
+                or not _text(item['label'], 80)
+                or ('description' in item and not _text(item['description'], 400))
+                or ('url' in item and not _https(item['url']))
+                or type(item.get('required', False)) is not bool):
+            raise ValueError('invalid configuration field')
+        keys.add(item['key'])
+        parsed.append({'key': item['key'], 'kind': item['kind'], 'label': item['label'].strip(),
+                       'required': item.get('required', False)})
+    return parsed
+
+
+def _read_json(path):
+    """Bounded read of a regular JSON file; FileNotFoundError propagates."""
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError('not a regular file')
+    with path.open('rb') as stream:
+        content = stream.read(MAX_BYTES + 1)
+    if len(content) > MAX_BYTES:
+        raise ValueError('file too large')
+    try:
+        return info, json.loads(content)
+    except RecursionError:
+        raise ValueError('JSON nested too deeply') from None
+
+
+def fields(ctx):
+    """The calling plugin's declared fields, read on each call; an absent file declares none."""
+    return fields_at(_plugin_dir(ctx))
+
+
+def fields_at(directory):
+    """The fields a plugin package directory declares (core reads other plugins' declarations)."""
+    if directory is None:
+        return []
+    try:
+        return parse(_read_json(directory / FILENAME)[1])
+    except FileNotFoundError:
+        return []
+
+
+def _load(kind):
+    """``(status, store)`` for a custody file: ``ok`` with its parsed object, else missing or invalid."""
+    raw = os.environ.get('PYTHIA_CONFIG_ROOT')
+    if not raw or not Path(raw).is_absolute():
+        return 'missing', None
+    root = Path(raw)
+    try:
+        if root.is_symlink() or root.stat().st_mode & 0o077:
+            return 'invalid', None
+        info, store = _read_json(root / STORES[kind])
+    except FileNotFoundError:
+        return 'missing', None
+    except (OSError, ValueError):
+        return 'invalid', None
+    if info.st_mode & 0o077 or not isinstance(store, dict) or type(store.get('schema_version')) is not int \
+            or store['schema_version'] != 1:
+        return 'invalid', None
+    return 'ok', store
+
+
+def read(kind, key):
+    """Return ``(status, value)`` for a custody field: configured, missing or invalid.
+
+    Internal and transitional: plugins call ``value``, which admits only declared
+    keys. The value is returned only when configured: a string without control
+    characters or surrounding whitespace; a secret also has no inner whitespace
+    and at most 512 characters, matching Desk's token check.
+    """
+    if kind not in STORES or not isinstance(key, str) or not KEY.fullmatch(key) or _reserved(key):
+        raise ValueError('invalid configuration key')
+    status, store = _load(kind)
+    if status != 'ok':
+        return status, None
+    value = store.get(key)
+    if value is None or value == '':
+        return 'missing', None
+    if (not isinstance(value, str) or value != value.strip() or _control(value)
+            or (kind == 'secret' and (len(value) > MAX_SECRET
+                                      or any(character.isspace() for character in value)))):
+        return 'invalid', None
+    return 'configured', value
+
+
+_paused = (None, frozenset())  # settings.json's metadata, and the plugin keys read under it
+
+
+def paused_plugins():
+    """The plugins the investor paused in Settings → Data sources, as settings.json lists them now.
+
+    Core's own reserved field, written only by Desk's settings service; no plugin reads or declares it. The file is
+    read again only when its metadata changes, so a pause takes effect on the next call and each check is one
+    ``lstat``. A missing, unsafe or malformed file pauses nothing.
+    """
+    global _paused
+    raw = os.environ.get('PYTHIA_CONFIG_ROOT')
+    try:
+        info = (Path(raw) / STORES['identity']).lstat() if raw and Path(raw).is_absolute() else None
+    except OSError:
+        info = None
+    if info is None:
+        return frozenset()
+    stamp = (raw, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
+    if _paused[0] == stamp:
+        return _paused[1]
+    status, store = _load('identity')
+    keys = store.get(PAUSED) if status == 'ok' else None
+    found = frozenset(keys) if isinstance(keys, list) and all(isinstance(key, str) for key in keys) else frozenset()
+    _paused = (stamp, found)
+    return found
+
+
+def value(ctx, key):
+    """Read a field the calling plugin declares; raise ValueError for an undeclared key.
+
+    Callers never log or return the value.
+    """
+    field = next((item for item in fields(ctx) if item['key'] == key), None)
+    if field is None:
+        raise ValueError('configuration field %s is not declared by this plugin' % key)
+    return read(field['kind'], key)
+
+
+def missing(ctx):
+    """Required declared fields that are not configured, as ``{key, label, file, status}``."""
+    return missing_at(_plugin_dir(ctx))
+
+
+def missing_at(directory):
+    rows = []
+    for field in fields_at(directory):
+        if field['required']:
+            status = read(field['kind'], field['key'])[0]
+            if status != 'configured':
+                rows.append({'key': field['key'], 'label': field['label'],
+                             'file': STORES[field['kind']], 'status': status})
+    return rows
+
+
+def needs_configuration(ctx):
+    """The standard tool result while required configuration is absent, else None."""
+    rows = missing(ctx)
+    if not rows:
+        return None
+    names = ', '.join('%s (%s in %s, %s)' % (row['label'], row['key'], row['file'], row['status']) for row in rows)
+    return {'schema_version': 1, 'outcome': 'error', 'data': None, 'issues': [{
+        'code': 'needs_configuration', 'severity': 'error', 'fields': rows,
+        'message': 'This plugin needs configuration in the Pythia config folder: %s.' % names}]}

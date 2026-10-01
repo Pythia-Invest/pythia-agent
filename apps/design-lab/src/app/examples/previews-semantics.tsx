@@ -14,6 +14,8 @@ import type { CatalogRoute } from "../../catalog";
 import { DemoNote, Specimen, SpecimenGrid } from "./specimen";
 import { MarketPresentationPreview } from "./previews-market-presentation";
 import { MarketWidgetsPreview } from "./previews-market-widgets";
+import { MarketChartPreview } from "./previews-market-chart";
+import { LiveMarketPreview } from "./previews-live-market";
 
 export function SemanticsPreview({ route }: { route: CatalogRoute }) {
   switch (route) {
@@ -21,6 +23,10 @@ export function SemanticsPreview({ route }: { route: CatalogRoute }) {
       return <MarketPresentationPreview />;
     case "/components/instrument-widgets":
       return <MarketWidgetsPreview />;
+    case "/components/instrument-price-chart":
+      return <MarketChartPreview />;
+    case "/components/live-market":
+      return <LiveMarketPreview />;
     case "/components/citation":
       return (
         <SpecimenGrid>

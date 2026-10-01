@@ -1,13 +1,16 @@
 """Synthetic revocation cases shaped by pinned Hermes plugins.py ownership.
 
 The pinned manager uses path-derived keys, bare-name compatibility and explicit
-deny precedence, with tool handles in _registration_order. No providers, native
-profiles or credentials are used; the copied qualification tests that real seam.
+deny precedence, with tool handles in _registration_order; the fake manager stands
+in for the state core's harness adapter (core/platform/harness.py) reads. No providers,
+native profiles or credentials are used; the copied qualification tests that real seam.
 """
 import contextlib
 import importlib
+import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -15,7 +18,10 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from test_market_data_identity import PACKAGE, PLATFORM
+from market_data_fixture import PACKAGE, PLATFORM, TOOLKIT
+from native_plugin_fixtures import Context, hide_market_data
+
+PLUGINS = Path(__file__).resolve().parents[2] / 'managed/plugins'
 
 contributions = importlib.import_module(PACKAGE + '.contributions')
 execution = importlib.import_module(PACKAGE + '.execution')
@@ -24,7 +30,7 @@ operations = importlib.import_module(PLATFORM + '.operations')
 transport = importlib.import_module(PLATFORM + '.http')
 specialist = importlib.import_module(PLATFORM + '.specialist')
 definition = importlib.import_module(PACKAGE + '.definition')
-wire = importlib.import_module(PACKAGE + '.wire')
+wire = importlib.import_module(TOOLKIT + '.wire')
 
 
 class NativeAccessTests(unittest.TestCase):
@@ -40,8 +46,7 @@ class NativeAccessTests(unittest.TestCase):
         self.add_plugin(self.feature_key, 'pythia-market-data', definition.TOOL_NAME)
         self.add_plugin(self.provider_key, 'synthetic', 'synthetic_search')
         marker = {'schema_version': 1, 'provider': 'synthetic', 'adapter_version': 'test-1',
-                  'operations': [{'operation': 'search', 'tool': 'synthetic_search', 'effect': 'read'}],
-                  'subject_kinds': ['instrument']}
+                  'operations': [{'operation': 'details', 'tool': 'synthetic_search', 'effect': 'read'}]}
         self.schemas['synthetic_search'] = {'name': 'synthetic_search', 'parameters': {
             'type': 'object', 'properties': {}, 'additionalProperties': False,
             '$comment': json.dumps({contributions.MARKER: marker, operations.MARKER: {
@@ -92,7 +97,7 @@ class NativeAccessTests(unittest.TestCase):
         for enabled in ([self.feature_key, self.provider_key], ['pythia-market-data', 'synthetic']):
             with self.subTest(enabled=enabled):
                 self.config['plugins']['enabled'] = enabled
-                self.assertEqual(execution.call_source('synthetic', 'search', {})['data'], {'value': 7})
+                self.assertEqual(execution.call_source('synthetic', 'details', {})['data'], {'value': 7})
                 self.assertEqual(operations.resolve(self.feature_key, 'query', {'action': 'describe'})[0], definition.TOOL_NAME)
                 self.assertEqual(operations.resolve('synthetic', 'synthetic-read', {})[0], 'synthetic_search')
 
@@ -100,7 +105,7 @@ class NativeAccessTests(unittest.TestCase):
         for disabled in (self.provider_key, 'synthetic'):
             with self.subTest(disabled=disabled):
                 self.config['plugins']['disabled'] = [disabled]
-                self.assertEqual(execution.call_source('synthetic', 'search', {})['issues'][0]['code'], 'unavailable')
+                self.assertEqual(execution.call_source('synthetic', 'details', {})['issues'][0]['code'], 'unavailable')
                 with self.assertRaises(transport.Rejected) as caught:
                     operations.resolve('synthetic', 'synthetic-read', {})
                 self.assertEqual(caught.exception.status, 403)
@@ -118,6 +123,26 @@ class NativeAccessTests(unittest.TestCase):
         self.add_plugin('finance/replacement', 'replacement', 'synthetic_search')
         self.assertNotIn('synthetic_search', contributions.eligible_tools())
         self.manager._registration_order[-1].active = False
+        self.assertIn('synthetic_search', contributions.eligible_tools())
+
+    def test_a_paused_source_loses_its_tools_at_once_and_only_a_source_with_a_contract_can_be_paused(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        config = root / 'config'
+        config.mkdir(mode=0o700)
+        self.enterContext(patch.dict(os.environ, {'PYTHIA_CONFIG_ROOT': str(config)}))
+        (root / 'contract.json').write_text('{}')  # a data source ships a contract
+        self.manager._plugins[self.provider_key].manifest.path = str(root)
+
+        def pause(*keys):  # a settings write renames a new file into place
+            temporary = config / '.settings.tmp'
+            temporary.write_text(json.dumps({'schema_version': 1, 'pythia_paused_plugins': list(keys)}))
+            temporary.chmod(0o600)
+            os.replace(temporary, config / 'settings.json')
+        pause()
+        self.assertEqual({'synthetic_search', definition.TOOL_NAME}, contributions.eligible_tools())
+        pause(self.provider_key, self.feature_key)  # no cache to clear; the feature backend has no contract
+        self.assertEqual({definition.TOOL_NAME}, contributions.eligible_tools())
+        pause()
         self.assertIn('synthetic_search', contributions.eligible_tools())
 
     def test_specialist_annotation_cannot_claim_another_enabled_plugin(self):
@@ -177,7 +202,7 @@ class NativeAccessTests(unittest.TestCase):
 
     def test_unowned_marker_cannot_bypass_native_plugin_access(self):
         self.manager._registration_order.pop()
-        result = execution.call_source('synthetic', 'search', {})
+        result = execution.call_source('synthetic', 'details', {})
         self.assertEqual(result['issues'][0]['code'], 'unavailable')
         self.assertEqual(self.dispatches, [])
         with self.assertRaises(transport.Rejected) as caught:
@@ -190,7 +215,7 @@ class NativeAccessTests(unittest.TestCase):
 
     def test_direct_source_read_rejects_raw_success_after_access_revocation(self):
         self.handler = self.revoke_during_read
-        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'search', 'arguments': {}})
+        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'details', 'arguments': {}})
         self.assertEqual(result['issues'][0]['code'], 'unavailable')
         self.assertNotIn('data', result)
         self.assertEqual(self.dispatches, ['synthetic_search'])
@@ -233,12 +258,13 @@ class NativeAccessTests(unittest.TestCase):
                     self.assertNotIn('reuse', result)
 
     def test_owner_classifies_nested_partial_failures_for_delivery_and_cli(self):
-        financial_cli = importlib.import_module(PACKAGE + '.specialist')
+        failures = importlib.import_module(TOOLKIT + '.failures')
         commands = []
         ctx = SimpleNamespace(plugin_id=self.provider_key,
                               register_cli_command=lambda *_args: commands.append(_args[-1]))
-        financial_cli.register_read_command(ctx, 'synthetic-read', 'synthetic_search', 'Synthetic read',
-                                           cache_seconds=5, schema=self.schemas['synthetic_search'])
+        specialist.register_read_command(ctx, 'synthetic-read', 'synthetic_search', 'Synthetic read',
+                                         cache_seconds=5, schema=self.schemas['synthetic_search'],
+                                         result_issues=lambda result: failures.item_failures(result.get('data')))
         batch = {'quotes': [{'symbol': 'ONE', 'price': 7}, {'symbol': 'TWO', 'error': 'Limited',
                  'failure': {'code': 'rate_limit', 'retry_after_seconds': 180, 'origin': 'provider'}}]}
         self.handler = lambda: {'schema_version': 1, 'outcome': 'partial', 'data': batch, 'issues': []}
@@ -271,20 +297,19 @@ class NativeAccessTests(unittest.TestCase):
         result = json.loads(transport.execute(self.provider_key, 'synthetic-read', {}, None, lambda: False, read_only=True))
         self.assertEqual(result['data'], {'value': 7})
 
-    def test_mixed_financial_operation_keeps_explicit_mutations_but_rejects_automatic_ones(self):
+    def test_financial_operation_admits_automatic_callers_only_for_read_actions(self):
         FinancialDelivery = importlib.import_module(PACKAGE + '.transport').FinancialDelivery
-        backend = SimpleNamespace(preferences=SimpleNamespace(get=lambda: {'revision': 1}),
-                                  identity=SimpleNamespace(cache_token=lambda: 1))
+        backend = SimpleNamespace(subject_scope=lambda reads: [])
         entry = self.registry.get_entry(definition.TOOL_NAME)
         entry.handler.pythia_operation_support = FinancialDelivery(lambda: backend)
-        mutation = {'action': 'set_preferences'}
+        unclassified = {'action': 'set_preferences'}  # retired; any action that is not a declared read
         with self.assertRaises(transport.Rejected) as caught:
-            transport.execute(self.feature_key, 'query', mutation, 'b' * 64, lambda: False, read_only=True)
+            transport.execute(self.feature_key, 'query', unclassified, 'b' * 64, lambda: False, read_only=True)
         self.assertEqual(caught.exception.code, 'read_only_required')
         self.assertEqual(self.dispatches, [])
-        ordinary = json.loads(transport.execute(self.feature_key, 'query', mutation, None, lambda: False))
+        ordinary = json.loads(transport.execute(self.feature_key, 'query', unclassified, None, lambda: False))
         self.assertEqual(ordinary['data'], {'value': 7})
-        read = json.loads(transport.execute(self.feature_key, 'query', {'action': 'get_preferences'}, None,
+        read = json.loads(transport.execute(self.feature_key, 'query', {'action': 'describe'}, None,
                                            lambda: False, read_only=True))
         self.assertEqual(read['data'], {'value': 7})
 
@@ -314,9 +339,47 @@ class NativeAccessTests(unittest.TestCase):
                                         updates=True)
         self.assertEqual(caught.exception.code, 'read_only_required')
 
+    def lose_the_feature_owner_during_the_read(self):
+        """The source answers while the feature tool loses its native owner (an unload); access is unchanged."""
+        for entry in self.manager._registration_order:
+            if entry.plugin_key == self.feature_key:
+                entry.active = False
+        access._eligibility.clear()
+        return {'schema_version': 1, 'outcome': 'ok', 'data': {'value': 7}, 'issues': []}
+
+    def test_a_read_whose_feature_loses_its_owner_mid_read_is_unavailable(self):
+        self.handler = self.lose_the_feature_owner_during_the_read
+        self.assertEqual(execution.call_source('synthetic', 'details', {})['issues'][0]['code'], 'unavailable')
+
+    def test_an_explicit_call_whose_feature_loses_its_owner_is_unavailable_not_a_source_error(self):
+        self.handler = self.lose_the_feature_owner_during_the_read
+        result = execution.dispatch({'action': 'call', 'provider': 'synthetic', 'operation': 'details', 'arguments': {}})
+        self.assertEqual(result['issues'][0]['code'], 'unavailable')
+
+    def test_a_price_connector_registered_without_market_data_projects_once_market_data_is_present(self):
+        key = 'finance/pythia-yahoo-discovery'
+        root = PLUGINS / 'yahoo-discovery'
+        spec = importlib.util.spec_from_file_location('native_access_yahoo', root / '__init__.py',
+                                                      submodule_search_locations=[str(root)])
+        yahoo = sys.modules[spec.name] = importlib.util.module_from_spec(spec)
+        self.addCleanup(sys.modules.pop, spec.name)
+        spec.loader.exec_module(yahoo)
+        ctx = Context(key)
+        with hide_market_data():
+            yahoo.register(ctx)
+        for name, entry in ctx.registrations.items():
+            self.schemas[name] = entry['schema']
+            self.add_plugin(key, 'pythia-yahoo-discovery', name)
+        self.config['plugins']['enabled'].append(key)
+        sources, invalid = contributions.project()
+        yahoo_source, = [source for source in sources if source['contribution']['provider'] == 'yahoo']
+        self.assertFalse(invalid)
+        self.assertEqual({operation['operation'] for operation in yahoo_source['operations']},
+                         {'details', 'series', 'latest', 'history', 'read_batch'})
+
     def test_disabling_financial_feature_preserves_specialist_http_and_cli(self):
         self.config['plugins']['disabled'] = [self.feature_key]
-        with self.assertRaises(contributions.ContextUnavailable):
+        with self.assertRaises(access.ContextUnavailable):
             contributions.eligible_tools()
         with self.assertRaises(transport.Rejected) as caught:
             operations.resolve(self.feature_key, 'query', {'action': 'describe'})

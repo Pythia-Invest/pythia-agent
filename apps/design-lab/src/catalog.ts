@@ -25,4 +25,18 @@ export const componentCatalog = [
     route: "/components/instrument-widgets",
     search: ["instrument", "tile", "compact", "table", "watchlist"],
   },
+  {
+    category: "semantics",
+    name: "Instrument price chart",
+    profiles: ["product"],
+    route: "/components/instrument-price-chart",
+    search: ["instrument", "chart", "intraday", "period", "session", "stats"],
+  },
+  {
+    category: "semantics",
+    name: "Live market",
+    profiles: ["product"],
+    route: "/components/live-market",
+    search: ["live", "order book", "ladder", "trades", "tape", "funding"],
+  },
 ] as const satisfies readonly CatalogEntry[];

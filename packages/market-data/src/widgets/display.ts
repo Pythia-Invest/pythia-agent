@@ -1,7 +1,7 @@
 import type { ObservationTime, ReadResult, Series } from "../index";
 import type { InstrumentDisplay, InstrumentPath } from "@pythia/widget-sdk";
 import type { TimestampFormatter } from "./types";
-import type { FinancialRow } from "./contract";
+import { bindingKey, type FinancialRow } from "./contract";
 
 function number(value: string | undefined, scale = "1") {
   if (value === undefined) return null;
@@ -103,7 +103,7 @@ function path(
             label: `Previous close · ${close.provider_ref.provider} · ${close.dataset}`,
           },
         }
-      : !sessionEvidence
+      : !session
         ? {
             baseline: {
               value: first.value,
@@ -119,6 +119,11 @@ function path(
     ...(Number.isFinite(intervalMs) && intervalMs > 0 ? { intervalMs } : {}),
   };
 }
+export {
+  number as decimalNumber,
+  field as seriesField,
+  semantics as seriesSemantics,
+};
 /** One financial-contract adapter for every standard instrument renderer. No
  * provider names, source request formats or cross-provider matching rules. */
 export function financialInstrument(
@@ -159,6 +164,19 @@ export function financialInstrument(
         : undefined;
   const chart = path(history, row.history?.presentation);
   const book = context?.top_of_book;
+  // The connector qualifies the extended trade against the regular close.
+  const supplied = context?.extended;
+  const extendedPrice = supplied ? number(supplied.value, unit?.scale) : null;
+  const extended =
+    supplied && extendedPrice !== null
+      ? {
+          session: supplied.session,
+          price: extendedPrice,
+          absolute: number(supplied.absolute, unit?.scale),
+          percent: number(supplied.percent),
+          time: supplied.time,
+        }
+      : undefined;
   const venueStatus = context?.venue_status;
   const detail = [
     series ? semantics(series) : "Price unavailable",
@@ -178,7 +196,9 @@ export function financialInstrument(
       ? delay !== undefined
         ? `${delay / 60} minute delay`
         : "Delayed; duration unreported"
-      : undefined,
+      : delay === 0
+        ? "The source reports no delay"
+        : undefined,
     history?.series ? `Chart: ${semantics(history.series)}` : undefined,
     ...(quote?.issues.map((issue) => issue.message) ?? []),
     ...(history?.issues.map((issue) => issue.message) ?? []),
@@ -186,23 +206,26 @@ export function financialInstrument(
     .filter(Boolean)
     .join(" · ");
   return {
-    id: row.subject.id,
+    id: bindingKey(row.subject),
     ticker: row.symbol || context?.symbol || "",
     name: row.name,
     price,
+    // An unknown unit is left out; the description says so.
     unit:
       unit?.kind === "currency"
         ? unit.code
         : unit?.kind === "unknown"
-          ? "?"
+          ? undefined
           : unit?.kind,
     status: !available
       ? "unavailable"
       : session === "closed"
         ? "closed"
-        : delayed
-          ? "delayed"
-          : "unknown",
+        : session === "pre" || session === "post"
+          ? "extended"
+          : delayed
+            ? "delayed"
+            : "unknown",
     activity: {
       session: session === "regular" ? "open" : (session ?? "unknown"),
       data: !available
@@ -211,16 +234,16 @@ export function financialInstrument(
           ? "delayed"
           : quote?.freshness.status === "stale"
             ? "stale"
-            : quote?.freshness.status === "fresh"
+            : quote?.freshness.status === "fresh" || delay === 0
               ? "current"
               : "unknown",
       ...(delay !== undefined && delay > 0 ? { delayMinutes: delay / 60 } : {}),
-      ...(change?.baseline.kind === "previous_close"
-        ? { period: "daily" as const }
-        : change?.baseline.kind === "rolling" &&
-            change.baseline.duration_seconds === 86400
-          ? { period: "24h" as const }
-          : {}),
+      // A change since the previous close is today's move, not a daily
+      // series; its basis stays on the change. A rolling window is a period.
+      ...(change?.baseline.kind === "rolling" &&
+      change.baseline.duration_seconds === 86400
+        ? { period: "24h" as const }
+        : {}),
     },
     statusLabel: !available
       ? "Price unavailable"
@@ -230,8 +253,25 @@ export function financialInstrument(
           ? "Market open"
           : session === "closed"
             ? "Market closed"
-            : "Trading hours unknown",
+            : session === "pre"
+              ? "Pre-market trading"
+              : session === "post"
+                ? "After-hours trading"
+                : "Trading hours unknown",
     description: detail,
+    ...(extended
+      ? {
+          extended: {
+            label: extended.session === "pre" ? "Pre" : "Post",
+            price: extended.price,
+            ...(extended.percent !== null ? { percent: extended.percent } : {}),
+            ...(extended.absolute !== null
+              ? { absolute: extended.absolute }
+              : {}),
+            time: timeLabel(extended.time, format),
+          },
+        }
+      : {}),
     ...(book
       ? {
           book: {

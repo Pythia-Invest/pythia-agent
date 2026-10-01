@@ -30,6 +30,7 @@ export {
   type SelectValueProps,
 } from "./select";
 export {
+  Autocomplete,
   Combobox,
   ComboboxEmpty,
   ComboboxGroup,

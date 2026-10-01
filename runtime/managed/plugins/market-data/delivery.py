@@ -5,6 +5,14 @@ from .selection import fingerprint, caches_observations
 
 
 def deliver(request, backend_factory, reuse_scope=None):
+    if isinstance(request, dict) and request.get('action') == 'read_many':
+        # The reuse checks and the reads share one routing load per subject.
+        with backend_factory().routing():
+            return _deliver(request, backend_factory, reuse_scope)
+    return _deliver(request, backend_factory, reuse_scope)
+
+
+def _deliver(request, backend_factory, reuse_scope):
     scope, sources = None, []
     if isinstance(request, dict) and request.get('action') == 'read_many' and set(request) == {'action', 'reads'}:
         reads = request['reads']
@@ -14,12 +22,10 @@ def deliver(request, backend_factory, reuse_scope=None):
             validate_input(item)
         backend = backend_factory()
         sources, _access = backend.context()
-        preferred = any(item['request']['view']['kind'] == 'pythia' for item in reads)
 
         def current_scope():
             native = backend.context()[1]
-            return fingerprint({'access': native, 'preferences': backend.preferences.get()['revision'] if preferred else None,
-                                'identity': backend.identity.cache_token() if preferred else None}) if native['cacheable'] else None
+            return fingerprint({'access': native, 'subjects': backend.subject_scope(reads)}) if native['cacheable'] else None
         scope = current_scope()
     if scope and reuse_scope == scope:
         return {'schema_version': 1, 'reuse': scope}

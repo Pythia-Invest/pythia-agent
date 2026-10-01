@@ -1,0 +1,341 @@
+"""Deterministic audit rules (see the quality audit behind the identity backbone).
+
+Every rule is a pure function so it can be tested on hand-made rows. Each
+returns the decision plus a short reason that the snapshot records.
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+
+EEA = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO".split())
+# Non-EEA home markets: OpenFIGI exchange codes that prove a home line, and the home MIC.
+HOME = {
+    "GB": (("LN",), "XLON"),
+    "CH": (("SE", "SW"), "XSWX"),
+    "CA": (("CT",), "XTSE"),
+    "AU": (("AU", "AT"), "XASX"),
+    "SG": (("SP",), "XSES"),
+    "IL": (("IT",), "XTAE"),
+    "JP": (("JT",), "XTKS"),
+    "HK": (("HK",), "XHKG"),
+    "ZA": (("SJ",), "XJSE"),
+    "US": (("UN", "UW", "UQ", "UR", "UA", "UP"), None),
+}
+# Each country's currency (ISO 4217) from its first day, newest last. An OpenFIGI home line (which carries none) takes
+# its venue's as its key currency.
+COUNTRY_CURRENCY: dict[str, tuple[tuple[str, str], ...]] = {
+    **{c: (("EUR", "1999-01-01"),) for c in "AT BE DE ES FI FR IE IT LU NL PT".split()},
+    "GR": (("EUR", "2001-01-01"),), "SI": (("EUR", "2007-01-01"),), "CY": (("EUR", "2008-01-01"),),
+    "MT": (("EUR", "2008-01-01"),), "SK": (("EUR", "2009-01-01"),), "EE": (("EUR", "2011-01-01"),),
+    "LV": (("EUR", "2014-01-01"),), "LT": (("EUR", "2015-01-01"),), "HR": (("HRK", "1994-05-30"), ("EUR", "2023-01-01")),
+    "BG": (("BGN", "1999-07-05"), ("EUR", "2026-01-01")),
+    "SE": (("SEK", "1900-01-01"),), "DK": (("DKK", "1900-01-01"),), "NO": (("NOK", "1900-01-01"),),
+    "IS": (("ISK", "1900-01-01"),), "PL": (("PLN", "1995-01-01"),), "CZ": (("CZK", "1993-01-01"),),
+    "HU": (("HUF", "1900-01-01"),), "RO": (("RON", "2005-07-01"),), "LI": (("CHF", "1900-01-01"),),
+    "CH": (("CHF", "1900-01-01"),), "GB": (("GBP", "1900-01-01"),), "US": (("USD", "1900-01-01"),),
+    "CA": (("CAD", "1900-01-01"),), "JP": (("JPY", "1900-01-01"),), "HK": (("HKD", "1900-01-01"),),
+    "AU": (("AUD", "1900-01-01"),), "SG": (("SGD", "1900-01-01"),), "IL": (("ILS", "1900-01-01"),),
+    "ZA": (("ZAR", "1900-01-01"),),
+}
+# Home venues that quote in a minor unit (London pence GBX, Johannesburg cents ZAc, Tel Aviv agorot ILA): the quote
+# carries the unit, so a home line there keeps its country's currency as key but decides no trading currency.
+MINOR_UNIT_VENUES = frozenset({"XLON", "XJSE", "XTAE"})
+# Operating MICs that quote every instrument in one currency (Pythia-authored, from each venue's trading rules): the
+# German exchanges and Vienna trade foreign shares, receipts and ETFs in euros, the US exchanges and OTC Markets in
+# dollars. A line there has a decided trading currency; elsewhere FIRDS gives only the notional one.
+SINGLE_CURRENCY_VENUES = {**dict.fromkeys(("XETR", "XFRA", "XSTU", "XMUN", "XDUS", "XHAM", "XHAN", "XBER", "TGAT", "XWBO"),
+                                          "EUR"),
+                          **dict.fromkeys(("XNAS", "XNYS", "XCBO", "OTCM"), "USD")}
+# Nasdaq Stockholm and Copenhagen write a share class after a space (`VOLV B`); OpenFIGI glues it on (`VOLVB`).
+# Helsinki writes it glued (`KESKOB`), as Yahoo does.
+SPACED_CLASS_VENUES = frozenset({"XSTO", "XCSE"})
+US_EXCHANGE_MIC = {"UN": "XNYS", "UW": "XNAS", "UQ": "XNAS", "UR": "XNAS", "UA": "XASE", "UP": "ARCX"}
+# Main OpenFIGI exchange code per operating MIC (derived from micCode-qualified answers).
+MAIN_EXCH_CODE = {
+    "XAMS": "NA", "XPAR": "FP", "XBRU": "BB", "XLIS": "PL", "XMIL": "IM", "XETR": "GY", "XFRA": "GF",
+    "XSTO": "SS", "XHEL": "FH", "XCSE": "DC", "XOSL": "NO", "BMEX": "SQ", "XMAD": "SQ", "XWAR": "PW",
+    "XWBO": "AV", "XLON": "LN", "XSWX": "SE", "XDUB": "ID",
+}
+# Venue policy (Pythia-authored). Pan-European venues that trade shares and ETFs listed
+# elsewhere: lit and dark MTFs, request-for-quote platforms, systematic internalisers and
+# OTFs, by operating MIC. They are not where an instrument lists, so their lines are left
+# out unless one is the security's only market. Every other FIRDS venue stays, including
+# the German regional exchanges and Tradegate.
+TRADING_ONLY_VENUES = frozenset({
+    "CCXE", "CCRM",  # Cboe Europe (MTF and regulated market books)
+    "AQEU",  # Aquis Exchange Europe
+    "TQEX",  # Turquoise Europe
+    "ITGL",  # Posit
+    "XIGG",  # Instinet Blockmatch Europe
+    "SGMU",  # Sigma X Europe
+    "OCXE",  # OneChronos Markets Europe
+    "TPIC", "ICOT",  # TP ICAP EU MTF and ICAP EU OTF
+    "TWEU",  # Tradeweb EU
+    "BTFE",  # Bloomberg Trading Facility
+    "MANL",  # MarketAxess NL
+    "UBSL", "CREM", "XDNB", "AACA",  # systematic internalisers: UBS, Credem, DNB, Crédit Agricole CIB
+    "TSAF", "AURB",  # OTFs: TSAF, Aurel
+})
+# Auxiliary segments (midpoint, off-book, auction) collapse onto the operator's lit segment.
+LIT_SEGMENT = {
+    "DSTO": "XSTO", "MSTO": "XSTO", "PSTO": "XSTO", "DHEL": "XHEL", "MHEL": "XHEL", "PHEL": "XHEL",
+    "DCSE": "XCSE", "MCSE": "XCSE", "PCSE": "XCSE", "XEMA": "XETA", "XETU": "XETA", "FRAU": "FRAA",
+    "DMAD": "XMAD", "WBMA": "WBAH", "XPMC": "XPAR", "XAMC": "XAMS",
+}
+LSE_ORDER_BOOK = re.compile(r"^0[0-9A-Z]{3}$")
+CURRENCIES = frozenset("EUR USD GBP GBX CHF SEK NOK DKK PLN CZK HUF JPY HKD CAD AUD".split())
+CORPORATE_ACTION = re.compile(r"z\.\s?Verk|Andienungs|\bBTA\b|\bBUY ?BACK\b", re.IGNORECASE)
+RETIRED_REGISTRATION = frozenset({"RETIRED", "ANNULLED", "DUPLICATE", "MERGED"})
+NAME_PREFERENCE = (
+    "ALTERNATIVE_LANGUAGE_LEGAL_NAME",
+    "PREFERRED_ASCII_TRANSLITERATED_LEGAL_NAME",
+    "AUTO_ASCII_TRANSLITERATED_LEGAL_NAME",
+)
+# Legal-form and programme tokens only. Words such as GROUP or HOLDING stay: dropping
+# them links "NN Group N.V." to "NN Inc" and "Ferrari Group PLC" to "Ferrari N.V.".
+_LEGAL_FORM = re.compile(
+    r"\b(INC|INCORPORATED|CORP|CORPORATION|LTD|LIMITED|PLC|SA|S A|AG|NV|N V|SE|S E|LLC|LP|L P|"
+    r"CLASS [A-Z]|CL [A-Z]|ADR|ADS|SPONSORED|UNSPONSORED)\b"
+)
+MIN_NAME_KEY = 5
+
+
+def latin(text: str) -> bool:
+    return all(unicodedata.name(ch, "").startswith("LATIN") for ch in text if ch.isalpha())
+
+
+def display_name(legal_name: str, names: tuple[tuple[str, str, str | None], ...]) -> tuple[str, str]:
+    """Pick a Latin-script issuer name from typed GLEIF names.
+
+    Previous and trading names are never used: the first Latin "other name" can
+    be a former name (the audit found TREMOR for Nexxen).
+    """
+    if latin(legal_name):
+        return legal_name, "legal_name"
+    for wanted in NAME_PREFERENCE:
+        for name, kind, _language in names:
+            if kind == wanted and latin(name):
+                return name, wanted.lower()
+    return legal_name, "legal_name_non_latin"
+
+
+# Re-casing an all-capitals name: legal forms in their usual spelling, particles lower case after the
+# first word, and short common words that are not acronyms.
+_FORMS = {"INC": "Inc", "CORP": "Corp", "CO": "Co", "LTD": "Ltd", "LLC": "LLC", "PLC": "PLC", "HLDGS": "Hldgs",
+          "SPA": "SpA", "KGAA": "KGaA", "GMBH": "GmbH", "OYJ": "Oyj", "PTE": "Pte", "BHD": "Bhd", "TR": "Tr"}
+_PARTICLES = frozenset("OF AND THE FOR DE DU DES DER DEN DI DA DEL LA LE VAN VON ET EN AT ON IN".split())
+_WORDS = frozenset("AIR ART BAY BIG BIO CAR GAS ICE INN NET NEW OIL ONE PAY RED SEA SKY SUN TOP TWO WAY".split())
+# Brands whose casing no rule derives.
+_BRANDS = {"JPMORGAN": "JPMorgan", "EBAY": "eBay", "ISHARES": "iShares", "PAYPAL": "PayPal", "BLACKROCK": "BlackRock",
+           "RELX": "RELX"}
+_WORDLIKE = re.compile(r"[^AEIOUY]{0,2}(?:[AEIOUY]+[^AEIOUY]{0,2})+")  # SHELL, META; not ASML or IMCD
+# SEC company titles end in a state or filer marker (" /DE/", " /FI", "INC/", "/NEW/", " DE") or "/ADR";
+# "SA/NV" stays.
+_SEC_SUFFIX = re.compile(r"(?:\s+/\s*[A-Z]{2,3}/?|/\s*(?:[A-Z]{2,3}/)?|\s*/\s*AD[RS]S?|\s+DE)\s*$")
+
+
+def sec_name(title: str) -> str:
+    """A SEC company title without its state, filer and ADR markers (" /DE/", "/CAN/", "/ADR")."""
+    return _SEC_SUFFIX.sub("", title).strip() or title
+
+
+def display_case(name: str, tickers: frozenset[str] = frozenset(), *, sec: bool = False) -> str:
+    """A readable display name: an SEC title's state and ADR markers dropped ("/DE/"), and an all-capitals name
+    re-cased ("ASML HOLDING N.V." with ticker ASML -> "ASML Holding N.V."). Mixed-case names keep their
+    case. Kept upper: dotted forms (N.V., S.A.), the issuer's tickers that are not words (ASML, not
+    SHELL), words without a vowel and short words that are not common words (BP, KPN, ING, NN)."""
+    if sec:
+        name = sec_name(name)
+    if name != name.upper():
+        return name
+
+    def word(token: str, first: bool) -> str:
+        plain = re.sub(r"[\W_]", "", token)
+        if plain in _BRANDS:
+            return token.replace(plain, _BRANDS[plain])
+        if (not plain.isalpha() or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", token)
+                or (plain in tickers and not _WORDLIKE.fullmatch(plain))):
+            return token
+        if plain in _FORMS:
+            return token.replace(plain, _FORMS[plain])
+        if plain in _PARTICLES:
+            return token.capitalize() if first else token.lower()
+        if not re.search(r"[AEIOUYÆØŒ]", _unaccented(plain)) or (len(plain) <= 3 and plain not in _WORDS):
+            return token
+        # Any capital letter, not only ASCII: "NESTLÉ" -> "Nestlé", "MØLLER" -> "Møller".
+        cased = re.sub(r"[^\W\d_]+(?:'[^\W\d_]+)?", lambda part: part[0].capitalize(), token)
+        cased = cased.replace("i\u0307", "i")  # Turkish dotted İ lower-cases to i + a combining dot
+        return re.sub(r"^(Mc|[OD]')([a-z])", lambda part: part[1] + part[2].upper(), cased)
+
+    parts = re.split(r"([\s/-]+)", name)
+    return "".join(part if index % 2 else word(part, index == 0) for index, part in enumerate(parts))
+
+
+def normalized_name(text: str) -> str:
+    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().upper()
+    folded = re.sub(r"[^A-Z0-9 ]", " ", folded.replace("&", " AND "))
+    return " ".join(_LEGAL_FORM.sub(" ", folded).split())
+
+
+def firds_kind(cfi: str) -> str:
+    """Security kind from the CFI code: depositary receipt (ED), exchange-traded fund (CE) or share."""
+    return {"ED": "dr", "CE": "etf"}.get(cfi[:2], "share")
+
+
+def lit_segment(mic: str) -> str:
+    return LIT_SEGMENT.get(mic, mic)
+
+
+def _unaccented(text: str) -> str:
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def country_currency(country: str | None, as_of: str) -> str | None:
+    """The currency of a country on a day (`COUNTRY_CURRENCY`), or None for a country the table does not hold."""
+    current = [code for code, start in COUNTRY_CURRENCY.get(country or "", ()) if start <= as_of]
+    return current[-1] if current else None
+
+
+def home_ticker(ticker: str, mic: str | None = None) -> str:
+    """OpenFIGI writes home tickers the Bloomberg way: a padding slash (`BP/`) and a slash before a share class
+    (`BT/A`, `RCI/B`). The line keeps `BP`, and the class after `-` as SEC tickers do (`RCI-B`, Yahoo `RCI-B.TO`).
+    Hong Kong writes its numeric codes with four digits (`0011`, not `11`)."""
+    ticker = (ticker.rstrip("/") or ticker).replace("/", "-")
+    return ticker.zfill(4) if mic == "XHKG" and ticker.isdigit() else ticker
+
+
+def exchange_ticker(root: str, klass: str | None, operating_mic: str | None) -> str | None:
+    """The ticker as the venue writes a share class: `VOLV B` on Nasdaq Nordic, else None (keep the source's)."""
+    return f"{root} {klass}" if klass and operating_mic in SPACED_CLASS_VENUES else None
+
+
+def split_ticker(ticker: str | None) -> tuple[str | None, str | None]:
+    """OpenFIGI writes share classes as `BRK/B` or `ABC A`; SEC as `BRK-B`."""
+    if not ticker:
+        return None, None
+    match = re.match(r"^(.+?)[ /-]([A-Z0-9]{1,3})$", ticker)
+    return (match.group(1), match.group(2)) if match else (ticker, None)
+
+
+def split_glued_class(ticker: str, fisn: str | None) -> tuple[str, str] | None:
+    """Nordic tickers glue the class on (`NCCA`); the FISN reveals it: `…/SH A`, or in Copenhagen `…/B Aktie`."""
+    match = re.search(r"/(?:(?:SH|PREF|PRF) ([A-Z])\b|([A-Z]) AKTIE\b)", (fisn or "").upper())
+    klass = match and (match.group(1) or match.group(2))
+    if klass and len(ticker) > 2 and ticker.endswith(klass):
+        return ticker[:-1], klass
+    return None
+
+
+def currency_suffixed(ticker: str) -> bool:
+    """MTF lines such as `ADYENEUR` repeat the ticker with a trading-currency suffix."""
+    return len(ticker) > 4 and ticker[-3:] in CURRENCIES
+
+
+def pick_figi_row(rows: list[dict], operating_mic: str) -> tuple[dict | None, str]:
+    """Choose one OpenFIGI answer row for a venue: main exchange code, no currency-suffixed tickers."""
+    if not rows:
+        return None, "no_match"
+    if len(rows) == 1:
+        return rows[0], "single"
+    main = MAIN_EXCH_CODE.get(operating_mic)
+
+    def rank(row: dict) -> tuple:
+        ticker = row.get("ticker") or ""
+        return (
+            row.get("exchCode") != main,
+            currency_suffixed(ticker),
+            row.get("marketSector") not in (None, "Equity"),
+            len(ticker),
+            ticker,
+            row.get("figi") or "",
+        )
+
+    return sorted(rows, key=rank)[0], "multi_row_ranked"
+
+
+def home_row(isin: str, fanout: list[dict]) -> tuple[str, dict] | None:
+    """An OpenFIGI line on the home exchange of a non-EEA ISIN's country, outside FIRDS: (home MIC, row)."""
+    country = isin[:2]
+    if country not in HOME or country in EEA:
+        return None
+    codes, home_mic = HOME[country]
+    home = [r for r in fanout if r.get("exchCode") in codes and r.get("ticker") and not LSE_ORDER_BOOK.match(r["ticker"])]
+    if not home:
+        return None
+    row = sorted(home, key=lambda r: (codes.index(r["exchCode"]), r.get("ticker") or ""))[0]
+    return home_mic or US_EXCHANGE_MIC[row["exchCode"]], row
+
+
+def also_us_listed(fanout: list[dict], share_class_figi: str | None) -> bool:
+    return any(
+        r.get("exchCode") in US_EXCHANGE_MIC and (share_class_figi is None or r.get("shareClassFIGI") == share_class_figi)
+        for r in fanout
+    )
+
+
+def retired(entity_status: str | None, registration_status: str | None) -> bool:
+    """GLEIF no longer registers the entity as it was: inactive, or its LEI retired, merged, annulled or a duplicate."""
+    return entity_status == "INACTIVE" or (registration_status or "") in RETIRED_REGISTRATION
+
+
+def admission_status(
+    *,
+    as_of: str,
+    termination: str | None,
+    full_name: str | None,
+    cfi: str,
+    entity_status: str | None,
+    registration_status: str | None,
+    venue_count: int,
+    has_transparency: bool | None,
+    has_figi: bool | None,
+) -> tuple[str, list[str]]:
+    """Activity of one FIRDS admission: active, suspect (demote) or inactive (dead).
+
+    FIRDS rarely sets termination dates, so the audit's signals are combined:
+    corporate-action lines, retired issuers, FITRS absence and OpenFIGI silence.
+    A source the build omits (`None`) says nothing either way.
+    """
+    dead: list[str] = []
+    doubt: list[str] = []
+    if termination and termination <= as_of:
+        dead.append("terminated")
+    if CORPORATE_ACTION.search(full_name or ""):
+        (dead if has_figi is False else doubt).append("corporate_action_line")
+    elif cfi.startswith("ESXX") and has_figi is False:
+        dead.append("unclassified_line_without_figi")
+    if retired(entity_status, registration_status):
+        dead.append("issuer_lei_retired")
+    if dead:
+        return "inactive", dead
+    if has_figi is False:
+        doubt.append("no_openfigi_line")
+    if has_transparency is False:
+        doubt.append("no_transparency_result")
+    if registration_status == "LAPSED" and venue_count == 1:
+        doubt.append("lapsed_lei_single_venue")
+    if "corporate_action_line" in doubt or (has_figi is False and (has_transparency is False or "lapsed_lei_single_venue" in doubt)):
+        return "suspect", doubt
+    return "active", doubt
+
+
+def sec_row_class(security_type2: str | None, ticker: str) -> str:
+    """Classify a SEC ticker line; non-share lines stay but are labelled, never merged."""
+    mapped = {
+        "Common Stock": "share", "REIT": "share", "Partnership Shares": "share", "Tracking Stk": "share",
+        "Depositary Receipt": "dr", "Preference": "preferred", "Warrant": "warrant", "Right": "right",
+        "Unit": "unit", "Mutual Fund": "fund", "ETP": "fund", "Closed-End Fund": "fund",
+    }.get(security_type2 or "")
+    if mapped:
+        return mapped
+    if re.search(r"-(WS|WT|W)$", ticker):
+        return "warrant"
+    if re.search(r"-(U|UN)$", ticker):
+        return "unit"
+    if re.search(r"-(R|RT)$", ticker):
+        return "right"
+    if re.search(r"-P[A-Z]*$", ticker):
+        return "preferred"
+    return "other" if security_type2 else "unknown"

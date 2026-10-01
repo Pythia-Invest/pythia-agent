@@ -11,8 +11,12 @@ export function useTopBarSelection() {
   const query = useQuery({
     enabled: !changing,
     queryKey: deskKeys.topBar,
-    queryFn: ({ signal }) => api.topBar(signal),
-    staleTime: 0,
+    // No abort signal: a remount joins the running check instead of aborting
+    // it and re-issuing the same native widget read, which admission refuses
+    // (429) while the cancelled copy finishes. Focus bursts within 5 s share
+    // one check; the 15 s recheck is unchanged (ADR 0036).
+    queryFn: () => api.topBar(),
+    staleTime: 5_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchInterval: 15_000,

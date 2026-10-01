@@ -1,5 +1,6 @@
 """Shared source selection/cache regressions; source fixtures are synthetic only."""
 import copy
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -7,13 +8,13 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 from importlib import import_module
-from concurrent.futures import ThreadPoolExecutor
+import sqlite3
 import tempfile
-import threading
 import unittest
+import unittest.mock
 
-from market_data_read_fixtures import Backend, CRITERIA, SOURCE_ISSUE, Sources, SUBJECT, request, run_read, wire
-from test_market_data_identity import native
+from market_data_read_fixtures import Backend, CRITERIA, SOURCE_ISSUE, Sources, SUBJECT, read_module, request, run_read, wire
+from market_data_fixture import PACKAGE, PLATFORM, TOOLKIT, native
 
 
 class SharedReadsTests(unittest.TestCase):
@@ -22,30 +23,33 @@ class SharedReadsTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.sources = Sources()
         self.backend = self.sources.backend(self.directory.name)
-        self.backend.handle({"action": "set_preferences", "operation": "history", "providers": ["ibkr", "synthetic_other"]})
 
     def price_calls(self):
         return [call for call in self.sources.calls if call[1] in ("latest", "history")]
 
-    def test_scoped_orders_preserve_existing_defaults_and_pinned_intent(self):
-        first = run_read(self.backend)
-        scope = {"subject_kind": "instrument", "interval": {"kind": "day", "count": 1}}
-        changed = self.backend.handle({"action": "set_preferences", "operation": "history", "providers": ["synthetic_other"], "preference_scope": scope})
-        self.assertEqual(changed["data"]["orders"]["history"], ["ibkr", "synthetic_other"])
-        self.assertEqual(run_read(self.backend)["provenance"]["provider"], "synthetic_other")
-        pinned = request({"kind": "source", "series_id": first["series"]["id"]})
-        self.assertEqual(run_read(self.backend, first["series"], read_request=pinned)["provenance"]["provider"], "ibkr")
-        reopened = self.sources.backend(self.directory.name)
-        self.assertEqual(run_read(reopened)["provenance"]["provider"], "synthetic_other")
-        reopened.preferences.set("history", [], scope)
-        self.assertEqual(run_read(reopened)["provenance"]["provider"], "ibkr")
-        self.assertEqual(first["series"]["provider_ref"]["provider"], "ibkr")
+    def test_retired_source_choice_actions_are_unknown(self):
+        for action in ("get_preferences", "set_preferences"):
+            with self.assertRaises(wire.WireError):
+                self.backend.handle({"action": action})
 
     def test_window_compatibility_is_checked_before_observation_execution(self):
         self.sources.definitions["ibkr"][0]["read_support"] = {"operations": ["history"], "window_kind": "instant"}
         value = run_read(self.backend)
         self.assertEqual(value["provenance"]["provider"], "synthetic_other")
         self.assertEqual([provider for provider, _, _ in self.price_calls()], ["synthetic_other"])
+
+    def test_a_utc_daily_series_serves_a_dated_window_as_whole_utc_days(self):
+        series = copy.deepcopy(self.sources.definitions["ibkr"][0])
+        series.update(timezone="UTC", read_support={"operations": ["history"], "window_kind": "instant", "max_span_seconds": 367 * 86400})
+        dated = request()
+        # A date-to-date year across 29 February.
+        dated["window"] = {"start": {"kind": "session_date", "value": "2027-09-28"}, "end": {"kind": "session_date", "value": "2028-09-28"}}
+        days = read_module.utc_days(dated, series)
+        self.assertEqual(days["window"], {"start": {"kind": "instant", "value": "2027-09-28T00:00:00+00:00"},
+                                          "end": {"kind": "instant", "value": "2028-09-28T23:59:59+00:00"}})
+        self.assertTrue(read_module.supports_read(series, days))
+        # Exchange-dated series keep their session dates.
+        self.assertIs(read_module.utc_days(dated, {**series, "timezone": "America/New_York"}), dated)
 
     def test_coordinated_reads_deduplicate_and_reuse_qualified_metadata(self):
         item = {"request": request(), "criteria": CRITERIA}
@@ -84,7 +88,7 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(self.price_calls(), [])
 
     def test_close_criteria_preserve_measurement_distinction(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         series = self.sources.definition("ibkr", "close")
         series.update(measurement="close", shape="scalar", fields={"value": series["fields"]["close"]})
         wire.validate("series", series)
@@ -138,7 +142,6 @@ class SharedReadsTests(unittest.TestCase):
 
     def test_broker_requires_explicit_intent_for_reads_and_discovery(self):
         self.sources.policies["ibkr"] = {"requires_broker_app": True}
-        self.backend.preferences.set("history", [])
         result = run_read(self.backend)
         self.assertEqual(result["series"]["provider_ref"]["provider"], "synthetic_other")
         self.assertTrue(all(call[0] == "synthetic_other" for call in self.sources.calls))
@@ -156,9 +159,13 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(self.backend.series(native, CRITERIA)["data"][0]["provider_ref"], native)
         pinned = run_read(self.backend, direct["series"], read_request=request({"kind": "source", "series_id": direct["series"]["id"]}))
         self.assertEqual(pinned["outcome"], "ok")
-        self.backend.preferences.set("history", ["ibkr"])
-        self.assertEqual(run_read(self.backend)["series"]["provider_ref"], native)
-        self.assertEqual(self.backend.series(SUBJECT, CRITERIA)["data"][0]["provider_ref"], native)
+
+    def test_a_broker_source_the_investor_names_serves_subject_reads_as_it_serves_the_page(self):
+        self.sources.policies["ibkr"] = {"requires_broker_app": True}
+        self.sources.named = ["ibkr"]  # source_order = ibkr: core puts it first and the page reads it
+        self.assertEqual(run_read(self.backend)["provenance"]["provider"], "ibkr")
+        self.assertEqual([item["provider_ref"]["provider"] for item in self.backend.series(SUBJECT, CRITERIA)["data"]],
+                         ["ibkr", "synthetic_other"])
 
     def test_source_cache_policy_bypasses_existing_hits_and_publication(self):
         run_read(self.backend)
@@ -170,37 +177,31 @@ class SharedReadsTests(unittest.TestCase):
         self.backend.cache.entries.clear()
         run_read(self.backend)
         self.assertEqual(len(self.backend.cache.entries), 0)
-        self.backend.preferences.set("history", ["synthetic_other"])
+        self.sources.order("synthetic_other", "ibkr")
         run_read(self.backend)
         run_read(self.backend)
         self.assertEqual(len([call for call in self.price_calls() if call[0] == "synthetic_other"]), 1)
 
-    def test_fresh_single_provider_read_has_no_saved_preference_revision(self):
+    def test_a_subject_read_needs_no_saved_choice(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
             sources.providers = ("ibkr",)
             backend = sources.backend(directory)
-            self.assertEqual(backend.preferences.get(), {"revision": 0, "orders": {"latest": [], "history": []}, "scopes": []})
             first = run_read(backend)
             self.assertEqual(first["outcome"], "ok")
             self.assertEqual(first["series"]["subject"], SUBJECT)
-            self.assertEqual(first["provenance"]["mapping_revision"], 1)
-            self.assertIsNone(first["selection"]["preference_revision"])
+            self.assertEqual(first["selection"]["reason"], "preference")
+            self.assertNotIn("preference_revision", first["selection"])
             wire.validate_read_result(first)
             self.assertEqual(run_read(backend), first)
             self.assertEqual(len([call for call in sources.calls if call[1] == "history"]), 1)
-            backend.preferences.set("history", ["ibkr"])
-            saved = run_read(backend)
-            self.assertEqual(saved["selection"]["preference_revision"], 1)
-            self.assertEqual(len([call for call in sources.calls if call[1] == "history"]), 2)
 
-    def test_preferences_follow_later_order_and_pinned_descriptor_survives_restart(self):
+    def test_reads_follow_cores_later_order_and_pinned_descriptor_survives_restart(self):
         first = run_read(self.backend)
         retained = copy.deepcopy(first)
         self.assertEqual(first["series"]["provider_ref"]["provider"], "ibkr")
         self.assertEqual(first["series"]["subject"], SUBJECT)
-        self.assertEqual(first["provenance"]["mapping_revision"], 1)
-        self.backend.handle({"action": "set_preferences", "operation": "history", "providers": ["synthetic_other", "ibkr"]})
+        self.sources.order("synthetic_other", "ibkr")
         second = run_read(self.backend)
         self.assertEqual(second["series"]["provider_ref"]["provider"], "synthetic_other")
         self.assertEqual(first, retained)
@@ -225,6 +226,33 @@ class SharedReadsTests(unittest.TestCase):
             self.assertIn(SOURCE_ISSUE, result["issues"])
             self.assertEqual(result["observations"], [])
 
+    def test_every_read_is_checked_and_an_unverified_source_is_labelled(self):
+        self.sources.unverified.add("ibkr")
+        result = run_read(self.backend)
+        self.assertEqual((result["outcome"], result["series"]["provider_ref"]["provider"]), ("ok", "ibkr"))
+        self.assertIn(("unverified_source", "warning"), [(item["code"], item["severity"]) for item in result["issues"]])
+        # An explicit reference (the Desk page and the agent read the one core chose) is checked too: core
+        # finds the subject it serves.
+        self.sources.checks.clear()
+        explicit = run_read(self.backend, read_request=request({"kind": "pythia", "subject": self.sources.refs["ibkr"]}))
+        self.assertEqual(explicit["outcome"], "ok")
+        self.assertEqual([(subject, ref["provider"], stated) for subject, ref, stated in self.sources.checks],
+                         [(None, "ibkr", {"currency": "USD", "venue": "VENUE_A"})])
+
+    def test_an_enforced_difference_passes_the_source_over_and_a_failing_check_never_fails_the_read(self):
+        self.sources.refuse.add("ibkr")
+        result = run_read(self.backend)
+        self.assertEqual(result["series"]["provider_ref"]["provider"], "synthetic_other")
+        self.assertEqual([provider for provider, _, _ in self.price_calls()], ["synthetic_other"])
+        self.sources.refuse.add("synthetic_other")
+        self.backend.cache.entries.clear()
+        self.sources.calls.clear()
+        refused = run_read(self.backend)
+        self.assertEqual((refused["outcome"], refused["issues"][0]["code"]), ("error", "binding_conflict"))
+        self.assertEqual(self.price_calls(), [])
+        broken = self.sources.backend(self.directory.name, check_read=unittest.mock.Mock(side_effect=RuntimeError))
+        self.assertEqual(run_read(broken)["outcome"], "ok")
+
     def test_series_ambiguity_and_qualifiers_do_not_choose_arbitrary_listing(self):
         extra = self.sources.definition("ibkr", "second-route")
         extra["route"] = "DIRECT"
@@ -234,15 +262,13 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(self.price_calls(), [])
         narrowed = run_read(self.backend, criteria={**CRITERIA, "route": "SMART"})
         self.assertEqual(narrowed["series"]["id"], self.sources.definitions["ibkr"][0]["id"])
-        self.backend.preferences.set("history", [])
         self.sources.calls.clear()
         result = run_read(self.backend)
         self.assertEqual(result["issues"][0]["code"], "ambiguous_series")
         self.assertEqual(self.sources.calls, [])
 
     def test_too_many_bindings_fail_before_any_subset_is_queried(self):
-        base = self.backend.identity.bindings(SUBJECT)["mappings"][0]
-        self.backend.identity.extra = [{**copy.deepcopy(base), "id": f"mapping:extra-{index}", "provider_ref": native(400 + index)} for index in range(8)]
+        self.sources.extra = [native(400 + index) for index in range(8)]
         result = run_read(self.backend)
         self.assertEqual(result["issues"][0]["code"], "ambiguous_series")
         self.assertEqual(self.sources.calls, [])
@@ -260,6 +286,21 @@ class SharedReadsTests(unittest.TestCase):
             descriptor["fields"][field] = copy.deepcopy(descriptor["fields"]["close"])
         changed = run_read(backend, descriptor, read_request=request({"kind": "source", "series_id": descriptor["id"]}))
         self.assertEqual(changed["issues"][0]["code"], "invalid_response")
+
+    def test_explicit_reference_may_omit_qualifiers_the_source_adds(self):
+        # A page binding derived from open identifiers (ticker + MIC) carries no
+        # venue or currency; the source's own series still answers it.
+        backend = self.sources.backend(self.directory.name, canonical=False)
+        self.sources.ready["synthetic_other"] = False
+        qualified = self.sources.refs["ibkr"]
+        bare = {key: value for key, value in qualified.items() if key != "qualifiers"}
+        result = run_read(backend, read_request=request({"kind": "pythia", "subject": bare}))
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["series"]["provider_ref"], qualified)
+        # Every qualifier the reference does carry must still match.
+        other = {**bare, "qualifiers": {**qualified["qualifiers"], "venue": "VENUE_B"}}
+        result = run_read(backend, read_request=request({"kind": "pythia", "subject": other}))
+        self.assertEqual(result["issues"][0]["code"], "invalid_response")
 
     def test_cache_hit_rechecks_availability_config_and_caller_scope(self):
         descriptor = self.sources.definitions["ibkr"][0]
@@ -279,7 +320,7 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(len(self.price_calls()), 3)
 
     def test_canonical_secret_replacement_invalidates_cache_and_inflight_read(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         with tempfile.TemporaryDirectory() as root:
             store = Path(root) / "secrets.json"
             store.write_text('{"synthetic":"first"}')
@@ -321,7 +362,7 @@ class SharedReadsTests(unittest.TestCase):
                         self.assertNotIn(b'"synthetic":"other"', file.read_bytes())
 
     def test_unsafe_or_missing_secret_revision_bypasses_cache_without_blocking_reads(self):
-        selection = import_module(f"{wire.__package__}.selection")
+        selection = import_module(f"{PACKAGE}.selection")
         with tempfile.TemporaryDirectory() as root:
             store = Path(root) / "secrets.json"
             modules = {"gateway.session_context": SimpleNamespace(get_session_env=lambda *_: "api_server"),
@@ -351,27 +392,17 @@ class SharedReadsTests(unittest.TestCase):
                         elif store.exists() or store.is_symlink():
                             store.unlink()
                 with patch.object(Path, "lstat", side_effect=PermissionError):
-                    self.assertIsNone(selection.canonical_access_revision())
+                    self.assertIsNone(import_module(f"{PLATFORM}.access").canonical_access_revision())
 
-    def test_changes_during_read_reject_stale_cache_publication(self):
-        for change in ("preferences", "identity", "access"):
-            sources = Sources()
-            with tempfile.TemporaryDirectory() as directory:
-                backend = sources.backend(directory)
-                backend.preferences.set("history", ["ibkr", "synthetic_other"])
-                def mutate():
-                    if change == "preferences":
-                        backend.preferences.set("history", ["synthetic_other", "ibkr"])
-                    elif change == "identity":
-                        with backend.identity.database.transaction() as db:
-                            db.execute("UPDATE metadata SET value=value+1 WHERE key='generation'")
-                    else:
-                        sources.access["connection"] = "new-endpoint"
-                sources.after_read = mutate
-                result = run_read(backend)
-                self.assertEqual(result["issues"][0]["code"], "selection_changed")
-                self.assertEqual(len(backend.cache.entries), 0)
-                self.assertTrue(all(call[0] == "ibkr" for call in sources.calls))
+    def test_access_change_during_read_rejects_stale_cache_publication(self):
+        sources = Sources()
+        with tempfile.TemporaryDirectory() as directory:
+            backend = sources.backend(directory)
+            sources.after_read = lambda: sources.access.update(connection="new-endpoint")
+            result = run_read(backend)
+            self.assertEqual(result["issues"][0]["code"], "selection_changed")
+            self.assertEqual(len(backend.cache.entries), 0)
+            self.assertTrue(all(call[0] == "ibkr" for call in sources.calls))
 
     def test_completed_only_filters_partial_bars_without_false_freshness(self):
         def mixed(result):
@@ -389,70 +420,90 @@ class SharedReadsTests(unittest.TestCase):
         self.assertEqual(result["coverage"]["status"], "partial")
         self.assertEqual([call[0] for call in self.price_calls()], ["ibkr"])
 
-    def test_preference_snapshot_is_coherent_under_concurrent_updates(self):
-        self.backend.preferences.set("history", [])
-        initial = self.backend.preferences.get()["revision"]
-        barrier = threading.Barrier(2)
-        def writer():
-            barrier.wait(timeout=3)
-            for index in range(40):
-                self.backend.preferences.set("history", ["ibkr"] if index % 2 == 0 else [])
-        def reader():
-            barrier.wait(timeout=3)
-            for _ in range(80):
-                value = self.backend.preferences.get()
-                expected = ["ibkr"] if (value["revision"] - initial) % 2 else []
-                self.assertEqual(value["orders"]["history"], expected)
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            tasks = [pool.submit(writer), pool.submit(reader)]
-            for task in tasks:
-                task.result(timeout=10)
-
 
 class BackendMutationTests(unittest.TestCase):
-    def test_backend_mutations_use_source_evidence_and_expose_repair_overrides(self):
-        from test_market_data_identity import CautiousOldRule, identity
+    def test_a_subject_core_does_not_route_is_unresolved_without_source_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
-            sources.providers = ("ibkr",)
-            store = identity.IdentityStore(directory, rules=CautiousOldRule())
-            backend = Backend(directory, identity=store, source_call=sources.call,
-                              source_projection=sources.project, access_scope=lambda: sources.access)
-            backend.handle({"action": "search", "provider": "ibkr", "query": "synthetic"})
-            backend.handle({"action": "details", "native_ref": sources.refs["ibkr"]})
-            with store.database.connection() as db:
-                self.assertEqual(db.execute("SELECT COUNT(*) FROM subjects").fetchone()[0], 0)
-            original = backend.handle({"action": "resolve_save", "native_ref": sources.refs["ibkr"], "scope": "instrument"})["data"]
-            self.assertEqual(original["mapping"]["status"], "confirmed")
-            direct = {**copy.deepcopy(sources.refs["ibkr"]), "native_id": "399"}
-            direct["qualifiers"]["route"] = "DIRECT"
-            sources.refs["ibkr"] = direct
-            pending = backend.handle({"action": "resolve_save", "native_ref": direct, "scope": "instrument"})["data"]
-            self.assertEqual(pending["mapping"]["status"], "candidate")
-            fixed = backend.handle({"action": "apply_override", "mapping_id": pending["mapping"]["id"], "effect": "positive",
-                                    "evidence_ids": pending["mapping"]["evidence_ids"], "target": original["mapping"]["target"]})
-            self.assertEqual(fixed["effect"], "local_write")
-            override_id = fixed["data"]["mapping"]["active_override"]["id"]
-            inspected = backend.handle({"action": "inspect_identity", "mapping_id": pending["mapping"]["id"]})["data"]
-            self.assertEqual(inspected["overrides"][0]["id"], override_id)
-            self.assertEqual(len(inspected["history"]), 2)
-            revoked = backend.handle({"action": "revoke_override", "override_id": override_id})
-            self.assertEqual(revoked["data"]["mapping"]["status"], "candidate")
-            refreshed = backend.handle({"action": "refresh_identity", "mapping_id": pending["mapping"]["id"]})
-            self.assertEqual(refreshed["effect"], "local_write")
-            current = sources.backend(directory, canonical=False)
-            repaired = current.handle({"action": "inspect_repair"})
-            self.assertEqual(repaired["data"]["pending"], [])
-            with self.assertRaises(wire.WireError):
-                backend.handle({"action": "apply_override", "mapping_id": pending["mapping"]["id"], "effect": "positive",
-                                "evidence_ids": [{"authority": "source_asserted"}], "target": original["mapping"]["target"]})
-            with self.assertRaises(wire.WireError):
-                backend.handle({"action": "resolve_save", "native_ref": direct, "scope": "instrument", "evidence": []})
+            for reason, words in ((None, "No installed source"), ("unknown_subject", "pythia_find"),
+                                  ("no_reference_data", "no readable reference data"), ("core_unavailable", "not loaded")):
+                backend = Backend(directory, subjects=lambda _id, reason=reason: {"refs": [], "reason": reason},
+                                  source_call=sources.call, source_projection=sources.project, access_scope=lambda: sources.access)
+                issue = run_read(backend)["issues"][0]
+                self.assertEqual(issue["code"], "unresolved_identity")
+                self.assertIn(words, issue["message"])
+            issuer = {"kind": "issuer", "id": "issuer:lei:" + "A" * 18 + "00"}
+            result = run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": issuer}))
+            self.assertEqual(result["issues"][0]["code"], "issuer_subject")
+            self.assertEqual(sources.backend(directory).handle({"action": "series", "binding": issuer})["issues"][0]["code"],
+                             "issuer_subject")
+            self.assertEqual(sources.calls, [])
+            with self.assertRaises(wire.WireError):  # retired subject kinds are not subjects
+                run_read(sources.backend(directory), read_request=request({"kind": "pythia", "subject": {"kind": "instrument", "id": "instrument:x"}}))
+
+    def choices_file(self, path, scoped_kind):
+        os.chmod(path.parent, 0o700)
+        with closing(sqlite3.connect(path)) as db, db:
+            db.executescript("""CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL);
+                CREATE TABLE scoped_source_preferences (operation TEXT NOT NULL, scope TEXT NOT NULL,
+                  providers TEXT NOT NULL, PRIMARY KEY(operation, scope));""")
+            db.execute("INSERT INTO source_preferences VALUES ('history', '[\"synthetic_other\"]')")
+            db.execute("INSERT INTO scoped_source_preferences VALUES ('latest', ?, '[\"coingecko\"]')",
+                       (json.dumps({scoped_kind: "crypto"}),))
+        path.chmod(0o600)
+        return path
+
+    def test_former_source_choices_are_set_aside_once_logged_and_not_applied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = self.choices_file(root / "preferences.sqlite3", "asset_class")
+            legacy = self.choices_file(root / "identity.sqlite3", "subject_kind")
+            sources = Sources()
+            with self.assertLogs(level="WARNING") as logged:
+                backend = sources.backend(directory)
+            self.assertEqual(len(logged.output), 2)
+            self.assertIn("source_order in settings.json", logged.output[0])
+            self.assertIn("{'history': ['synthetic_other']}, 1 scoped choices, 0 saved mappings and 0 overrides", logged.output[0])
+            self.assertFalse(store.exists() or legacy.exists())  # kept under a new name, never deleted
+            self.assertTrue((root / "preferences-retired.sqlite3").is_file())
+            self.assertTrue((root / "identity-retired.sqlite3").is_file())
+            self.assertEqual(run_read(backend)["provenance"]["provider"], "ibkr")  # core's order, not the old choice
+            with self.assertNoLogs(level="WARNING"):
+                sources.backend(directory)
+            # An empty store (every device's, in practice) is set aside without a warning.
+            empty = root / "empty"
+            empty.mkdir(mode=0o700)
+            with closing(sqlite3.connect(empty / "preferences.sqlite3")) as db:
+                db.execute("CREATE TABLE source_preferences (operation TEXT PRIMARY KEY, providers TEXT NOT NULL)")
+            with self.assertNoLogs(level="WARNING"):
+                sources.backend(str(empty))
+            self.assertTrue((empty / "preferences-retired.sqlite3").is_file())
+            # A file set aside earlier is never overwritten.
+            self.choices_file(root / "identity.sqlite3", "subject_kind")
+            with self.assertNoLogs(level="WARNING"):
+                sources.backend(directory)
+            self.assertTrue((root / "identity.sqlite3").is_file())
+
+    def test_a_former_identity_file_holding_only_mappings_and_overrides_is_logged_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            os.chmod(root, 0o700)
+            path = root / "identity.sqlite3"
+            with closing(sqlite3.connect(path)) as db, db:  # the tables of the retired store (ADR 0012), no source orders
+                db.executescript("CREATE TABLE mappings (id TEXT PRIMARY KEY, status TEXT NOT NULL);"
+                                 "CREATE TABLE overrides (id TEXT PRIMARY KEY, state TEXT NOT NULL);")
+                db.executemany("INSERT INTO mappings VALUES (?, 'active')", [("one",), ("two",)])
+                db.execute("INSERT INTO overrides VALUES ('only', 'active')")
+            path.chmod(0o600)
+            with self.assertLogs(level="WARNING") as logged:
+                Sources().backend(directory)
+            [line] = logged.output
+            self.assertIn("identity.sqlite3 is kept as identity-retired.sqlite3", line)
+            self.assertIn("{}, 0 scoped choices, 2 saved mappings and 1 overrides", line)
+            self.assertTrue((root / "identity-retired.sqlite3").is_file())
 
     def test_cache_bounds_expiry_detached_values_and_strict_fresh_bypass(self):
-        from importlib import import_module
-        from test_market_data_identity import PACKAGE
-        cache_type = import_module(f"{PACKAGE}.cache").ReadCache
+        cache_type = import_module(f"{TOOLKIT}.cache").ReadCache
         clock = [0]
         cache = cache_type(max_entries=1, max_bytes=1000, ttl_seconds=2, clock=lambda: clock[0])
         cache.put("a", {"value": "1.000"})
@@ -468,7 +519,6 @@ class BackendMutationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             sources = Sources()
             backend = sources.backend(directory)
-            backend.preferences.set("history", ["ibkr"])
             def unknown_freshness(result):
                 result["outcome"] = "partial"
                 result["requirements_satisfied"] = False

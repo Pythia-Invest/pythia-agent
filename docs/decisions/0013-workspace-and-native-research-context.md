@@ -218,7 +218,6 @@ and [Meilisearch typo rules](https://www.meilisearch.com/docs/resources/internal
 for the research behind this choice. Arbitrary abbreviations are intentionally
 removed in favor of predictable typo tolerance.
 
-
 ### Update recovery and the native checkpoint
 
 The production update from the pre-Workspace release exposed two distinct
@@ -241,3 +240,11 @@ It sends no prompt automatically. The user chooses whether to submit a message,
 then completes with its native session ID. Existing conversations retain their
 cached guidance and subsequent work should start in a new chat. An upstream offline
 session-preparation capability can be evaluated separately when supported.
+
+## Amendment (2026-09-29): mandates get a limits file
+
+[ADR 0044](0044-product-direction.md) keeps the workspace schema-free with one
+exception. A strategy that runs as a mandate gets a small machine-checked limits
+file next to its prose brief, so that code can enforce its limits. Exploratory
+strategies and all other research stay free-form. The implementing ADR defines
+the file.

@@ -1,0 +1,272 @@
+{
+  "as_of": "2026-09-28",
+  "note": "Grade each answer by hand against must_include and pitfalls; approximate expectations need checking against the filing. route is each question's expected Pythia calls, checked against the delivered tool schemas by runtime/test/python/test_agent_tools.py.",
+  "questions": [
+    {
+      "id": "P1",
+      "question": "What is ASML trading at right now in Amsterdam and on Nasdaq? Give each price in its own currency.",
+      "must_include": [
+        "Two separate lines: ASML @ Euronext Amsterdam (XAMS) in EUR, ASML @ Nasdaq (XNAS) in USD",
+        "Quote timestamps / market state for each",
+        "No silent FX conversion; if it compares, it states the FX rate used"
+      ],
+      "pitfalls": [
+        "Quoting only the Nasdaq line",
+        "Labelling the USD price as EUR or vice versa",
+        "Using ASML.AS vs ASML symbol confusion (Yahoo)"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "ASML"
+          }
+        },
+        {
+          "tool": "pythia_prices",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "question": "How did Heineken shares do over the past year?",
+      "must_include": [
+        "Heineken N.V. (HEIA, XAMS, ISIN NL0000009165) in EUR",
+        "1-year % price return with start/end prices and dates",
+        "Mentions dividends not included (price return) or includes total return explicitly"
+      ],
+      "pitfalls": [
+        "Using Heineken Holding (HEIO, NL0000008977) instead of Heineken N.V.",
+        "Using the US OTC ADR (HEINY) in USD"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Heineken"
+          }
+        },
+        {
+          "tool": "pythia_prices",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>",
+            "period": "1Y"
+          }
+        }
+      ]
+    },
+    {
+      "id": "I4",
+      "question": "What company is ISIN NL0000009165?",
+      "must_include": [
+        "Heineken N.V.",
+        "Ticker HEIA on Euronext Amsterdam, EUR"
+      ],
+      "pitfalls": ["Answering Heineken Holding N.V. (NL0000008977, HEIO)"],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "NL0000009165"
+          }
+        }
+      ]
+    },
+    {
+      "id": "F1",
+      "question": "Find ASML's latest ESEF annual report.",
+      "must_include": [
+        "FY2025 annual financial report (published ~Feb 2026)",
+        "Filing date and link to the ESEF package/report (filings.xbrl.org or AFM)",
+        "LEI 724500Y6DUVHQD6OXN27 used for lookup"
+      ],
+      "pitfalls": [
+        "Returning the SEC 20-F instead",
+        "Returning an older year's report"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "ASML"
+          }
+        },
+        {
+          "tool": "pythia_filings",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>",
+            "forms": ["ESEF"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "F3",
+      "question": "What is Apple's latest 10-K, and when was it filed?",
+      "must_include": [
+        "10-K for fiscal year ended 27 Sep 2025 (FY2025)",
+        "Filed ~31 Oct 2025",
+        "Accession number / sec.gov link",
+        "Notes FY2026 10-K not yet filed (as of Sep 2026)"
+      ],
+      "pitfalls": ["Picking a 10-Q or 8-K", "Claiming FY2026 10-K"],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Apple"
+          }
+        },
+        {
+          "tool": "pythia_filings",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>",
+            "forms": ["10-K"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "U1",
+      "question": "According to ASML's latest annual report, how much did revenue (total net sales) grow?",
+      "must_include": [
+        "FY2025 total net sales vs FY2024 (FY2024 = EUR 28,262.9m; FY2023 = EUR 27,558.5m)",
+        "Growth % computed from reported figures, in EUR",
+        "Source named: annual report (ESEF) or 20-F"
+      ],
+      "pitfalls": [
+        "Using FY2024 as 'latest'",
+        "Mixing USD and EUR",
+        "Using consensus/estimates instead of reported"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "ASML"
+          }
+        },
+        {
+          "tool": "esef_fundamentals",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "U2",
+      "question": "What was Apple's total revenue in its last fiscal year?",
+      "must_include": [
+        "FY2025 (ended 27 Sep 2025) net sales ~USD 416.2bn",
+        "Prior year FY2024 USD 391.0bn for context optional",
+        "Source: 10-K / SEC XBRL"
+      ],
+      "pitfalls": [
+        "Reporting TTM or calendar-year figures as FY",
+        "Using FY2024 as latest"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Apple"
+          }
+        },
+        {
+          "tool": "sec_fundamentals",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "question": "Give me a short company profile of Adyen.",
+      "must_include": [
+        "Adyen N.V., Dutch payments platform, HQ Amsterdam",
+        "Listed on Euronext Amsterdam (ADYEN, NL0012969182), EUR",
+        "Sector/industry, key facts from a tool (not memory only)"
+      ],
+      "pitfalls": [
+        "Pure memory answer with no tool evidence",
+        "Confusing OTC ADR ADYEY"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Adyen"
+          }
+        },
+        {
+          "tool": "pythia_instrument",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "K2",
+      "question": "Compare Solana and Ethereum's price performance over the past year.",
+      "must_include": [
+        "SOL and ETH 1y % change with start/end prices (USD) and dates",
+        "Clear winner"
+      ],
+      "pitfalls": [
+        "Wrong token (e.g. wrapped SOL, SOL on another chain)",
+        "Inconsistent dates between the two series"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Solana"
+          }
+        },
+        {
+          "tool": "pythia_prices",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>",
+            "period": "1Y"
+          }
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "question": "Do a quick research note on Heineken: identify the listed company, find its latest annual report, and give its latest annual revenue and 1-year share price performance.",
+      "must_include": [
+        "Heineken N.V., HEIA, XAMS, NL0000009165 (not Heineken Holding)",
+        "Latest annual report FY2025 (ESEF, published ~Feb 2026) with link",
+        "Revenue figure from that report in EUR (distinguish revenue vs net revenue)",
+        "1y price return in EUR with dates"
+      ],
+      "pitfalls": [
+        "Holding vs N.V.",
+        "Using a data-vendor revenue instead of the report",
+        "USD ADR"
+      ],
+      "route": [
+        {
+          "tool": "pythia_find",
+          "arguments": {
+            "query": "Heineken"
+          }
+        },
+        {
+          "tool": "pythia_filings",
+          "arguments": {
+            "subject_id": "<subject id from pythia_find>",
+            "kinds": ["annual"]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,201 @@
+"""Resolution-queue operations on the native tool registry (ADR 0037).
+
+`identity-queue` is a local read of open and settled questions.
+`identity-verdict` records one answer to a question: from the Desk it is the
+user's attestation, from a model tool call the agent's verdict; the transport
+decides which, never an argument. `settle` lets the rules resolver re-ask the
+join inside write operations, never on search or page reads. `surface` queues
+the reference build's questions about an instrument the investor or the agent
+touches, and the conflicts its evidence raises (a contested fact, a plugin's
+included, one plugin contradicting itself, and an answer the release
+contradicts), about a subject only the device holds too: a bounded, idempotent
+write on those reads (ADR 0044 A2). Ingest itself queues nothing.
+"""
+from __future__ import annotations
+
+import logging
+import sqlite3
+from datetime import date
+from typing import TYPE_CHECKING, Any
+
+from .identity import queue as questions
+from .identity import (
+    build_questions, conflicts, location, receipt_issuer, reference_package, schemes, search_device, store,
+)
+
+if TYPE_CHECKING:
+    from .identity_ops import Identity
+
+logger = logging.getLogger(__name__)
+REOPEN = "reopen"  # the Desk's undo of the user's answer to a build question; never the agent's
+RELEASE = "reference_release"  # identity.sqlite3 metadata: the reference build the rules last settled against
+NO_REFERENCE = "No reference data on this device yet."
+REMOVED = "The reference package was removed from this device. Install one to see this again."
+UNKNOWN_SUBJECT = "Unknown subject."
+ISSUE_CODES = {UNKNOWN_SUBJECT: "unknown_subject"}  # an issue asking again cannot help carries its own code
+# Any well-formed subject ID, of any kind: a residual may name an `index:` or `fx:` subject.
+SUBJECT_ID = {"type": "string", "minLength": 5, "maxLength": 370, "pattern": schemes.SUBJECT_ID.pattern.replace(r"\Z", "$")}
+
+QUEUE_SCHEMA = {
+    "name": "pythia_identity_queue",
+    "description": "List open identity questions: provider records the device could not place on a subject "
+                   "(residuals) and records that contradict the reference identifiers (conflicts). Filter by "
+                   "subject, plugin or kind. On an open question, agent_answer is the agent's suggestion awaiting "
+                   "the user's confirmation. With settled, also lists questions rules or the user settled. With "
+                   "item_id, returns one question in full: its record, candidates, evidence and earlier verdicts. "
+                   "Local only.",
+    "parameters": {"type": "object", "properties": {
+        "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "subject_id": SUBJECT_ID,
+        "plugin": {"type": "string", "minLength": 1, "maxLength": 128},
+        "kind": {"type": "string", "enum": ["residual", "conflict"]},
+        "settled": {"type": "boolean"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+        "additionalProperties": False},
+}
+VERDICT_SCHEMA = {
+    "name": "pythia_identity_verdict",
+    "description": "Answer one open identity question after reading it in full. A match names the relation and one of "
+                   "the question's candidates; 'unrelated' says the record is a different instrument than that "
+                   "candidate; 'none' that it is none of them; 'ambiguous' leaves the question open. Core applies the "
+                   "identity authority rule: a match that contradicts identifier evidence, or a 'not a match' that the "
+                   "record's own identifiers disprove, is refused. An accepted answer is a suggestion: the question "
+                   "stays open and nothing changes until the user confirms it in Repairs. Accepted and refused "
+                   "answers are recorded.",
+    "parameters": {"type": "object", "properties": {
+        "item_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "relation": {"type": "string", "enum": ["same_listing", "same_composite", "same_security", "same_issuer",
+                                                "depositary_receipt_of", "unrelated", "none", "ambiguous",
+                                                REOPEN]},
+        "chosen_id": SUBJECT_ID,
+        "rationale": {"type": "string", "maxLength": 400}},
+        "required": ["item_id", "relation"], "additionalProperties": False},
+}
+
+
+def surface(identity: Identity, subject_ids: list[str], family: bool = True) -> int:
+    """Queue the installed build's questions about these subjects, each once: the investor opened or watches them,
+    or the agent read them. With `family`, a listing also brings its security's, issuer's and composite's. Their
+    conflicts are queued too (`conflicts`), a subject only the device holds included. The build's other questions stay
+    in its package. Search, market movers, price routing and settling never call this. Returns how many were added."""
+    from .identity_ops import installed
+    if not subject_ids:
+        return 0
+    try:
+        path, ref = identity.reference()
+        ref = ref or search_device.empty_reference()  # with no package, the device's subjects alone
+        try:
+            wanted = [value for subject in subject_ids for value in questions.family(identity.store, ref, subject)] \
+                if family else list(subject_ids)
+            raised = conflicts.raised(ref, identity.store, subject_ids, installed())  # plugins' conflicts too
+            now = store.now()
+            built = receipt_issuer.unasked(
+                identity.store, build_questions.about(path, wanted), now,
+                lambda subject: build_questions.load_subject(ref, subject, None, identity.store, installed())
+            ) if path else []  # a receipt's issuer is its underlying's
+        finally:
+            ref.close()
+        return build_questions.import_build(identity.store, [*built, *raised], now)
+    except (sqlite3.Error, OSError):
+        logger.warning("reference build questions could not be queued", exc_info=True)
+        return 0
+
+
+def read_subject(identity: Identity, arguments: dict, **context: Any) -> str:
+    """identity-subject as the Desk and the agent read it: the investor opens or watches the subject, or the agent
+    uses it, so the build's questions about it are queued first."""
+    surface(identity, [str(arguments.get("subject_id") or "")])
+    return identity.subject(arguments, **context)
+
+
+def no_reference(data_dir) -> str:
+    """Why no reference data is read: a package this Pythia cannot read says so and what to do, never "none"; one the
+    investor removed says so."""
+    return reference_package.unreadable(data_dir) or (REMOVED if reference_package.removed(data_dir) else NO_REFERENCE)
+
+
+def read_queue(identity: Identity, arguments: dict, **_context: Any) -> str:
+    """identity-queue: open questions (and on request settled ones), or one in full. Asked about one subject (the
+    agent), the build's questions about it are queued first."""
+    from .identity_ops import _envelope, installed
+    limit = arguments.get("limit") if isinstance(arguments.get("limit"), int) else 20
+    if arguments.get("subject_id"):
+        surface(identity, [str(arguments["subject_id"])])
+    try:
+        _path, ref = identity.reference()
+        packaged, ref = ref is not None, ref or search_device.empty_reference()
+        try:
+            if arguments.get("item_id"):
+                view = questions.inspect(identity.store, ref, str(arguments["item_id"]), questions.names(installed()))
+                return _envelope("ok", view) if view else _envelope("empty", None, issue="Unknown queue item.")
+            plugin = arguments.get("plugin")
+            data = questions.listing(identity.store, ref, subject_id=arguments.get("subject_id"), kind=arguments.get("kind"),
+                                 plugins={plugin, *(info.manifest.plugin for info in installed() if info.key == plugin)}
+                                 if plugin else None, limit=limit, notice=packaged and not identity.reset_told,
+                                 settled=arguments.get("settled") is True, labels=questions.names(installed()))
+            identity.reset_told = identity.reset_told or "notice" in data
+            if "notice" not in data and (earlier := location.both_present(identity.data_dir)):
+                data["notice"] = earlier  # until the earlier copy is deleted by hand
+        finally:
+            ref.close()
+    except (sqlite3.Error, OSError):
+        logger.warning("identity queue unavailable", exc_info=True)
+        return _envelope("empty", None, issue="The identity store could not be read.")
+    if not packaged and not (data["items"] or data.get("settled")):  # the reason, and an earlier store worth saying
+        earlier = location.both_present(identity.data_dir)
+        return _envelope("empty", {"notice": earlier} if earlier else None, issue=no_reference(identity.data_dir))
+    found = any(data.get(name) for name in ("items", "settled", "notice"))
+    return _envelope("ok" if found else "empty", data)
+
+def submit_verdict(identity: Identity, arguments: dict, **_context: Any) -> str:
+    """identity-verdict: one answer, attributed to the user or the agent by the transport."""
+    from .identity_ops import _envelope, installed
+    from .platform.request_context import usage
+    desk = usage.get() == "dashboard"  # trusted transport scope: the Desk's own HTTP call, never a model tool call
+    now = store.now()
+    if arguments.get("relation") == REOPEN:
+        done = desk and build_questions.reopen(identity.store, str(arguments.get("item_id") or ""), now,
+                                               identity.reference_path())
+        return _envelope("ok", {"outcome": "reopened" if done else "refused", "message": "Reopened: your answer no "
+                                "longer applies." if done else "Only your answer to a reference question reopens."})
+    settle(identity, [])
+    _path, ref = identity.reference()
+    ref = ref or search_device.empty_reference()  # with no package, a question about the device's subjects
+    try:
+        result = questions.submit(
+            identity.store, ref, item_id=str(arguments.get("item_id") or ""), relation=arguments.get("relation"),
+            chosen_id=arguments.get("chosen_id"), now=now, as_of=date.today().isoformat(),
+            resolver=questions.ResolverKind.USER if desk else questions.ResolverKind.AGENT,
+            rationale=arguments.get("rationale"),
+            user_turn=f"desk:identity-verdict:{now}" if desk else None, plugins=installed())
+    except questions.Refused as refused:
+        result = {"outcome": "refused", "message": str(refused)}
+    except (sqlite3.Error, OSError):
+        logger.warning("identity verdict not recorded", exc_info=True)
+        return _envelope("empty", None, issue="The identity store could not be written.")
+    finally:
+        ref.close()
+    return _envelope("ok", result)
+
+
+def settle(identity: Identity, subject_ids: list[str]) -> None:
+    """Rules settle what current evidence decides: after a resolve, the subject's open items; once after the
+    reference build changed, every open item. Runs only inside write operations, never on search or page reads."""
+    from .identity_ops import installed
+    path, ref = identity.reference()
+    if ref is None:
+        return
+    try:
+        identity_store = identity.store
+        release = reference_package.release_key(path)  # the installed package: a same-day rebuild is new too
+        fresh = identity_store.metadata(RELEASE) != release
+        items = identity_store.queue_items(subject_ids=None if fresh else subject_ids)
+        if items:
+            questions.settle_by_rules(identity_store, ref, installed(), items, now=store.now(),
+                                  as_of=date.today().isoformat())
+        if fresh:
+            identity_store.set_metadata(RELEASE, release)
+    except (sqlite3.Error, OSError, ValueError):
+        logger.warning("rules could not settle the identity queue", exc_info=True)
+    finally:
+        ref.close()

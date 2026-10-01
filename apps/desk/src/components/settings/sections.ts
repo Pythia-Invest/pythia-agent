@@ -3,6 +3,7 @@ import {
   Box,
   Brain,
   Cpu,
+  Database,
   Download,
   FileImage,
   FileText,
@@ -10,6 +11,7 @@ import {
   Globe,
   Info,
   KeyRound,
+  Library,
   Lock,
   type LucideIcon,
   MessageCircle,
@@ -38,6 +40,9 @@ export type PageView =
   | { kind: "accounts" }
   | { kind: "api-keys" }
   | { kind: "endpoints" }
+  | { kind: "data-sources" }
+  | { kind: "reference" }
+  | { kind: "repairs" }
   | { kind: "about" };
 
 export type SettingsPage = {
@@ -198,6 +203,34 @@ export const settingsSections: readonly SettingsSection[] = [
     ],
   },
   {
+    id: "data",
+    title: "Data",
+    icon: Database,
+    pages: [
+      {
+        id: "data/sources",
+        title: "Data sources",
+        icon: Database,
+        view: { kind: "data-sources" },
+        keywords: "plugin catalogue sync identifiers pause disable",
+      },
+      {
+        id: "data/reference",
+        title: "Reference data",
+        icon: Library,
+        view: { kind: "reference" },
+        keywords: "catalogue package build search instruments notices licence",
+      },
+      {
+        id: "data/repairs",
+        title: "Repairs",
+        icon: Wrench,
+        view: { kind: "repairs" },
+        keywords: "issues identity questions agent suggestion confirm",
+      },
+    ],
+  },
+  {
     id: "advanced",
     title: "Advanced",
     icon: Wrench,
@@ -296,7 +329,7 @@ const LEGACY: Record<string, string> = {
   appearance: "appearance/theme",
   models: DEFAULT_PAGE,
   agent: DEFAULT_PAGE,
-  "data-sources": DEFAULT_PAGE,
+  "data-sources": "data/sources",
   folders: "workspace/folders",
   capabilities: "workspace/folders",
   updates: "about/updates",

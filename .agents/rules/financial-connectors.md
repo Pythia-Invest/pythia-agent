@@ -6,14 +6,16 @@ paths:
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 globs:
   - "runtime/managed/plugins/**/*"
   - "runtime/managed/runner/{eodhd*,yahoo*,provider-*}.ts"
   - "runtime/managed/runner/{coingecko,ibkr}/**/*"
   - "runtime/contracts/financial-data.md"
   - "packages/market-data/**/*"
-  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody}.md"
+  - "docs/architecture/{market-data,connector-support,data-delivery,credential-custody,source-onboarding}.md"
+  - "docs/sources/**/*"
 ---
 
 # Financial connectors
@@ -33,12 +35,22 @@ including bundled native skills and explicitly owned operation exports.
 Pythia owns canonical identity, matching and source selection. Connectors return
 native references and qualified evidence; tickers, names and catalogue membership
 do not prove cross-provider equivalence. Keep issuer, instrument, listing and
-source-series identity distinct. Follow the [identity owner](../../packages/market-data/IDENTITY.md)
-for evidence-backed repair; unresolved associations stay unresolved.
+source-series identity distinct. Core owns identity ([ADR 0037](../../docs/decisions/0037-identity-backbone.md),
+[ADR 0038](../../docs/decisions/0038-plugin-addressing-contract.md)); unresolved associations stay unresolved.
+State each identifier's role and a line's currency as the source gives them: core joins a line by ISIN, exchange and
+currency as stated (a GBX record never joins the GBP line), and a receipt's line names the share's ISIN as
+`underlying`, never `self` ([plugin authoring](../../docs/architecture/plugins.md)).
+
+A connector declares its own reference for a subject core keys (`addressing.subjects`)
+and the kinds of subject it may introduce (`introduces`) in its contract; core's
+maintained tables name no provider, and a plugin's name never makes an address
+confirmed.
 
 Register through Hermes and declare implemented common operations on the native
 tool schemas. Discovery/enablement remain native, not a second inventory. Declare
-coverage, supported series and access requirements honestly; local readiness and
+concepts, coverage, qualities, filing authorities and provider rights in
+`contract.json` from core's closed vocabularies ([ADR 0040](../../docs/decisions/0040-data-concepts-and-agent-tools.md)).
+Declare coverage, supported series and access requirements honestly; local readiness and
 capability declarations do not prove account entitlements. Do not probe every
 provider during startup or each refresh to infer them.
 
@@ -48,6 +60,14 @@ useful native detail through the supported source-detail or specialist surface.
 Preferred reads follow compatible preferences; retained pins preserve their
 series. A failed selected source never authorizes fallback or history stitching.
 See [selection and actions](../../packages/market-data/BACKEND.md).
+
+## Onboarding a source
+
+Adding a source, a field use or a judgement question type, or widening what a
+source may confirm, follows [source onboarding](../../docs/architecture/source-onboarding.md)
+([ADR 0042](../../docs/decisions/0042-source-onboarding-standard.md)). Routine
+maintenance of a source not yet onboarded does not start onboarding, but must
+not widen what that source confirms.
 
 ## Execution and access
 

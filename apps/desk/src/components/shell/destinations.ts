@@ -38,7 +38,9 @@ export const destinations: readonly Destination[] = [
     label: "Markets",
     icon: ChartCandlestick,
     href: "/markets",
-    matches: (pathname) => pathname.startsWith("/markets"),
+    // Instrument pages belong to Markets until it has its own overview.
+    matches: (pathname) =>
+      pathname.startsWith("/markets") || pathname.startsWith("/instrument/"),
   },
   {
     id: "watchlist",
@@ -72,6 +74,10 @@ export const destinations: readonly Destination[] = [
 
 /** Title shown in the top bar for the current route. */
 export function destinationTitle(pathname: string) {
+  // Lit under Markets in the rail, but the page is an instrument.
+  if (pathname.startsWith("/instrument/")) return "Instrument";
+  // Repairs is a page of its own, reached from Settings; Settings is a dialog.
+  if (pathname.startsWith("/settings/repairs")) return "Repairs";
   return (
     destinations.find((destination) => destination.matches(pathname))?.label ??
     "Pythia"

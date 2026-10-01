@@ -19,11 +19,29 @@ specialist operations use the same adapter, never arbitrary native-tool dispatch
 Contribution metadata uses the native tool parameter schema's standard `$comment`
 annotation. Projection reads Hermes registry schemas; native plugin, platform,
 disabled-toolset and readiness checks remain authoritative before reuse/publication.
-There is no additional capability inventory. The pinned native manager's loaded
-plugin module namespace supplies dependency helpers; connectors must require the
-native feature rather than invent import aliases or source loaders.
+There is no additional capability inventory. Plugins reach core only through
+the platform interface `pythia_platform`
+([ADR 0045](../../docs/decisions/0045-plugin-platform-interface.md)). Core's
+`register(ctx)` binds that one module name to `core/platform/v1.py` and removes it
+through native `ctx.on_unload`. A plugin requires `pythia` and imports it inside
+its own `register(ctx)`, which native `requires_plugins` ordering runs after
+core's. This single alias replaces the earlier rule that dependency helpers come
+from the manager's loaded module namespace (ADR 0044 ruling 6). Plugins invent
+no other import alias or source loader, import no Hermes module, import nothing
+dynamically and never read the plugin manager; `tooling/check-boundaries.mjs`
+enforces this with no exceptions. The connector toolkit is core's
+(`core/platform/connector/`), so no plugin loads another plugin's modules. The
+one plugin that coordinates other plugins' reads, market-data, reaches the
+native registry, interrupts and session context only through the interface's
+`tool_schemas`, `dispatch`, `interrupted`, `session` and `session_platform`.
 
-Access also projects the pinned manager's active `_registration_order` handles
+Core's reads of the pinned manager's private state live only in
+`core/platform/harness.py`. Core also uses two other private Hermes seams:
+`model_tools._clear_tool_defs_cache` (`core/platform/access.py`) and the API
+server adapter's `_expected_api_key` and `_check_auth`
+(`core/platform/http.py`); the boundary check keeps each in its file. Recheck
+all three files when the pin changes. Access
+projects the manager's active `_registration_order` handles
 to determine actual tool ownership. Manifest `provides_tools` and a specialist
 annotation are descriptions, not authority. Native category keys and legacy bare
 names are accepted with `plugins.disabled` taking precedence over `enabled`.
@@ -33,9 +51,9 @@ publication after access changes, including uncached shared calls and CLI reads.
 
 The protected address is `/v1/pythia/plugins/{plugin-id}/{operation}`. Market data
 declares `pythia-market-data/query` through the same mechanism as other features;
-the generic adapter does not depend on financial enablement. The native loaded
-core module supplies reusable transport helpers, with no separate operation
-inventory. The shared updates channel includes plugin and operation in each resource.
+the generic adapter does not depend on financial enablement. `pythia_platform`
+supplies reusable transport helpers, with no separate operation inventory. The
+shared updates channel includes plugin and operation in each resource.
 
 Native `ctx.register_skill(name, path, description=...)` attaches a bundled
 skill to its plugin registration. The pinned runtime exposes its qualified name
@@ -286,12 +304,20 @@ hermes -p <profile> tools disable <toolset> --platform api_server
 
 The fresh profile seed explicitly configures identical `cli`, `cron`, and
 `api_server` toolset lists: `cronjob`, `delegation`, `file`, `memory`,
-`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`. This
-replaces each platform's broad implicit Hermes default and intentionally omits
-`computer_use`, the retired lab-only `kanban`, and every other unselected
-toolset. Pythia's plugin toolsets remain native plugin state rather than entries
-in this base list. Because the profile seed is create-if-absent, later native
-tool changes and direct user edits are preserved rather than reconciled.
+`session_search`, `skills`, `terminal`, `todo`, `vision`, and `web`, plus core's
+`pythia-desk` on `api_server` only. This replaces each platform's broad implicit
+Hermes default and intentionally omits `computer_use`, the retired lab-only
+`kanban`, and every other unselected toolset. Every managed plugin registers its
+operation tools in core's `pythia-core` toolset, which native
+`known_plugin_toolsets` records as off for all three platforms, so those tools
+stay registered but out of the model's view. A data plugin's provider tools live
+in a toolset named after the plugin (`pythia-sec`, `pythia-gleif`, ...); Hermes
+enables a new plugin toolset by default, and the seed records `pythia-desk` and
+every provider toolset as off for `cli` and `cron`. Tool Search stays the
+investor's own setting in either mode; see
+[agent tools](../../docs/architecture/agent-tools.md). Because the profile seed
+is create-if-absent, later native tool changes and direct user edits are
+preserved rather than reconciled.
 
 These commands preserve other platforms' state. Restart Hermes and require the
 named entry in authenticated `GET /v1/toolsets` to carry the requested
@@ -422,7 +448,18 @@ configured` even with an authenticated per-request selection. On the first
 explicit send only, Desk initializes an empty profile using native dotted
 provider/model setters, verifies their readback, and restarts Hermes before
 starting the run. It checks the native authenticated catalog first and never
-overwrites an existing or partial selection. Shared root defaults and
+overwrites an existing or partial selection. The catalog's `authenticated`
+flag means Hermes discovered a credential, not that the runtime can use it: an
+expired Claude Code token counts for discovery (`list_authenticated_providers`)
+but `resolve_anthropic_token` must refresh it. The provider is resolved inside
+the run, so Desk polls that first run's native status for about two minutes. Only
+when it fails with the error `⚠️ Provider authentication failed: …` (the
+`_ProviderAuthResolutionError` branch in `api_server_runs.py`) does Desk unset
+exactly the pair it saved (`hermes config unset`) and restart Hermes; a kept
+credential failure would break every later request. Outages, provider errors and
+crashes keep the pair. That branch also covers a rate-limited `AuthError` and any
+other runtime-resolution error (`gateway/run.py` `_resolve_runtime_agent_kwargs`);
+clearing then only returns the profile to empty. Shared root defaults and
 credentials remain untouched. Later requests use ordinary native overrides.
 Evidence: the pinned `api_server.py` handlers `_handle_model_options`,
 `_request_agent_overrides`, `_request_reasoning_config`, and the run handler in
@@ -598,7 +635,10 @@ Desk upload contracts. See [ADR 0010](../../docs/decisions/0010-local-chat-attac
 selects native file tools, memory, session recall and skills as the existing
 storage/context owners. The managed `pythia.operating` section is registered
 `after_memory`, with a 4,000-character cap and marker
-`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. Its source is `runtime/managed/core/operating.py`; registration
+`[PYTHIA_WORKSPACE_GUIDANCE_V1]`. A second section, `pythia.routing`, carries where Desk
+chat finds data; it renders empty, which Hermes skips, off the `api_server` platform.
+Each section stays under its cap on every platform, and together under the combined cap
+(`test_core.py`). Their source is `runtime/managed/core/operating.py`; registration
 stays in `runtime/managed/core/__init__.py`. The managed `investment-memory` skill depends on
 `file`, not an MCP research store. It is selected when useful, not on every turn.
 

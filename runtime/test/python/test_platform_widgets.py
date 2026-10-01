@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from test_market_data_identity import PACKAGE, PLATFORM, platform_module
+from market_data_fixture import PACKAGE, PLATFORM
 
 widgets = importlib.import_module(PLATFORM + '.widgets')
 asset_reader = importlib.import_module(PLATFORM + '.assets')
@@ -127,14 +127,8 @@ class WidgetPresentations(unittest.TestCase):
                 if self.file.exists() or self.file.is_symlink(): self.file.unlink()
                 self.file.write_text(self.content, encoding='utf-8')
 
-    def test_missing_widget_helper_warns_without_removing_financial_registration(self):
-        with patch.object(presentation, 'platform', return_value=SimpleNamespace(API_VERSION=1)):
-            with self.assertLogs(presentation.__name__, level='WARNING') as messages:
-                presentation.register(self.ctx)
-        self.assertEqual(self.registered, [])
-        self.assertIn('financial backend remains available', messages.output[0])
-        with patch.object(presentation, 'platform', return_value=platform_module):
-            presentation.register(self.ctx)
+    def test_market_data_registers_its_widget_presentations(self):
+        presentation.register(self.ctx)
         self.assertEqual(self.registered[0]['name'], 'pythia_market_data_widgets')
 
 

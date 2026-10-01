@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from test_market_data_identity import PLATFORM
+from market_data_fixture import PLATFORM
 
 Admission = importlib.import_module(PLATFORM + '.admission').Admission
 AdmissionError = importlib.import_module(PLATFORM + '.admission').AdmissionError

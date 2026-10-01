@@ -1,0 +1,646 @@
+{
+  "deepbook": {
+    "pools": [
+      {
+        "address": "0xe05dafb5133bcffb8d59f4e12465dc0e9faeaa05e3e342a08fe135800e3e4407",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI,0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
+        "json": {
+          "id": "0xe05dafb5133bcffb8d59f4e12465dc0e9faeaa05e3e342a08fe135800e3e4407",
+          "inner": {
+            "id": "0x50997b5f1f6401674d3d881a61e09a71776ee19cd8b83114a0a21b3a82f130b5",
+            "version": "1"
+          }
+        }
+      },
+      {
+        "address": "0xcf8d0d98dd3c2ceaf40845f5260c620fa62b3a15380bc100053aecd6df8e5e7c",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS,0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>",
+        "json": {
+          "id": "0xcf8d0d98dd3c2ceaf40845f5260c620fa62b3a15380bc100053aecd6df8e5e7c",
+          "inner": {
+            "id": "0xf2a26402a4a2efcc5eaaf751905df7dc6324421c504da59eca4a15a76cd98574",
+            "version": "2"
+          }
+        }
+      },
+      {
+        "address": "0x657d1b49d42597026378479189488625a070f40b70896683ab771985079f86a7",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0x09f1c8f05cb47bbcb61133dd2ef00583720694f41d4f8a61c94467d8f5911a14::pumpkin::PUMPKIN,0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
+        "json": {
+          "id": "0x657d1b49d42597026378479189488625a070f40b70896683ab771985079f86a7",
+          "inner": {
+            "id": "0x8d6f437c2ad26f743b8338b5be6041af8e1c3f4db5e981bc1a2d9d28583131e4",
+            "version": "3"
+          }
+        }
+      },
+      {
+        "address": "0x81f5339934c83ea19dd6bcc75c52e83509629a5f71d3257428c2ce47cc94d08b",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL,0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>",
+        "json": {
+          "id": "0x81f5339934c83ea19dd6bcc75c52e83509629a5f71d3257428c2ce47cc94d08b",
+          "inner": {
+            "id": "0x6e9afba91d82fbbf303c791d6cd1cc57065a6606213d672eb4d54c01ee1fd076",
+            "version": "1"
+          }
+        }
+      },
+      {
+        "address": "0xe27e7b52677f2d20b2a3b51b14e4435307a2376f150a1341dd7d4c6ffe22173e",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0x8a99b479476950871a0cf29a1cde19c283515067d4cd93da5b446b448ec512e9::coin_gy::COIN_GY,0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
+        "json": {
+          "id": "0xe27e7b52677f2d20b2a3b51b14e4435307a2376f150a1341dd7d4c6ffe22173e",
+          "inner": {
+            "id": "0xb2e6d01a40195b42cb45952941526a118ac21f812a6409e5f8bf32a436058182",
+            "version": "6"
+          }
+        }
+      },
+      {
+        "address": "0xb663828d6217467c8a1838a03793da896cbe745b150ebd57d82f814ca579fc22",
+        "type": "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809::pool::Pool<0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP,0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>",
+        "json": {
+          "id": "0xb663828d6217467c8a1838a03793da896cbe745b150ebd57d82f814ca579fc22",
+          "inner": {
+            "id": "0x0671fe438ef3a2291aa3a5d469a956a3579d54ed16f08d9402a75cb481ebcc89",
+            "version": "1"
+          }
+        }
+      }
+    ],
+    "inner": {
+      "0x50997b5f1f6401674d3d881a61e09a71776ee19cd8b83114a0a21b3a82f130b5": {
+        "book": {
+          "bids": {
+            "length": "120"
+          },
+          "asks": {
+            "length": "80"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "1000",
+            "whitelisted": false,
+            "trade_params": {
+              "taker_fee": "250000",
+              "maker_fee": "0",
+              "stake_required": "50000000000"
+            },
+            "next_trade_params": {
+              "taker_fee": "250000",
+              "maker_fee": "0",
+              "stake_required": "50000000000"
+            }
+          }
+        }
+      },
+      "0xf2a26402a4a2efcc5eaaf751905df7dc6324421c504da59eca4a15a76cd98574": {
+        "book": {
+          "bids": {
+            "length": "5"
+          },
+          "asks": {
+            "length": "2"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "950",
+            "whitelisted": false,
+            "trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            },
+            "next_trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            }
+          }
+        }
+      },
+      "0x8d6f437c2ad26f743b8338b5be6041af8e1c3f4db5e981bc1a2d9d28583131e4": {
+        "book": {
+          "bids": {
+            "length": "0"
+          },
+          "asks": {
+            "length": "0"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "900",
+            "whitelisted": false,
+            "trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            },
+            "next_trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            }
+          }
+        }
+      },
+      "0x6e9afba91d82fbbf303c791d6cd1cc57065a6606213d672eb4d54c01ee1fd076": {
+        "book": {
+          "bids": {
+            "length": "60"
+          },
+          "asks": {
+            "length": "40"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "980",
+            "whitelisted": false,
+            "trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            },
+            "next_trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            }
+          }
+        }
+      },
+      "0xb2e6d01a40195b42cb45952941526a118ac21f812a6409e5f8bf32a436058182": {
+        "book": {
+          "bids": {
+            "length": "6"
+          },
+          "asks": {
+            "length": "2"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "960",
+            "whitelisted": false,
+            "trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            },
+            "next_trade_params": {
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
+            }
+          }
+        }
+      },
+      "0x0671fe438ef3a2291aa3a5d469a956a3579d54ed16f08d9402a75cb481ebcc89": {
+        "book": {
+          "bids": {
+            "length": "90"
+          },
+          "asks": {
+            "length": "70"
+          }
+        },
+        "state": {
+          "governance": {
+            "epoch": "990",
+            "whitelisted": true,
+            "trade_params": {
+              "taker_fee": "0",
+              "maker_fee": "0",
+              "stake_required": "0"
+            },
+            "next_trade_params": {
+              "taker_fee": "0",
+              "maker_fee": "0",
+              "stake_required": "0"
+            }
+          }
+        }
+      }
+    }
+  },
+  "alphalend": {
+    "root": {
+      "address": "0x01d9cf05d65fa3a9bb7163095139120e3c4e414dfbab153a49779a7d14010b93",
+      "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::alpha_lending::LendingProtocol",
+      "json": {
+        "markets": {
+          "id": "0x2326d387ba8bb7d24aa4cfa31f9a1e58bf9234b097574afb06c5dfb267df4c2e",
+          "size": "5"
+        }
+      }
+    },
+    "fields": [
+      {
+        "address": "0x9074b6e9d3e1c1fd65f7f9ded85dcdf7d06eb5bd0cf6074850a8c2042b91f29f",
+        "key": "8",
+        "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::market::Market",
+        "json": {
+          "market_id": "8",
+          "coin_type": "deeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP",
+          "config": {
+            "active": false,
+            "safe_collateral_ratio": 0,
+            "borrow_limit": "0"
+          }
+        }
+      },
+      {
+        "address": "0xa3db5e7b12f2eaa877b794d84ff0157d3127c14d11b29138efdead3299fa4941",
+        "key": "1",
+        "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::market::Market",
+        "json": {
+          "market_id": "1",
+          "coin_type": "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+          "config": {
+            "active": true,
+            "safe_collateral_ratio": 75,
+            "borrow_limit": "0"
+          }
+        }
+      },
+      {
+        "address": "0xa3eed9477247b6de3ef105de5dd9b023d6fa6471c591011a63fc196253deb03a",
+        "key": "11",
+        "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::market::Market",
+        "json": {
+          "market_id": "11",
+          "coin_type": "deeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP",
+          "config": {
+            "active": true,
+            "safe_collateral_ratio": 70,
+            "borrow_limit": "0"
+          }
+        }
+      },
+      {
+        "address": "0xf3b4bca1bdbf31db4c35410ade7b0d22e17b049423a981f85d8b76e1ddb31abc",
+        "key": "32",
+        "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::market::Market",
+        "json": {
+          "market_id": "32",
+          "coin_type": "66a09a4da70828bfa1ffb98998477403e4fc47ffa727adb916bb42d9bc8e1d66::alphalend_deepbook_pool::DEEPBOOK_STAKED<dba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
+          "config": {
+            "active": true,
+            "safe_collateral_ratio": 0,
+            "borrow_limit": "0"
+          }
+        }
+      },
+      {
+        "address": "0xf5c8557f73f64cca48b7810ae4926654de5ec8bbff246eabec3ece5310d31cc9",
+        "key": "6",
+        "type": "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4::market::Market",
+        "json": {
+          "market_id": "6",
+          "coin_type": "dba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
+          "config": {
+            "active": true,
+            "safe_collateral_ratio": 75,
+            "borrow_limit": "0"
+          }
+        }
+      }
+    ]
+  },
+  "bucket": {
+    "config": {
+      "address": "0x03e79aa64ac007d200aefdcb445e31e24f460279bab6c73babfb031b7464072e",
+      "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::config::Config",
+      "json": {
+        "id_vector": [
+          "0x929c394fd2e140e157d7d618a4f7ecdbaab0928ac454ec57654ef6cb62c78338",
+          "0xcb6a035cb6621626eab35d60b10f6c49a2638ab6ac13fc9836d79c6c58cdbd51",
+          "0xdcf2054cdce3258e0f808ed2456b84cda0a57ac77b16c7e97fbf218d1adb4a6f",
+          "0x654251ce3f37a0ec1895b8052cef32dfbf88a5f592c6be7891726a6b0f82f0c8",
+          "0x7db45f918fe2bc8efbb5b544b955aec93df4cc4432b7fc21232e4d563fb4d916",
+          "0x5a73da42eb064695ba15854aa62b4a0368430eab83995ac3ca238ca713402ff9",
+          "0x152805bfb0b6d9b1cefd4a51e42c6c8220c3cc7a4f2659c0a19ae39421cde50b",
+          "0x7f8ec209420823c1eab1a47e18e5fb425d19203185956d10ed8c78af97111236"
+        ]
+      }
+    },
+    "objects": [
+      {
+        "address": "0x929c394fd2e140e157d7d618a4f7ecdbaab0928ac454ec57654ef6cb62c78338",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::package_config::PackageConfig",
+        "json": {
+          "original_cdp_package_id": "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e",
+          "original_usdb_package_id": "0xe14726c336e81b32328e92afc37345d159f5b550b09fa92bd43640cfdd0a0cfd"
+        }
+      },
+      {
+        "address": "0xcb6a035cb6621626eab35d60b10f6c49a2638ab6ac13fc9836d79c6c58cdbd51",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::oracle_config::OracleConfig",
+        "json": null
+      },
+      {
+        "address": "0xdcf2054cdce3258e0f808ed2456b84cda0a57ac77b16c7e97fbf218d1adb4a6f",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::object_config::ObjectConfig",
+        "json": null
+      },
+      {
+        "address": "0x654251ce3f37a0ec1895b8052cef32dfbf88a5f592c6be7891726a6b0f82f0c8",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::aggregator::Aggregator",
+        "json": null
+      },
+      {
+        "address": "0x7db45f918fe2bc8efbb5b544b955aec93df4cc4432b7fc21232e4d563fb4d916",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::vault::Vault",
+        "json": {
+          "table": {
+            "contents": [
+              {
+                "key": "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+                "value": {
+                  "vault": {
+                    "objectId": "0x542eff36534bc5d7d07808953ebb8c580c23f047b41c094601d40a0fc7e99238"
+                  }
+                }
+              },
+              {
+                "key": "0xaafc4f740de0dd0dde642a31148fb94517087052f19afb0f7bed1dc41a50c77b::scallop_sui::SCALLOP_SUI",
+                "value": {
+                  "vault": {
+                    "objectId": "0x5d76ee14fc4b1f501653c65eb3dc2ba0cd42f7d0d11480a840322e77d4b56362"
+                  }
+                }
+              },
+              {
+                "key": "0x2f2226a22ebeb7a0e63ea39551829b238589d981d1c6dd454f01fcc513035593::house::StakedHouseCoin<0x5de877a152233bdd59c7269e2b710376ca271671e9dd11076b1ff261b2fd113c::up_usd::UP_USD>",
+                "value": {
+                  "vault": {
+                    "objectId": "0xdb3b2f1ce99c935a5c5e14ce8321e0c252a8b16c50861407d2253d392d5fb836"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "address": "0x5a73da42eb064695ba15854aa62b4a0368430eab83995ac3ca238ca713402ff9",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::saving_pool::SavingPool",
+        "json": null
+      },
+      {
+        "address": "0x152805bfb0b6d9b1cefd4a51e42c6c8220c3cc7a4f2659c0a19ae39421cde50b",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::psm_pool::PsmPool",
+        "json": null
+      },
+      {
+        "address": "0x7f8ec209420823c1eab1a47e18e5fb425d19203185956d10ed8c78af97111236",
+        "type": "0x1906a868f05cec861532d92aa49059580caf72d900ba2c387d5135b6a9727f52::price::PriceConfig",
+        "json": null
+      }
+    ],
+    "vaults": {
+      "0x542eff36534bc5d7d07808953ebb8c580c23f047b41c094601d40a0fc7e99238": "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e::vault::Vault<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>",
+      "0x5d76ee14fc4b1f501653c65eb3dc2ba0cd42f7d0d11480a840322e77d4b56362": "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e::vault::Vault<0xaafc4f740de0dd0dde642a31148fb94517087052f19afb0f7bed1dc41a50c77b::scallop_sui::SCALLOP_SUI>",
+      "0xdb3b2f1ce99c935a5c5e14ce8321e0c252a8b16c50861407d2253d392d5fb836": "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e::vault::Vault<0x2f2226a22ebeb7a0e63ea39551829b238589d981d1c6dd454f01fcc513035593::house::StakedHouseCoin<0x5de877a152233bdd59c7269e2b710376ca271671e9dd11076b1ff261b2fd113c::up_usd::UP_USD>>"
+    }
+  },
+  "families": {
+    "0xd899cf7d2b5db716bd2cf55599fb0d5ee38a3061e7b6bb6eebf73fa5bc4c81ca": {
+      "latest": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "version": 12,
+      "anchor": "pool"
+    },
+    "0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf": {
+      "latest": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "version": 11,
+      "anchor": "lending_market"
+    },
+    "0xefe8b36d5b2e43728cc323298626b83177803521d195cfb11e15b910e892fddf": {
+      "latest": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "version": 9,
+      "anchor": "market"
+    },
+    "0x1eabed72c53feb3805120a081dc15963c204dc8d091542592abaf7a35689b2fb": {
+      "latest": "0xa4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+      "version": 7,
+      "anchor": "pool"
+    },
+    "0x5664f9d3fd82c84023870cfbda8ea84e14c8dd56ce557ad2116e0668581a682b": {
+      "latest": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "version": 5,
+      "anchor": "dlmm_math"
+    },
+    "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809": {
+      "latest": "0xa6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "version": 4,
+      "anchor": "pool"
+    },
+    "0x3492c874c1e3b3e2984e8c41b589e642d4d0a5d6459e5a9cfc2d52fd7c89c267": {
+      "latest": "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "version": 8,
+      "anchor": "pool"
+    },
+    "0xe74481697f432ddee8dd6f9bd13b9d0297a5b63d55f3db25c4d3b5d34dad85b7": {
+      "latest": "0xa8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8",
+      "version": 10,
+      "anchor": "bank"
+    },
+    "0x91bfbc386a41afcfd9b2533058d7e915a1d3829089cc268ff4333d54d6339ca1": {
+      "latest": "0xa9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9",
+      "version": 11,
+      "anchor": "pool"
+    },
+    "0x70285592c97965e811e0c6f98dccc3a9c2b4ad854b3594faab9597ada267b860": {
+      "latest": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": 3,
+      "anchor": "pool"
+    },
+    "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4": {
+      "latest": "0xabababababababababababababababababababababababababababababababab",
+      "version": 8,
+      "anchor": "alpha_lending"
+    },
+    "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e": {
+      "latest": "0xacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+      "version": 2,
+      "anchor": "vault"
+    },
+    "0xe14726c336e81b32328e92afc37345d159f5b550b09fa92bd43640cfdd0a0cfd": {
+      "latest": "0xadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad",
+      "version": 2,
+      "anchor": "usdb"
+    }
+  },
+  "metadata": {
+    "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI": {
+      "name": "Sui",
+      "symbol": "SUI",
+      "decimals": 9,
+      "supply": "10000000000000000000"
+    },
+    "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC": {
+      "name": "USDC",
+      "symbol": "USDC",
+      "decimals": 6,
+      "supply": "250000000500000"
+    },
+    "0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP": {
+      "name": "DeepBook Token",
+      "symbol": "DEEP",
+      "decimals": 6,
+      "supply": "9000000123456789"
+    },
+    "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL": {
+      "name": "WAL Token",
+      "symbol": "WAL",
+      "decimals": 9,
+      "supply": "4000000000000000000"
+    },
+    "0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS": {
+      "name": "Cetus Token",
+      "symbol": "CETUS",
+      "decimals": 9,
+      "supply": "1000000000000000000"
+    },
+    "0x375f70cf2ae4c00bf37117d0c85a2c71545e6ee05c4a5c7d282cd66a4504b068::usdt::USDT": {
+      "name": "Tether",
+      "symbol": "USDT",
+      "decimals": 6,
+      "supply": "5500000000000"
+    },
+    "0xaafb102dd0902f5055cadecd687fb5b71ca82ef0e0285d90afde828ec58ca96b::btc::BTC": {
+      "name": "Wrapped Bitcoin",
+      "symbol": "wBTC",
+      "decimals": 8,
+      "supply": "8500000000"
+    },
+    "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN": {
+      "name": "USD Coin",
+      "symbol": "USDC",
+      "decimals": 6,
+      "supply": null
+    },
+    "0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8::coin::COIN": {
+      "name": "Wrapped SOL",
+      "symbol": "SOL",
+      "decimals": 8,
+      "supply": null
+    },
+    "0xaafc4f740de0dd0dde642a31148fb94517087052f19afb0f7bed1dc41a50c77b::scallop_sui::SCALLOP_SUI": {
+      "name": "sSUI",
+      "symbol": "sSUI",
+      "decimals": 9,
+      "supply": null
+    },
+    "0x8a99b479476950871a0cf29a1cde19c283515067d4cd93da5b446b448ec512e9::coin_gy::COIN_GY": {
+      "name": "Gold yield token",
+      "symbol": "GY",
+      "decimals": 9,
+      "supply": null
+    },
+    "0xe14726c336e81b32328e92afc37345d159f5b550b09fa92bd43640cfdd0a0cfd::usdb::USDB": {
+      "name": "Bucket USD",
+      "symbol": "USDB",
+      "decimals": 6,
+      "supply": "9000000000000"
+    }
+  },
+  "bridge": {
+    "root": {
+      "inner": {
+        "id": "0x20d57c8f5b4b4e3cb873321e2634072d8244be55f0cc645734be94047c19843f"
+      }
+    },
+    "inner": {
+      "address": "0x00ba8458097a879607d609817a05599dc3e9e73ce942f97d4f1262605a8bf0fc",
+      "key": "1",
+      "type": "0x000000000000000000000000000000000000000000000000000000000000000b::bridge::BridgeInner",
+      "json": {
+        "treasury": {
+          "supported_tokens": {
+            "contents": [
+              {
+                "key": "d0e89b2af5e4910726fbcd8b8dd37bb79b29e5f83f7491bca830e94f7f226d29::eth::ETH",
+                "value": {
+                  "id": 2,
+                  "decimal_multiplier": "100000000",
+                  "notional_value": "250000000000",
+                  "native_token": false
+                }
+              },
+              {
+                "key": "375f70cf2ae4c00bf37117d0c85a2c71545e6ee05c4a5c7d282cd66a4504b068::usdt::USDT",
+                "value": {
+                  "id": 4,
+                  "decimal_multiplier": "1000000",
+                  "notional_value": "100000000",
+                  "native_token": false
+                }
+              },
+              {
+                "key": "aafb102dd0902f5055cadecd687fb5b71ca82ef0e0285d90afde828ec58ca96b::btc::BTC",
+                "value": {
+                  "id": 1,
+                  "decimal_multiplier": "100000000",
+                  "notional_value": "6000000000000",
+                  "native_token": false
+                }
+              },
+              {
+                "key": "c6d1cb347faf61fb743d09cf91be7280960052374a3e894342ce947b2de3e56f::wlbtc::WLBTC",
+                "value": {
+                  "id": 6,
+                  "decimal_multiplier": "100000000",
+                  "notional_value": "6000000000000",
+                  "native_token": false
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "wormhole": {
+    "state": {
+      "type": "0x26efee2b51c911237888e5dc6702868abca3c7ac12c53f76ef8eba0697695e3d::state::State",
+      "json": {
+        "token_registry": {
+          "id": "0x334881831bd89287554a6121087e498fa023ce52c037001b53a4563a00a281a5"
+        }
+      }
+    },
+    "assets": {
+      "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN": {
+        "type": "0x26efee2b51c911237888e5dc6702868abca3c7ac12c53f76ef8eba0697695e3d::wrapped_asset::WrappedAsset<0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
+        "json": {
+          "info": {
+            "token_chain": 2,
+            "token_address": {
+              "value": {
+                "data": "AAAAAAAAAAAAAAAAoLhpkcYhizbB0Z1KLp6wzjYG60g="
+              }
+            }
+          }
+        }
+      },
+      "0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8::coin::COIN": {
+        "type": "0x26efee2b51c911237888e5dc6702868abca3c7ac12c53f76ef8eba0697695e3d::wrapped_asset::WrappedAsset<0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8::coin::COIN>",
+        "json": {
+          "info": {
+            "token_chain": 1,
+            "token_address": {
+              "value": {
+                "data": "BpuIV/6rgYT7aH9jRhjANdrEOdwa6ztVmKDwAAAAAAE="
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

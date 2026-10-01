@@ -49,7 +49,7 @@ and shared editor settings remove formatting churn from review.
 `apps/desk` depends on `@tanstack/react-query` and, for development, on
 `@playwright/test`; the Chromium browser is installed explicitly because the
 workspace disables install scripts. CI runs the suite against a hermetic
-production Desk build ([ADR 0037](0037-one-required-ci-gate.md)); specs that
+production Desk build ([ADR 0046](0046-one-required-ci-gate.md)); specs that
 need a real profile live in `e2e/live` and run with `just test-e2e <desk url>`. `useSortedClasses` is a Biome nursery rule and may change
 ordering between Biome releases; the safe fix handles that mechanically.
 
@@ -101,7 +101,7 @@ Tools, Updates) proved too thin to scale to more providers and plugins.
 
 It fills the window over the current page. A sidebar holds Back, search and
 a tree of sections: Model (Main model, Fallback models, Auxiliary models),
-Chat, Appearance, Workspace, Safety, Memory & Context, Advanced; a spacer;
+Chat, Appearance, Workspace, Safety, Memory & Context, Data, Advanced; a spacer;
 Providers (Accounts, API keys, Custom endpoints); a spacer; About. The open section lists its pages; choosing a section opens its first
 page. A dot marks a section that needs the user. The page header is a
 breadcrumb, not a title. There is no overview page.
@@ -119,13 +119,18 @@ breadcrumb, not a title. There is no overview page.
   Credentials are fields that show a stand-in ("•••• 4f2a") and edit in
   place with an explicit Save and Remove. Provider connections belong to
   their connectors ([ADR 0034](0034-core-and-optional-features.md)), so
-  Settings has no data-source page of its own.
+  Settings has no page that connects a data source. Its Data section
+  holds no credentials: a switch per enabled data plugin that pauses it, what
+  pausing it hides, and a way to read its catalogue now (Data sources); the
+  installed reference package and its notices (Reference data); and the issues
+  Pythia could not settle on its own (Repairs,
+  [ADR 0044](0044-product-direction.md)).
 - **Pages that need more than rows**: Main model (provider, then model, then
   Apply; Hermes may ask to confirm an expensive model), Accounts (connected
   sign-ins first, the rest behind a disclosure; a device sign-in shows the
   provider's code and page and finishes on its own; CLI-only providers show
   their command), API keys (searchable provider cards, the main key inline),
-  Custom endpoints, and About.
+  Custom endpoints, Data sources, Reference data, Repairs, and About.
 - **Skills, tools, MCP connectors and plugins** are a separate Capabilities
   destination with tabs, search and an All / On / Off filter, as in Hermes
   Desktop. Pythia's own plugin cannot be switched off.
@@ -155,6 +160,15 @@ still belongs to the installed lifecycle owner.
 Rejected: the previous grouped pages with an Overview, generic "Configured"
 labels, credential dialogs, a pop-up over the page, a scroll-spy list, and a
 watermark version in the navigation.
+
+**Amendment (2026-09-30): a Data section.** The Settings text above was edited
+in place when the identity backbone added a Data section (Data sources,
+Reference data, Repairs). It first said Settings has "no data-source page of
+its own", because provider connections belong to their connectors
+([ADR 0034](0034-core-and-optional-features.md)); that still holds for
+credentials, and Data sources holds none. It is the place to pause a plugin,
+read its catalogue now or look one identifier up
+([ADR 0044](0044-product-direction.md), amendments of 2026-09-30).
 
 ## Phone layout (2026-09)
 

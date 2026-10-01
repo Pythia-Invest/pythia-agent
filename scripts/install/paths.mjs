@@ -71,6 +71,7 @@ export function resolveInstallPaths(environment = process.env) {
     basicMemoryConfig: join(configRoot, "basic-memory", "production"),
     basicMemoryCache: join(cacheRoot, "basic-memory"),
     workspace: join(dataRoot, "workspace"),
+    store: join(dataRoot, "store"),
     deskViewState: join(stateRoot, "desk-view"),
     knowledge: join(dataRoot, "knowledge"),
     processRoot: join(stateRoot, "processes"),

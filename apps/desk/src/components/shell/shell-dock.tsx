@@ -67,7 +67,7 @@ export function ShellDock({
       >
         <ResizablePanel
           data-layout-panel="main"
-          className="flex flex-col bg-transparent"
+          className="relative flex flex-col bg-transparent"
         >
           {children}
         </ResizablePanel>

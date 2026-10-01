@@ -19,16 +19,33 @@ import {
   sleep,
   withFileLock,
 } from "./device-settings-native";
-import { resolveConfigRoot } from "./device-settings-store";
+import { resolveConfigRoot, setPausedPlugin } from "./device-settings-store";
 import { hermesClient } from "./hermes";
 import type { HermesToolset } from "./types";
-import { initializeProfileModel } from "./model-initialization";
+import {
+  initializeProfileModel,
+  releaseProfileModel,
+} from "./model-initialization";
+
+// Pythia's own toolsets are not agent choices: core shows `pythia-desk` and keeps every plugin operation in
+// hidden `pythia-core`. A data source is turned off by pausing it, or disabling its plugin (docs/architecture/agent-tools.md).
+const PYTHIA_TOOLSETS = new Set(["pythia-core", "pythia-desk"]);
+const TERMINAL_RUN = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
+// Pinned Hermes's /v1/runs error when the run cannot resolve provider credentials
+// (_ProviderAuthResolutionError in gateway/platforms/api_server_runs.py).
+const PROVIDER_AUTH_FAILED = /^⚠️ Provider authentication failed: /u;
 
 export {
   DeviceSettingsError,
   type DeviceSettingsService,
   type DeviceSettingsSnapshot,
   type DeviceSkill,
+  type PluginPause,
   type Readiness,
   type ServiceReadiness,
 } from "./device-settings-contract";
@@ -179,18 +196,47 @@ export function createDeviceSettingsService(
     );
   }
 
+  // Hermes resolves the provider inside the run, so watch the first run's native status.
+  async function finishedRun(runId: string) {
+    const poll = options.firstRunPollMs ?? 500;
+    for (let waited = 0; waited < 120_000; waited += Math.max(poll, 1)) {
+      await sleep(poll);
+      const run = await client.getRun(runId).catch(() => null);
+      if (run && TERMINAL_RUN.has(run.status)) return run;
+    }
+    return null;
+  }
+
   return {
     async initializeModel(selection) {
-      await withFileLock(capabilityMutationLock(environment), async () => {
-        const profile = profileFrom(environment);
-        await initializeProfileModel(
+      return withFileLock(capabilityMutationLock(environment), async () =>
+        initializeProfileModel(
           selection,
-          profile,
+          profileFrom(environment),
           command,
           client,
           restartHermes,
-        );
-      });
+        ),
+      );
+    },
+    async settleInitialModel(selection, runId) {
+      if (runId !== null) {
+        // Only a credential failure clears the pair; outages and crashes keep it.
+        const run = await finishedRun(runId);
+        if (
+          run?.status !== "failed" ||
+          !PROVIDER_AUTH_FAILED.test(run.error ?? "")
+        )
+          return;
+      }
+      await withFileLock(capabilityMutationLock(environment), async () =>
+        releaseProfileModel(
+          selection,
+          profileFrom(environment),
+          command,
+          restartHermes,
+        ),
+      );
     },
     async snapshot() {
       let profile: string | null = null;
@@ -209,7 +255,9 @@ export function createDeviceSettingsService(
         skillsStatus = "unavailable";
       }
       try {
-        toolsets = await client.listToolsets();
+        toolsets = (await client.listToolsets()).filter(
+          (item) => !PYTHIA_TOOLSETS.has(item.name),
+        );
       } catch {
         toolsetsStatus = "unavailable";
       }
@@ -289,6 +337,13 @@ export function createDeviceSettingsService(
 
     async setToolsetEnabled(rawName, enabled) {
       const name = safeIdentifier(rawName, "toolset name");
+      if (PYTHIA_TOOLSETS.has(name)) {
+        throw new DeviceSettingsError(
+          "Pythia's own tools are not switched here; pause a data source in Data sources instead.",
+          409,
+          "pythia_toolset",
+        );
+      }
       const profile = profileFrom(environment);
       return withFileLock(capabilityMutationLock(environment), async () => {
         const before = await client.listToolsets();
@@ -310,6 +365,15 @@ export function createDeviceSettingsService(
         ]);
         await restartHermes();
         return waitForToolset(name, enabled);
+      });
+    },
+
+    async setPluginPaused(rawName, paused) {
+      const plugin = safeIdentifier(rawName, "plugin name");
+      const file = join(resolveConfigRoot(environment), "settings.json");
+      return withFileLock(capabilityMutationLock(environment), async () => {
+        setPausedPlugin(file, plugin, paused);
+        return { plugin, paused };
       });
     },
   };

@@ -5,7 +5,7 @@ unmodified Hermes runtime described in `runtime/contracts/`. Keep the product
 simple and local: do not add another agent loop, capability registry, control
 plane, cloud dependency, or globally installed Hermes prerequisite.
 
-Before changing code, read `docs/product.md`,
+Before changing code, read `docs/product.md`, `docs/vision.md`,
 `docs/architecture/ownership.md`, and the nearest nested `AGENTS.md`. Read
 `.agents/change-validation.md` for proportionate verification and matching
 `.agents/rules/*.md` for cross-cutting guidance. Repository-builder workflows
@@ -50,9 +50,11 @@ Read additional guidance by the surface being changed:
 | Hermes-facing code, the Hermes pin or an upgrade | The [Hermes touchpoint index](runtime/contracts/hermes.md#touchpoint-index) and the Hermes paragraph below; upgrades use the explicit `upgrade-hermes` skill |
 | The Claude Design export of `@pythia/ui` | [Design-system sync rule](.agents/rules/design-system-sync.md) and `.design-sync/NOTES.md` |
 | Tests | [Test allocation](.agents/testing.md) and the `test-audit` skill's authoring gate |
-| CI workflows, `justfile` checks, turbo tasks or merging | [ADR 0037](docs/decisions/0037-one-required-ci-gate.md) and [keeping CI clean](.agents/change-validation.md#keeping-ci-clean) |
-| Financial connector capabilities or execution | [Financial connector rule](.agents/rules/financial-connectors.md) |
+| CI workflows, `justfile` checks, turbo tasks or merging | [ADR 0046](docs/decisions/0046-one-required-ci-gate.md) and [keeping CI clean](.agents/change-validation.md#keeping-ci-clean) |
+| Financial connector capabilities or execution, or onboarding a data source | [Financial connector rule](.agents/rules/financial-connectors.md) and [source onboarding](docs/architecture/source-onboarding.md) |
+| Add or fix a data source, including a wrong fact a source states | [Plugin authoring](docs/architecture/plugins.md), its [source-correction section](docs/architecture/plugins.md#correcting-your-own-source), the [plugin rule](.agents/rules/plugin-authoring.md) and [source onboarding](docs/architecture/source-onboarding.md) |
 | Feature plugin packaging or operation exports | [Plugin authoring](docs/architecture/plugins.md) and [plugin rule](.agents/rules/plugin-authoring.md) |
+| Identity, subjects, reference data, or what a plugin may add or change | [Identity data](docs/architecture/identity-data.md), [reference packages](docs/architecture/reference-package.md), [ADR 0037](docs/decisions/0037-identity-backbone.md) and the "Today" list in [ADR 0044](docs/decisions/0044-product-direction.md) |
 
 Use the pinned dependency's documented native surface; inspect its relevant
 source/types before adapting it. If evidence challenges a decided boundary,

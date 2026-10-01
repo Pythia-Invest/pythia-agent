@@ -10,7 +10,7 @@ describe("settings addresses", () => {
     // A section opens its first page.
     expect(resolvePage("safety")?.id).toBe("safety/approvals");
     expect(resolvePage("general")?.id).toBe("appearance/theme");
-    expect(resolvePage("data-sources")?.id).toBe("model/main");
+    expect(resolvePage("data-sources")?.id).toBe("data/sources");
     expect(resolvePage("updates")?.id).toBe("about/updates");
     expect(resolvePage("nonsense")).toBeUndefined();
     expect(resolvePage("")).toBeUndefined();

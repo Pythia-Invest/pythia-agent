@@ -6,8 +6,11 @@ import { AccountsPage } from "./accounts";
 import { ApiKeysPage } from "./api-keys";
 import { AuxiliaryModels } from "./auxiliary-models";
 import { FieldRows, HermesFieldsPage, SourceState } from "./config-page";
+import { DataSourceSettings } from "./data-sources";
 import { EndpointsPage } from "./endpoints";
 import { FallbackModels, MainModelPage } from "./main-model";
+import { ReferenceSettings } from "./reference";
+import { RepairsPage } from "./repairs";
 import type { SettingsPage } from "./sections";
 import { useHermesFields } from "./use-hermes-fields";
 import { usePythiaFields } from "./use-pythia-fields";
@@ -76,6 +79,12 @@ export function SettingsPageBody({ page }: { page: SettingsPage }) {
       return <ApiKeysPage />;
     case "endpoints":
       return <EndpointsPage />;
+    case "data-sources":
+      return <DataSourceSettings />;
+    case "reference":
+      return <ReferenceSettings />;
+    case "repairs":
+      return <RepairsPage />;
     case "about":
       return <AboutPage />;
   }

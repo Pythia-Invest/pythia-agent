@@ -451,6 +451,33 @@ disclosures or focused views. Preserve horizontal scrolling when a genuinely
 comparative table would lose meaning if dismantled; do not mechanically turn
 every row into a mobile card.
 
+Back-office pages (Settings → Data → Repairs and later operator lists) share one
+compact pattern, `DataTable` with `ActionDialog` from `@pythia/ui`, at the full
+content width: one line per row (about 40px, small text, no wrapping; long
+values end in an ellipsis with the full text as a tooltip), a small status
+badge, and short action labels side by side on the right. The page has a title
+with a one-line description; a toolbar with search, filter chips (Status, Type)
+that show their active count, and Refresh on the right; a compact table of the
+few columns that identify a record and its state (kind, subject, source, status
+badge, created, completed) with row actions at the end; a "+" toggle that
+expands a dense Context grid (label above value, several columns) instead of
+cards; and actions that open a small dialog with one-line consequences, an
+optional note recorded with the action, and Cancel/Back beside a primary or,
+for a withdrawal, destructive confirm. Settled records stay reachable through
+the Status filter rather than a separate history.
+A link can open one row (`/settings/repairs?question=<id>`): it starts expanded
+and scrolls into view. Core lists at most 50 of each kind, newest first, and one
+quiet line above the table says so. For open questions, which core counts, it
+appears when core holds more ("Showing the newest 50 of N open questions"); for
+settled questions and corrections, which it does not count, when a list comes
+back full. The line follows the Status and Type filters and speaks only of lists
+whose issues could be on show, so a long list is never passed off as the whole.
+
+Where an open question holds a fact back from an instrument page, the page says
+so in place of the fact, in one neutral line and with no warning symbol:
+"Company: open data conflict (2 options) · Review", linking to that row. A blank
+reads as a bug.
+
 When charts are used, they should have neutral scaffolding, restrained
 semantic series colors, and direct labels. Avoid 3D, decorative gradients,
 excessive legends, and the use of green/red as generic “good/bad.” In market

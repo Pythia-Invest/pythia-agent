@@ -12,8 +12,13 @@ const rendererSchema = z
   })
   .strict();
 export type TopBarRenderer = z.infer<typeof rendererSchema>;
-/** Product default only; a user's explicit null always selects the core bar. */
-export const DEFAULT_TOP_BAR: TopBarRenderer | null = null;
+/** Product default when the workspace has no selection: the market-data
+ * feature's investment-search bar. A user's explicit null always selects the
+ * core bar; an unavailable default falls back to it without a warning. */
+export const DEFAULT_TOP_BAR: TopBarRenderer | null = {
+  plugin: "pythia-market-data",
+  presentation: "top-bar",
+};
 export const topBarConfigSchema = z
   .object({
     version: z.literal(1),

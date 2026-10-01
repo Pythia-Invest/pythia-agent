@@ -76,7 +76,7 @@ credential-free and use synthetic provider fixtures. Use `just test-fast` for
 the deterministic behavior suite and `just test-system` for the small
 real-process lifecycle smoke.
 
-CI ([ADR 0037](decisions/0037-one-required-ci-gate.md)) runs the same recipes
+CI ([ADR 0046](decisions/0046-one-required-ci-gate.md)) runs the same recipes
 as parallel jobs behind one required `CI gate` check. Merge only when it is
 green. The nightly workflow runs broad qualification and a full dependency
 audit on every push to `main`, daily, and by dispatch. It is intentionally not
@@ -249,7 +249,8 @@ inference check answer different questions.
 For ordinary chat, use Desk's provider/model/reasoning picker instead. On the
 first send from an empty profile, Desk saves the explicitly selected,
 authenticated provider and model through native profile config commands and
-restarts Hermes before starting the run. This initializes only that profile,
+restarts Hermes before starting the run; if that run fails on the provider's credentials,
+Desk clears the saved pair again. This initializes only that profile,
 not shared defaults or credentials. Later choices are native per-message
 overrides without a restart and reset to the profile default on reload.
 Existing or partial profile choices are preserved. `just model` remains an
@@ -292,14 +293,138 @@ may require a new Hermes session; it does not require a source refresh.
 Managed plugins are refreshed by copy, not symlink. Profile/SOUL/workspace seeds
 are installed only in the first profile-initialization
 transaction and are preserved thereafter. `just dev-reset` removes this
-worktree's process/test state and fetch caches; it does not remove ownership
-receipts, the shared Hermes credential root, profile, workspace or retained
-legacy Markdown knowledge. If first profile
+worktree's process/test state and caches, including fetched downloads and the
+document cache; it does not remove ownership receipts, the shared Hermes
+credential root, profile, workspace, Pythia's store or retained legacy Markdown
+knowledge. If first profile
 initialization is interrupted, Pythia refuses to adopt the partial scaffold.
 `just dev-init-recover` accepts only the matching incomplete transaction
 receipt and removes only that named partial profile before a clean retry.
 An intent-only `started` receipt cannot prove ownership of a profile that later
 appears, so that case fails closed for manual inspection instead of deleting it.
+
+## Reference data
+
+Search and instrument pages read the reference package installed in the
+stack's store, `<data>/store/reference/`, never the builder's output folder
+([reference packages](architecture/reference-package.md)). The store is per
+worktree (`just dev-paths` prints its data root), and core finds it through
+`PYTHIA_DATA_ROOT`. A store from before the move to `<data>/store` is moved
+there the first time the stack uses it; the old identity file stays behind as
+`identity.moved.sqlite3`. Open Markets or Repairs once on each stack you keep
+before the Hermes pin is bumped, and do not run older code in the same checkout
+afterwards
+([ADR 0034](decisions/0034-core-and-optional-features.md), 2026-09-29
+amendment). The old `plugin-data/…/documents/` cache is left behind and can be
+deleted by hand.
+
+**Do not run an older build on a stack a newer one has opened.** A build that
+includes device subjects migrates the stack's identity store to schema 6 the
+first time it opens it, keeping the old file as
+`identity.before-v6-<id>.sqlite3`. An older build that then opens the same stack
+(an older commit in the same checkout) cannot read it: it keeps the store aside
+as `identity.v6-<id>.sqlite3` and starts empty, and Repairs reports a reset.
+Your bindings and answers are in that set-aside file. To restore them, stop the
+stack, move the fresh `identity.sqlite3` aside, rename
+`identity.v6-<id>.sqlite3` to `identity.sqlite3`, and start the newer build
+([ADR 0037](decisions/0037-identity-backbone.md), amendment "device subjects").
+A column added within schema 6 is nullable and added when core opens the store,
+so it does not make an older build set the store aside. To read the stores
+directly, see [identity data](architecture/identity-data.md). `just dev-init`,
+`just dev` and `just dev-refresh` install this checkout's
+`.local/reference-builder/out/` package when there is one; set
+`PYTHIA_DEV_REFERENCE_PACKAGE` to use another package directory. To install one
+by hand:
+
+```sh
+just reference-snapshot                  # build a package (network; see tooling/reference-builder)
+just reference-install <package>         # verify its checksum and format, then install it
+just reference-status                    # what is installed, and the last refusal
+just reference-remove                    # set it aside: search and pages read the device's subjects alone
+```
+
+## Updating a stack that predates the identity backbone
+
+A development profile created before the identity backbone keeps its native
+choices when the code moves on. Pythia enables the default plugins, hides core's
+toolset and turns off Hermes's own skill writing only when it creates a profile,
+so on an existing one do it once, with the stack stopped. `just dev-paths`
+prints the `hermes_root`, `profile` and `cache` the commands need; they use the
+stack's own managed Hermes, never a global one, through a shell function so
+`HERMES_HOME` does not stay set in your shell. An installed device needs less:
+see the last bullets.
+
+```sh
+just stop
+just reference-snapshot   # network, slow; builds .local/reference-builder/out/ (see below)
+just dev-refresh          # copies the new plugins, installs that package, starts nothing
+
+pythia_hermes() {
+  HERMES_HOME="<hermes_root>" "<cache>/hermes-source/.venv/bin/hermes" -p "<profile>" "$@"
+}
+
+# 1. Enable the plugins a fresh profile enables.
+for plugin in pythia pythia-market-data pythia-sec pythia-openfigi pythia-gleif \
+    pythia-xbrl-filings pythia-yahoo-discovery pythia-coingecko \
+    pythia-coinmarketcap pythia-eodhd; do
+  pythia_hermes plugins enable "$plugin" --no-allow-tool-override
+done
+
+# 2. Hide core's pythia-core toolset, and keep Desk chat's tools off cli and cron.
+pythia_hermes tools disable pythia-core --platform api_server
+for platform in cli cron; do
+  pythia_hermes tools disable pythia-core pythia-desk pythia-sec \
+      pythia-xbrl-filings pythia-gleif pythia-eodhd pythia-yahoo-discovery \
+      pythia-coinmarketcap pythia-openfigi --platform "$platform"
+done
+
+# 3. Keep Hermes from writing its own skills (the fresh profile's choice); skip a key
+#    you set yourself. Its notice that creation_nudge_interval is not a recognized
+#    key is expected.
+pythia_hermes config set skills.creation_nudge_interval 0
+pythia_hermes config set skills.write_approval true
+pythia_hermes config set curator.enabled false
+```
+
+- **Plugins.** An existing profile gets the new plugin directories but no
+  enablement, so Settings → Data → Data sources lists no source and a read on a
+  subject reports `unresolved_identity`. The ten in the loop are the ones marked
+  `enabledByDefault: true` in `scripts/dev/managed-plugins.mjs`; enable an
+  opt-in one (`pythia-nsm`, `-hyperliquid`, `-defillama`, `-navi`, `-sui`) the
+  same way. `pythia-hyperliquid` has its own toolset, which Hermes then also
+  offers on `cli` and `cron`: after enabling it, run `pythia_hermes tools disable
+  pythia-hyperliquid --platform cli` and the same for `cron`.
+- **Toolsets.** Core registers every plugin operation in a `pythia-core`
+  toolset that Hermes would offer the model by default. Run step 2 after step
+  1, because Hermes records a plugin's toolset only while its plugin is
+  enabled. `pythia_hermes tools list --platform api_server` should
+  then show `pythia-core` disabled and `pythia-desk` and the provider toolsets
+  enabled ([agent tools](architecture/agent-tools.md#profiles)).
+- **Reference data.** Search and instrument pages read an installed reference
+  package and Pythia publishes none: build one as above, or install a package
+  you have with `just reference-install <package>`. A first build downloads
+  every source; it needs `sec_identity` in `settings.json`, and takes about 40
+  minutes with an OpenFIGI key and about 16 hours without one. A narrower scope
+  or a cached build is faster
+  ([configuration](../tooling/reference-builder/README.md#configuration)). An
+  installed deployment has no import step yet, so Settings → Reference data
+  reports none until Pythia publishes a package ([reference
+  packages](architecture/reference-package.md#later-automated-packages)).
+- **Installed devices.** Updating one runs migration `0002-agent-tool-surface`,
+  which does steps 2 and 3, but it does not enable the new plugins. Run step 1
+  with that device's Hermes, then repeat the `tools disable` for `cli` and
+  `cron`, since their toolsets are only known once enabled. Its profile is
+  `pythia`; `pythia paths` prints `config` and `runtime`, so `HERMES_HOME` is
+  `<config>/hermes` and the executable is
+  `<runtime>/hermes/<pinned commit>/.venv/bin/hermes`.
+- **Market data's old identity file.** The earlier market-data plugin kept
+  provider mappings, overrides and a source order in `identity.sqlite3` in its
+  private data directory. The new plugin renames it to
+  `identity-retired.sqlite3` beside it on its first use, never over an earlier
+  one and never deleting, and logs what it held (orders, scoped choices, saved
+  mappings and overrides). Nothing is copied: the order is now `source_order` in
+  `settings.json`, and core derives every address again from open identifiers
+  ([retired state](../packages/market-data/IDENTITY.md#retired-state)).
 
 ## Optional Tailscale access
 

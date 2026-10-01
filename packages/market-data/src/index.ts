@@ -11,9 +11,15 @@ export type MarketDataType =
   | "delayed_frozen"
   | "eod"
   | "unknown";
-export type Scope = "company" | "instrument" | "listing" | "crypto";
+/** Backbone subject levels (ADR 0037): the instrument kinds. */
+export type SubjectLevel = "issuer" | "security" | "composite" | "listing";
+/** A subject's kind: an instrument level or another kind (`index`, `fx`, ...),
+ * passed through as text when this client does not know it. */
+export type SubjectKind = SubjectLevel | (string & {});
+/** A backbone subject: its deterministic subject ID (for example
+ * `listing:isin:NL0010273215:XAMS:EUR`) and the kind that ID names. */
 export interface Subject {
-  kind: Scope;
+  kind: SubjectKind;
   id: string;
 }
 export interface Qualifiers {
@@ -37,44 +43,6 @@ export type ObservationTime =
 export interface Window {
   start: ObservationTime | null;
   end: ObservationTime | null;
-}
-export interface Evidence {
-  schema_version: 1;
-  id: string;
-  provider_ref: ProviderRef;
-  scope: Scope;
-  scheme:
-    | "isin"
-    | "figi"
-    | "lei"
-    | "cik"
-    | "cusip"
-    | "native"
-    | "ticker"
-    | "name"
-    | "contract_address";
-  value: string;
-  qualifiers: Qualifiers;
-  adapter_version: string;
-  observed_at: Instant | null;
-  retrieved_at: Instant;
-  effective: Window;
-  authority: "source_asserted" | "query_only" | "unknown";
-}
-export interface Mapping {
-  schema_version: 1;
-  id: string;
-  provider_ref: ProviderRef;
-  target: Subject;
-  status: "candidate" | "confirmed" | "conflicting" | "rejected";
-  evidence_ids: string[];
-  rule_version: string;
-  revision: number;
-  active_override: {
-    id: string;
-    effect: "positive" | "negative";
-    evidence_ids: string[];
-  } | null;
 }
 export type Unit =
   | { kind: "currency"; code: string; scale: Decimal }
@@ -192,6 +160,21 @@ export interface PriceContext {
     timezone: string;
     regular: { start: Instant; end: Instant };
     extended: { start: Instant; end: Instant };
+    /** Before today's open: the last session, whose after-hours close
+     * precedes today's pre-market by a closed interval. */
+    previous?: {
+      regular: { start: Instant; end: Instant };
+      extended: { start: Instant; end: Instant };
+    };
+  };
+  /** The latest pre- or post-market trade, compared with the last regular
+   * close; the regular observation remains the series value. */
+  extended?: {
+    session: "pre" | "post";
+    value: Decimal;
+    time: ObservationTime;
+    absolute?: Decimal;
+    percent?: Decimal;
   };
   reference_close?: {
     value: Decimal;
@@ -233,7 +216,6 @@ export interface Provenance {
   retrieved_at: Instant;
   source_time: Instant | null;
   revision_vintage: string | null;
-  mapping_revision: number | null;
   source_detail: SourceDetail | null;
 }
 export interface Selection {
@@ -246,7 +228,6 @@ export interface Selection {
     | "disabled"
     | "unconfigured"
     | "unavailable";
-  preference_revision: number | null;
   alternatives: string[];
 }
 export interface Coverage {
@@ -297,17 +278,10 @@ export interface Contribution {
   provider: string;
   adapter_version: string;
   operations: {
-    operation:
-      | "search"
-      | "details"
-      | "series"
-      | "latest"
-      | "history"
-      | "read_batch";
+    operation: "details" | "series" | "latest" | "history" | "read_batch";
     tool: string;
     effect: "read";
   }[];
-  subject_kinds: Scope[];
   requires_broker_app?: boolean;
   observation_cache?: "default" | "disabled";
   cadence?: Partial<Record<"latest" | "history" | "series", number>>;
@@ -315,8 +289,6 @@ export interface Contribution {
 export interface WireTypes {
   subject: Subject;
   provider_ref: ProviderRef;
-  evidence: Evidence;
-  mapping: Mapping;
   series: Series;
   observation: Observation;
   read_request: ReadRequest;

@@ -4,10 +4,12 @@ import { runtimeEnvironment } from "../scripts/dev/environment.mjs";
 import { MANAGED_CORE_FILES } from "../scripts/dev/files.mjs";
 import { resolveInstallPaths } from "../scripts/install/paths.mjs";
 import { sourceManifest } from "./source-snapshot.mjs";
-import { MANAGED_PLUGINS } from "../scripts/dev/managed-plugins.mjs";
+import {
+  MANAGED_PLUGINS,
+  managedRunnerBuilds,
+} from "../scripts/dev/managed-plugins.mjs";
 import { MANAGED_WIDGET_BUILDS } from "../scripts/dev/managed-widget-builds.mjs";
 import { assertManagedPluginSource } from "../scripts/dev/files.mjs";
-
 import {
   forbiddenPayloadText,
   isBuilderInstructionSource,
@@ -70,7 +72,7 @@ const pluginFiles = source.entries
   .filter((path) => path.startsWith("runtime/managed/core/"));
 if (
   pluginFiles.join("\0") !==
-  [...MANAGED_CORE_FILES.map((path) => `runtime/managed/core/${path}`)]
+  MANAGED_CORE_FILES.map((path) => `runtime/managed/core/${path}`)
     .sort((left, right) => left.localeCompare(right, "en"))
     .join("\0")
 ) {
@@ -95,7 +97,6 @@ if (
     "installer: Hermes preparation metadata differs from the exact allowlist",
   );
 }
-
 const skillFiles = source.entries
   .map((item) => item.path)
   .filter((path) => path.startsWith("runtime/managed/skills/"));
@@ -162,13 +163,16 @@ const promptAndContextFiles = new Set([
   authoritativePromptSource,
   ...skillFiles,
 ]);
+// Widget bundles and connector workers; a worker without an output runs as source.
+const builds = [
+  ...MANAGED_WIDGET_BUILDS,
+  ...managedRunnerBuilds(MANAGED_PLUGINS),
+];
 const installedRuntimeFiles = new Set([
   ...MANAGED_PLUGINS.flatMap((plugin) =>
     plugin.files.map((path) => `runtime/managed/${plugin.source}/${path}`),
   ),
-  ...["provider-budget.ts", "provider-errors.ts", "provider-worker.ts"].map(
-    (path) => `runtime/managed/runner/${path}`,
-  ),
+  ...builds.flatMap((build) => [build.entry, build.output].filter(Boolean)),
   ...["NOTICE.md", "hermes-source.json"].map(
     (path) => `runtime/hermes/${path}`,
   ),
@@ -177,28 +181,26 @@ const installedRuntimeFiles = new Set([
   "runtime/seeds/manifest.json",
   ...promptAndContextFiles,
 ]);
-const widgetBuilds = new Map(
-  MANAGED_WIDGET_BUILDS.map((build) => [build.output, build.entry]),
+const buildSources = new Map(
+  builds.map((build) => [build.output, build.entry]),
 );
 for (const path of installedRuntimeFiles) {
-  const widgetSource = widgetBuilds.get(path);
-  if (widgetSource) {
+  const buildSource = buildSources.get(path);
+  if (buildSource) {
     if (
-      !source.entries.some((entry) => entry.path === widgetSource) ||
-      !installedRuntimeFiles.has(widgetSource) ||
+      !source.entries.some((entry) => entry.path === buildSource) ||
+      !installedRuntimeFiles.has(buildSource) ||
       source.entries.some((entry) => entry.path === path)
     )
       violations.push(
-        `widget build: requires copied public source and uncommitted output ${path}`,
+        `build: requires copied public source and uncommitted output ${path}`,
       );
     try {
       // Only these reviewed build outputs may enter the copied closure without
       // being Git source. Keep the same regular-file/parent/size admission.
       assertManagedPluginSource(root, [path]);
     } catch {
-      violations.push(
-        `widget build: missing or invalid compiled artifact ${path}`,
-      );
+      violations.push(`build: missing or invalid compiled artifact ${path}`);
       continue;
     }
   } else if (!source.entries.some((entry) => entry.path === path)) {
