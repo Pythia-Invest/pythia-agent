@@ -82,8 +82,8 @@ for each. Rules 5 and 6 are proposals (candidate 2 below), not adopted.
    written 100 times too large for Cetus, are a labelled source correction in its
    plugin, never a core rule.
 
-   The chain plugin still leaves some chain records out, which departs from the
-   rule that a plugin keeps every source record and learns the source's
+   The chain plugin still leaves some chain records out, which sits awkwardly
+   with the rule that a plugin keeps every source record and learns the source's
    vocabulary (OpenFIGI keeps a line it cannot place, parked, with a `venue_note`
    saying why, and filters come at display:
    [exchange codes](../sources/openfigi.md#exchange-codes)). It leaves out a pool
@@ -92,10 +92,10 @@ for each. Rules 5 and 6 are proposals (candidate 2 below), not adopted.
    read as the protocol's own (`invalid_reference`, `unexpected_root`), each with
    a warning. The three package alarms (`package_unknown`, `package_not_original`,
    `package_family_changed`) are different: they check the plugin's own list of
-   original packages against the chain. Under the keep-and-filter rule each of
-   these drops would become a status on a kept record, filtered at display, before
-   the plugin leaves the experiment; the experiment has not tried that, and it
-   stays open for when Sui work resumes.
+   original packages against the chain. Whether the rule applies to each of
+   these drops, and whether any becomes a status on a kept record, filtered at
+   display, is not decided; the experiment has not tried it, and it stays open
+   for when Sui work resumes.
 8. **Fees and other changing state are reads with an as-of, never claims.** The
    chain plugin's `metrics` read returns a DeepBook pool's taker and maker fee as
    they stand now. It is a plain plugin read, not core's checked metric row, which

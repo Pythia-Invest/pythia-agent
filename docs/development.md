@@ -412,9 +412,11 @@ pythia_hermes config set curator.enabled false
   packages](architecture/reference-package.md#later-automated-packages)).
 - **Installed devices.** Updating one runs migration `0002-agent-tool-surface`,
   which does steps 2 and 3, but it does not enable the new plugins. Run step 1
-  with that device's Hermes (profile `pythia`; `pythia paths` prints its roots),
-  then repeat the `tools disable` for `cli` and `cron`, since their toolsets are
-  only known once enabled.
+  with that device's Hermes, then repeat the `tools disable` for `cli` and
+  `cron`, since their toolsets are only known once enabled. Its profile is
+  `pythia`; `pythia paths` prints `config` and `runtime`, so `HERMES_HOME` is
+  `<config>/hermes` and the executable is
+  `<runtime>/hermes/<pinned commit>/.venv/bin/hermes`.
 - **Market data's old identity file.** The earlier market-data plugin kept
   provider mappings, overrides and a source order in `identity.sqlite3` in its
   private data directory. The new plugin renames it to
