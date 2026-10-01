@@ -13,6 +13,7 @@ from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity, load, load_reference
 from pythia_identity_fixture import build_questions, conflicts, device, ingest, lifecycle, page, queue, store  # noqa: E402
+from pythia_identity_fixture import reference_package  # noqa: E402
 from pythia_identity_fixture import subject as subjects  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
@@ -24,7 +25,8 @@ COLUMNS = {"issuers": ["id"], "securities": ["id", "issuer_id"], "composites": [
 def release(source: Path, directory: Path, name: str, *, renames=(), aliases=(), drop=()) -> Path:
     """A later build of the reference at `source`: `renames` re-key subjects (their assertions get the evidence IDs
     the new subject gives them), `aliases` are its id_aliases rows, `drop` subjects it no longer holds."""
-    path = directory / f"{name}.sqlite3"
+    path = directory / name / f"{name}.sqlite3"  # the product names a release by its directory (`release_key`)
+    path.parent.mkdir(exist_ok=True)
     path.write_bytes(source.read_bytes())
     with closing(sqlite3.connect(path)) as db, db:
         db.row_factory = sqlite3.Row
@@ -158,4 +160,4 @@ class World:
     def rekey(self, path: Path) -> dict | None:
         """Lifecycle A: the device's rows follow the release at `path`."""
         with closing(store.open_reference(path)) as ref:
-            return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem))
+            return lifecycle.rekey(self.identity, ref, reference_package.release_key(path))

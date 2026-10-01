@@ -208,6 +208,18 @@ class SelfContradictionTest(Questions):
         self.assertEqual(self.page(SAP_BY_FIGI)["identifiers"]["figi"], SAP_FIGI)
 
 
+class UnreadableSubjectTest(unittest.TestCase):
+    def test_a_subject_that_cannot_be_read_asks_nothing_and_is_logged_by_its_id(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        world = World(Path(tmp.name))
+        self.addCleanup(world.close)
+        with self.assertLogs(conflicts.logger, "WARNING") as logged:
+            self.assertEqual(conflicts.raised(world.ref, world.identity, ["not a subject id"], world.plugins), [])
+        [line] = logged.output
+        self.assertIn("not a subject id", line)
+
+
 class ReKeyTest(unittest.TestCase):
     """The override survives a release that now holds the contested line: the device alias it writes re-points the
     question, and the answer still applies to the reference's subject (Lifecycle A, `lifecycle.covered`)."""

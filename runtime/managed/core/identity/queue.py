@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 from typing import Any, Iterable, Mapping
 
@@ -19,9 +20,11 @@ from .claims import ClaimBatch, RecordClaim
 from .model import Binding, ProviderRef, evidence_id
 from .page import LABELS, RESOLVE_RULE, SAME, PluginInfo, apply_resolve, load_subject, resolve_input
 from .resolution import RELATION_LEVEL, QueueItem, ResolverKind, Verdict, VerdictOutcome, decide
-from .schemes import Level, subject_kind, subject_level
+from .schemes import Level, scheme_label, subject_kind, subject_level
 from .store import IdentityStore
 from .vocabulary import Authority, InstrumentKind, VerdictRelation
+
+logger = logging.getLogger(__name__)
 
 AGENT_MODEL = "hermes-agent"
 PROMPT_VERSION = "pythia_identity_verdict@1"
@@ -56,8 +59,7 @@ def title(item: dict) -> str:
         return KIND_TITLES.get(item["kind"], "Identity question")
     if item["reason"] != "identifier":
         return REASON_TITLES.get(item["reason"], "Identity question")
-    scheme = (item.get("scheme") or "").upper().replace("_", " ")
-    return f"Which {scheme}?" if build_questions.own_identifier(item) else "Issuer unclear"
+    return f"Which {scheme_label(item.get('scheme'))}?" if build_questions.own_identifier(item) else "Issuer unclear"
 
 
 def summary(store: IdentityStore, ref: sqlite3.Connection, item: dict, labels: Mapping[str, str] = {}) -> dict:
@@ -263,7 +265,9 @@ def settle_by_rules(store: IdentityStore, ref: sqlite3.Connection, plugins: Iter
         try:
             if _settle_one(store, ref, usable.get(row["plugins"][0]), row, now=now, as_of=as_of, plugins=plugins):
                 settled.append(row["id"])
-        except (ValueError, KeyError, TypeError):  # one unreadable stored claim never stops the rest
+        except (ValueError, KeyError, TypeError) as error:  # one unreadable stored claim never stops the rest
+            logger.warning("rules skipped identity queue item %s: its stored claim is unreadable (%s)", row["id"],
+                           type(error).__name__)  # never the claim's contents
             continue
     return settled
 

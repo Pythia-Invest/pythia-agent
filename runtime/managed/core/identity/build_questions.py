@@ -35,7 +35,7 @@ from . import corrections, device, device_parents, receipt_issuer, reference_pac
 from . import evidence as weighing
 from .claims import IdentifierValue
 from .resolution import QueueItem
-from .schemes import SCHEME_LEVEL, Level, subject_id, subject_kind, subject_level
+from .schemes import SCHEME_LEVEL, Level, scheme_label, subject_id, subject_kind, subject_level
 from .subject import _assertion
 from .subject import load_subject as load_reference_subject
 from .vocabulary import Authority, VerdictRelation
@@ -76,7 +76,7 @@ def asked(item: dict) -> tuple[str, VerdictRelation] | None:
     relation, issuer = RELATIONS.get(item["reason"]), subject_kind(item["subject_ids"][0]) == "issuer"
     if relation is None or (item["reason"] == "ambiguous" and not issuer):
         return None
-    scheme = (item.get("scheme") or "").upper().replace("_", " ")
+    scheme = scheme_label(item.get("scheme"))
     values = ", ".join(f"{scheme} {value}".strip() for value in item.get("values") or ())
     own, candidates = own_identifier(item), item.get("candidate_ids") or ()
     registrant = item["subject_ids"][0].startswith("issuer:cik:") and scheme == "LEI"  # asked which LEI it holds

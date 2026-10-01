@@ -18,7 +18,8 @@ from .fixtures import FakeOpenFigi
 from .test_pipeline import APPLE_ISIN, UNKNOWN_US_ISIN, WIDE_OPENFIGI, gleif_fetch, wide_inputs
 
 identity = schema.identity
-lifecycle, store, subject = (importlib.import_module(f"{identity.__name__}.{name}") for name in ("lifecycle", "store", "subject"))
+lifecycle, reference_package, store, subject = (importlib.import_module(f"{identity.__name__}.{name}")
+                                                for name in ("lifecycle", "reference_package", "store", "subject"))
 # Microsoft's ISIN on the Frankfurt open market, which OpenFIGI does not answer in the fixture.
 SECURITY, LINE = f"security:cgs_isin:{UNKNOWN_US_ISIN}", f"listing:cgs_isin:{UNKNOWN_US_ISIN}:XFRA:EUR"
 FORMER = {SECURITY: f"security:provisional:esma_firds:isin:{UNKNOWN_US_ISIN}",  # subject_key@1's IDs
@@ -60,7 +61,8 @@ class CgsKeyTest(unittest.TestCase):
 
     def test_the_re_key_carries_references_saved_under_the_former_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "reference-20261001.sqlite3"
+            path = Path(tmp) / "reference-20261001" / "reference-20261001.sqlite3"  # a release is named by its directory
+            path.parent.mkdir()
             writer.write(self.snap, path, {"build_id": "reference-20261001"}, [])
             saved = store.IdentityStore(Path(tmp) / "store")
             with closing(store.open_reference(path)) as ref:
@@ -70,7 +72,7 @@ class CgsKeyTest(unittest.TestCase):
                 self.assertTrue(saved.put_binding(identity.Binding(EODHD, FORMER[LINE], "confirmed", "source_asserted",
                                                                    (cited,), "pythia-eodhd")))
                 saved.put_miss(FORMER[SECURITY], "pythia-yahoo", "no match", 3600)
-                result = lifecycle.rekey(saved, ref, lifecycle.release_id(ref, path.stem))
+                result = lifecycle.rekey(saved, ref, reference_package.release_key(path))
                 watched = subject.current_id(ref, FORMER[SECURITY])  # an ID saved in settings, resolved on read
             bound = saved.binding_for(EODHD)
             self.assertEqual((bound["subject_id"], json.loads(bound["evidence_ids"])), (LINE, [isin.evidence_id]))

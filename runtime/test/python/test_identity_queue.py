@@ -6,13 +6,14 @@ import sqlite3
 import sys
 import threading
 import types
+import unittest
 import unittest.mock
 from pathlib import Path
 
 from test_identity_contracts import PROVENANCE, identity
 from test_identity_page import ASML, CONTRACTS, LEI, Fixture, plugin
 from test_reference_package import make_package
-from pythia_identity_fixture import page, queue, reference_package, store  # noqa: E402
+from pythia_identity_fixture import build_questions, page, queue, reference_package, schemes, store  # noqa: E402
 
 NOW, AS_OF = "2026-09-26T10:00:00Z", "2026-09-26"
 
@@ -154,6 +155,38 @@ class BuildQuestionTest(QueueFixture):
         self.assertEqual(self.identity.queue_item("ref-old")["state"], "superseded")
 
 
+class TitleTest(unittest.TestCase):
+    """Repairs shows core's title as it is, so each kind of identifier conflict is titled in words a person reads."""
+
+    # One subject per level a conflict can be about, and what its question is titled.
+    ISSUER, SECURITY = "issuer:lei:724500Y6DUVHQD6OXN27", "security:isin:NL0010273215"
+    COMPOSITE, LISTING = "composite:figi:BBG000BLNNH6", "listing:figi:BBG000B9XRY4"
+    TITLES = {"lei": (ISSUER, "Which LEI?"), "cik": (ISSUER, "Which CIK?"), "isin": (SECURITY, "Which ISIN?"),
+              "share_class_figi": (SECURITY, "Which Share-class FIGI?"),
+              "composite_figi": (COMPOSITE, "Which Composite FIGI?"), "figi": (LISTING, "Which FIGI?"),
+              "caip19": (LISTING, "Which CAIP-19?")}
+
+    def conflict(self, scheme, subject):
+        return {"kind": "conflict", "reason": "identifier", "scheme": scheme, "subject_ids": [subject],
+                "plugins": [build_questions.BUILD], "provider_ref": None}
+
+    def test_every_contestable_identifier_has_a_title_in_words(self):
+        contestable = {str(scheme) for scheme in schemes.SINGLE_VALUED if scheme in schemes.SCHEME_LEVEL}
+        self.assertEqual(set(self.TITLES), contestable, "a new contestable scheme needs its title here")
+        for scheme, (subject, expected) in self.TITLES.items():
+            with self.subTest(scheme=scheme):
+                self.assertEqual(queue.title(self.conflict(scheme, subject)), expected)
+
+    def test_the_question_names_the_identifier_in_the_same_words(self):
+        asked = build_questions.asked({**self.conflict("share_class_figi", self.SECURITY), "candidate_ids": [],
+                                       "values": ["BBG001S5N8V8", "BBG001S5PQL7"]})[0]
+        self.assertTrue(asked.startswith("Which Share-class FIGI is this? Its sources name Share-class FIGI BBG001S5N8V8, "))
+
+    def test_every_scheme_has_a_label_and_one_core_does_not_know_shows_as_itself(self):
+        self.assertEqual(set(schemes.SCHEME_LABEL), set(schemes.Scheme))
+        self.assertEqual((schemes.scheme_label("a_future_scheme"), schemes.scheme_label(None)), ("a future scheme", ""))
+
+
 class StoreTest(QueueFixture):
     def test_a_rolled_back_transaction_never_drops_another_threads_write(self):
         writer = threading.Thread(target=self.identity.put_miss, args=(ASML, "pythia-eodhd", "EODHD found no match", 60))
@@ -199,6 +232,21 @@ class RulesTest(QueueFixture):
         self.assertEqual((bound["subject_id"], bound["authority"], bound["rule_id"]), (ASML, "rule_confirmed", "resolve_answer@1"))
         [entry] = queue.inspect(self.identity, self.ref, residual.id)["history"]
         self.assertEqual((entry["resolver"], entry["outcome"]), ("rules", "confirmed"))
+
+    def test_an_unreadable_stored_claim_is_logged_by_its_item_and_the_rest_still_settle(self):
+        broken = self.ask(answer(("isin", "NL0010273215"), native_id="ASML.BROKEN"), subject=self.bare())
+        residual = self.ask(answer(("isin", "NL0010273215")), subject=self.bare())
+        with self.identity.transaction():  # a damaged row, or one a later version wrote
+            self.identity.db.execute("UPDATE claims SET claim = ? WHERE native_id = 'ASML.BROKEN'",
+                                     (json.dumps({"level": "listing", "attributes": {"name": "Private Holdings"}}),))
+        items = self.identity.queue_items(subject_ids=[ASML])
+        with self.assertLogs(queue.logger, "WARNING") as logged:
+            settled = queue.settle_by_rules(self.identity, self.ref, [plugin("eodhd")], items, now=NOW, as_of=AS_OF)
+        self.assertEqual(settled, [residual.id])
+        [line] = logged.output
+        self.assertIn(broken.id, line)
+        self.assertNotIn("Private Holdings", line)  # the item is named, never what the claim holds
+        self.assertNotIn("ASML.BROKEN", line)
 
     def test_rules_skip_a_disabled_plugin(self):
         self.ask(answer(("isin", "NL0010273215")), subject=self.bare())

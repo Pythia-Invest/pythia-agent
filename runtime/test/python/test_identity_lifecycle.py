@@ -43,7 +43,7 @@ class LifecycleTest(QueueFixture):
 
     def rekey(self, path, again=False):
         with closing(store.open_reference(path)) as ref:
-            return lifecycle.rekey(self.identity, ref, lifecycle.release_id(ref, path.stem), again=again)
+            return lifecycle.rekey(self.identity, ref, reference_package.release_key(path), again=again)
 
     def bound(self):
         row = self.identity.binding_for(identity.ProviderRef("eodhd", "ASML.AS", "catalogue"))
