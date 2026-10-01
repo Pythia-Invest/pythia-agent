@@ -28,8 +28,9 @@ and its
 
 Two Node.js SDKs are production dependencies of the root `package.json`. The
 runner workers of the bundled `pythia-eodhd` and `pythia-yahoo-discovery`
-plugins use them ([ADR 0034](docs/decisions/0034-core-and-optional-features.md)
-keeps both out of core). Each plugin records its own data rights.
+plugins use them, not core
+([ADR 0034](docs/decisions/0034-core-and-optional-features.md) moved EODHD out
+of core). Each plugin records its own data rights.
 
 - The EODHD Node.js SDK 1.1.0 (`eodhd`) is licensed under MIT. The qualified package
   source is commit

@@ -35,7 +35,7 @@ decisions: resolve answers, the review queue and its resolvers.
 Before ADR 0037 this feature kept provider mappings and source preferences in
 its own `identity.sqlite3` (ADR 0012), and later its source orders in
 `preferences.sqlite3`. Pythia now has one source order, core's `source_order`
-setting (ADR 0040), so neither file applies. On the first start of this version
+setting (ADR 0040), so neither file applies. On its first use in this version
 the backend renames each file that exists to `identity-retired.sqlite3` or
 `preferences-retired.sqlite3` in the same private data directory, never
 overwriting an earlier one, and logs a warning in the Hermes log naming the
