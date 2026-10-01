@@ -64,6 +64,15 @@ def label(coin):
     return coin.partition('<')[0].rpartition('::')[2]
 
 
+def caip19(coin):
+    """The coin's CAIP-19 key in the profile core joins on (`pythia_platform.identifiers`), or None if core refuses it."""
+    from pythia_platform import identifiers  # published by core, which registers before this plugin
+    try:
+        return identifiers.normalize_identifier('caip19', f'sui:mainnet/coin:{coin}')
+    except identifiers.IdentifierError:
+        return None
+
+
 def struct(text):
     """Split `0xpkg::module::Name<A, B>` into (`0xpkg::module::Name` canonical or None, [A, B] as coin types or None)."""
     head, _, rest = text.partition('<')

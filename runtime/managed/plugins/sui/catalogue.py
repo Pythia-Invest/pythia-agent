@@ -16,7 +16,7 @@ Three scopes, in the order core's sync pages them:
 from collections import Counter, defaultdict
 
 from . import alphalend, bucket, deepbook, protocols
-from .chain import WORMHOLE_CHAINS, WORMHOLE_STATE, coin_type, label
+from .chain import WORMHOLE_CHAINS, WORMHOLE_STATE, caip19, coin_type, label
 from .seed import SEED
 
 PROVIDER, PLUGIN, ADAPTER_VERSION = 'sui', 'pythia-sui', '1'
@@ -40,8 +40,7 @@ def market_rows(chain, verified):
 
 def keyed(coin):
     """A coin type core can key: plain and accepted by the CAIP-19 Sui profile."""
-    from pythia_platform import identifiers  # published by core, which registers before this plugin
-    return coin_type(coin) == coin and identifiers.sui_caip19(coin) is not None
+    return coin_type(coin) == coin and caip19(coin) is not None
 
 
 def universe(rows):
@@ -113,7 +112,6 @@ def _origin(coin, bridge, wormhole):
 
 
 def _tokens(chain, coins, found):
-    from pythia_platform import identifiers  # published by core, which registers before this plugin
     described = chain.metadata(coins)
     bridge, wormhole = chain.sui_bridge(), chain.wormhole(coins)
     claims = []
@@ -125,14 +123,13 @@ def _tokens(chain, coins, found):
         attributes = {'asset_class': 'crypto', 'status': 'active', **({'name': shown[:512]} if name else {}),
                       **({'aliases': [meta['symbol']]} if meta and meta['symbol'] != name else {}),
                       **({'rank': {'supply': meta['supply']}} if meta and meta['supply'] is not None else {})}
-        claims.append({'level': 'listing', 'identifiers': [{'scheme': 'caip19', 'value': identifiers.sui_caip19(coin)}],
+        claims.append({'level': 'listing', 'identifiers': [{'scheme': 'caip19', 'value': caip19(coin)}],
                        'attributes': attributes,
                        'provenance': _provenance(chain, origin[1] if origin else f'coinMetadata {coin}')})
     return claims
 
 
 def _markets(chain, rows, found):
-    from pythia_platform import identifiers  # published by core, which registers before this plugin
     coins = {coin for row in rows for coin, _role in row['assets'] if coin_type(coin) == coin}
     described, claims = chain.metadata(sorted(coins)), []
     for row in rows:
@@ -145,7 +142,7 @@ def _markets(chain, rows, found):
                    {'type': 'part_of', 'from_key': key, 'to_key': {'scheme': 'sui_package', 'value': row['protocol']},
                     'provenance': provenance}]
         for coin, role in row['assets']:
-            token = identifiers.sui_caip19(coin) if coin_type(coin) == coin else None
+            token = caip19(coin) if coin_type(coin) == coin else None
             found['unkeyed_coin_type'] += token is None
             if token:
                 claims.append({'type': 'market_asset', 'from_key': key, 'to_key': {'scheme': 'caip19', 'value': token},

@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 import sys
 
-from market_data_fixture import connector, platform_module, wire
+from market_data_fixture import connector, wire
 from test_plugin_contracts import PLUGINS, checked_batch
 
 ROOT = PLUGINS / 'sui'
@@ -199,4 +199,4 @@ def issues(results):
 
 
 def listing(coin):
-    return platform_module.identifiers.sui_caip19(coin)
+    return chain.caip19(coin)

@@ -239,15 +239,6 @@ def normalize_identifier(scheme: Scheme | str, value: str) -> str:
     return value
 
 
-def sui_caip19(coin_type: str) -> str | None:
-    """A Sui mainnet coin type as the CAIP-19 key core joins on, or None when core gives it none: a generic type, or
-    one whose key would pass CAIP-19's 128 characters. The plugins that state Sui coins share this one reading."""
-    try:
-        return normalize_identifier(Scheme.CAIP19, f"sui:mainnet/coin:{coin_type}")
-    except IdentifierError:
-        return None
-
-
 def ticker_mic(ticker: str, mic: str) -> str:
     """Canonical `ticker_mic` value; `mic` is the operating MIC."""
     return normalize_identifier(Scheme.TICKER_MIC, f"{ticker}@{mic}")

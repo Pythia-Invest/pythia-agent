@@ -141,8 +141,7 @@ Version 1 holds `declare_operation`, `register_read_command`,
 `check_read`, `read_document`, `validate_live_market` and `FilingKind`; the
 [connector toolkit](connector-support.md) as `connector`, `wire` and `process`;
 the modules `configuration`, `access`, `admission`, `request_context`,
-`subscription` and `identifiers` (`normalize_identifier`, `IdentifierError`,
-`sui_caip19`);
+`subscription` and `identifiers` (`normalize_identifier`, `IdentifierError`);
 and, for a plugin that coordinates other plugins' reads, `tool_schemas`,
 `dispatch`, `interrupted`, `session` and `session_platform`. An
 exported module offers only the members ADR 0045 lists. A version only gains
