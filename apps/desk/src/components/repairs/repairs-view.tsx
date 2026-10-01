@@ -59,6 +59,12 @@ export function RepairsView({ question }: { question?: string | undefined }) {
       (!types.length || types.includes(repair.kind)) &&
       (!needle || repair.search.includes(needle)),
   );
+  // What the lists left out, for the statuses on show.
+  const cut = repairs.cut.filter(
+    (list) =>
+      !statuses.length ||
+      list.statuses.some((status) => statuses.includes(status)),
+  );
   // A link can outlive its question: answered, superseded by a new release, or
   // past the queue read's cap.
   const linked = repairs.all.find(
@@ -130,6 +136,19 @@ export function RepairsView({ question }: { question?: string | undefined }) {
               Retry
             </Button>
           </div>
+        ) : null}
+        {cut.length ? (
+          <p
+            data-slot="repairs-cut"
+            className="m-0 text-foreground-secondary text-xs"
+          >
+            {cut
+              .map(
+                (list) =>
+                  `Showing the newest ${list.shown}${list.total ? ` of ${list.total}` : ""} ${list.name}.`,
+              )
+              .join(" ")}
+          </p>
         ) : null}
         <DataTable
           label="Repairs"

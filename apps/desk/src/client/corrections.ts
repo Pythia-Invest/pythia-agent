@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { busyRetry } from "./busy-retry";
+import { LIST_LIMIT } from "./identity-queue";
 import { useDeskApi } from "./providers";
 
 /*
@@ -63,7 +64,7 @@ const correctionsKey = [
   "identity-corrections",
 ] as const;
 
-/** Every correction and proposal on this device, newest first. */
+/** Corrections and proposals on this device, newest first, up to LIST_LIMIT. */
 export function useCorrections() {
   const api = useDeskApi();
   return useQuery({
@@ -73,7 +74,7 @@ export function useCorrections() {
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-corrections",
-          arguments: { limit: 50 },
+          arguments: { limit: LIST_LIMIT },
         }),
         listSchema,
       ).items,

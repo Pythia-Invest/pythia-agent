@@ -466,7 +466,9 @@ optional note recorded with the action, and Cancel/Back beside a primary or,
 for a withdrawal, destructive confirm. Settled records stay reachable through
 the Status filter rather than a separate history.
 A link can open one row (`/settings/repairs?question=<id>`): it starts expanded
-and scrolls into view.
+and scrolls into view. Core lists at most 50 of each kind, newest first; when it
+holds more, one quiet line above the table says how many are shown (of how many,
+where core counts them), so a long list is never passed off as the whole.
 
 Where an open question holds a fact back from an instrument page, the page says
 so in place of the fact, in one neutral line and with no warning symbol:
