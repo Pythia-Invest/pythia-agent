@@ -85,9 +85,10 @@ retried: a batch is halved, a single read is asked three times.
   and Bucket have no floor: 36 markets and 20 vaults, as their own registries list.
   **The floor leaves pools out of the catalogue, which departs from Pythia's rule
   that a plugin never drops a record its source states.** The rule is to keep
-  every pool with a status and to filter at display. That change is to be made
-  before this plugin leaves the experiment; until then the code still drops the
-  pools below the floor and counts them in a warning.
+  every pool with a status and to filter at display. Until that change, the code
+  drops the pools below the floor; it counts them but reports no warning. The
+  plugin's other drops, and what becomes of them, are in
+  [ADR 0048](../../../../docs/decisions/0048-sui-defi-experiment.md) rule 7.
 - **AlphaLend's key** is the dynamic-field object of the table entry, which anyone
   can read and which is derived from the table and the market number. The research
   used `Market.id`, the wrapped UID, which no API reads.
