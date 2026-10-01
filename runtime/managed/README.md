@@ -8,16 +8,20 @@ This directory is Pythia-owned source updated with each release:
 - `skills/` is loaded directly by Hermes through `skills.external_dirs`; native
   bundle references, scripts, templates, and assets remain beside `SKILL.md`.
 - `core/` contains Pythia's host support, including Desk context, shared
-  protected transport and the identity backbone contracts (`core/identity/`,
-  ADR 0037/0038). It is copied into the selected Hermes profile using the
-  native extension mechanism under its existing `pythia` identity.
-- `plugins/market-data/` is a separately copied native feature: shared financial
-  contracts, identity, source resolution, protected resident HTTP/SSE and reusable
-  connector execution helpers. Concrete connectors are separate packages.
-  Its financial skill is bundled inside the plugin.
-- `plugins/yahoo-discovery/` is the bundled credential-free Yahoo Finance
-  connector.
-- `plugins/eodhd/` is the bundled EODHD connector; it needs an API token.
+  protected transport, the identity backbone contracts (`core/identity/`,
+  ADR 0037/0038) and the connector toolkit and wire contract that plugins reach
+  through `pythia_platform` (`core/platform/`, ADR 0045). It is copied into the
+  selected Hermes profile using the native extension mechanism under its
+  existing `pythia` identity.
+- `plugins/` holds the optional features, one native package each
+  ([plugin authoring](../../docs/architecture/plugins.md)). `plugins/market-data/`
+  is the coordinating feature: it routes a subject's read through core's price
+  sources, provides the protected resident HTTP/SSE delivery and the instrument
+  widgets, and bundles the financial skill. Every other directory is a connector
+  or catalogue plugin for one source, and depends on core alone. The release list
+  in `scripts/dev/managed-plugins.mjs` names what ships and which are on by
+  default; [market data](../../docs/architecture/market-data.md) describes the
+  connectors.
 - `runner/` contains shared provider execution helpers, the connector workers
   that payloads declare, and the narrow native read-only session-context
   helper. The latter runs with the pinned Hermes environment.

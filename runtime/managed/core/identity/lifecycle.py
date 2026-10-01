@@ -32,12 +32,6 @@ VANISHED = "vanished_subjects"  # JSON list: reference subjects local rows name 
 TABLES = {Level.LISTING: "listings", Level.COMPOSITE: "composites", Level.SECURITY: "securities", Level.ISSUER: "issuers"}
 
 
-def release_id(ref: sqlite3.Connection, fallback: str) -> str:
-    """The build ID the release records (the builder writes its file stem), else `fallback`."""
-    row = ref.execute("SELECT value FROM release WHERE key = 'release'").fetchone()
-    return row[0] if row and row[0] else fallback
-
-
 def vanished(store: IdentityStore) -> list[str]:
     return json.loads(store.metadata(VANISHED) or "[]")
 

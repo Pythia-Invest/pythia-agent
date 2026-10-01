@@ -1,9 +1,9 @@
 # Sui chain source record
 
 [Source onboarding](../architecture/source-onboarding.md) defines the stages
-([ADR 0042](../decisions/0042-source-onboarding-standard.md)). This is slice E2 of
-the Sui experiment (not a decided design; see
-`docs/architecture/identity-data.md`).
+([ADR 0042](../decisions/0042-source-onboarding-standard.md)). It is the chain
+source of the Sui experiment, which is not a decided design: see
+[ADR 0048](../decisions/0048-sui-defi-experiment.md).
 
 **Status: in development (experimental). Disabled by default; not signed off; kept for future reference.** See [ADR 0048](../decisions/0048-sui-defi-experiment.md), which is also the reference for integrating a crypto source.
 
@@ -67,7 +67,7 @@ published quota.
   name or a symbol.
 - [x] Unexpected input is counted and left out, never coerced; an answer with no
   protocol or no market fails.
-- [x] Network-free tests use objects cut from these reads (`test_sui_catalogue.py`).
+- [x] Network-free tests use invented values in objects shaped like these reads (`test_sui_catalogue.py`).
 
 | Alarm | Raised when |
 | --- | --- |

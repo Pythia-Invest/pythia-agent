@@ -24,43 +24,49 @@ _ROUTES = ContextVar("market_data_routes", default=None)
 RETIRED = (("preferences.sqlite3", "preferences-retired.sqlite3"), ("identity.sqlite3", "identity-retired.sqlite3"))
 
 
-def _saved_orders(path):
-    """The non-empty per-operation orders and the count of scoped choices a retired file holds."""
+# What a retired file may hold besides per-operation orders, by table: scoped choices, and the identity file's mappings and
+# overrides (the schema of ADR 0012's store). Each is counted, so a file holding only these is not set aside silently.
+SAVED_ROWS = ("scoped_source_preferences", "mappings", "overrides")
+
+
+def _saved_choices(path):
+    """The non-empty per-operation orders a retired file holds, and its row counts for each of `SAVED_ROWS`."""
     db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=2)
     try:
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         orders = {row[0]: json.loads(row[1]) for row in db.execute("SELECT operation, providers FROM source_preferences")} \
             if "source_preferences" in tables else {}
-        scoped = db.execute("SELECT count(*) FROM scoped_source_preferences").fetchone()[0] \
-            if "scoped_source_preferences" in tables else 0
+        rows = {table: db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] if table in tables else 0
+                for table in SAVED_ROWS}  # fixed names, never input
     finally:
         db.close()
-    return {operation: order for operation, order in orders.items() if order}, scoped
+    return {operation: order for operation, order in orders.items() if order}, rows
 
 
 def retire_source_choices(data_dir):
     """Set aside this feature's former source choices once: core's `source_order` is the one order (ADR 0040).
 
     Nothing is copied into settings.json and nothing is deleted. Each file is renamed, never overwriting an
-    earlier one; a warning names the choices a file held, so the investor can put them in `source_order`.
-    An empty (or unreadable) file is renamed silently."""
+    earlier one; a warning names what a file held (its orders, scoped choices, saved mappings and overrides), so the
+    investor can put the orders in `source_order`. An empty (or unreadable) file is renamed silently."""
     directory = Path(data_dir)
     for name, retired in RETIRED:
         path, target = directory / name, directory / retired
         if not path.is_file() or path.is_symlink() or target.exists():
             continue
         try:
-            orders, scoped = _saved_orders(path)
+            orders, rows = _saved_choices(path)
         except (sqlite3.Error, ValueError):
-            orders, scoped = {}, 0
+            orders, rows = {}, dict.fromkeys(SAVED_ROWS, 0)
         try:
             path.rename(target)
         except OSError:  # another process set it aside first
             continue
-        if orders or scoped:
+        if orders or any(rows.values()):
             logger.warning("Market-data source choices retired: Pythia now has one source order, source_order in"
-                           " settings.json (empty: free sources first). %s is kept as %s; its orders %s and %s"
-                           " scoped choices no longer apply.", name, retired, orders, scoped)
+                           " settings.json (empty: free sources first). %s is kept as %s; its orders %s, %s scoped"
+                           " choices, %s saved mappings and %s overrides no longer apply.", name, retired, orders,
+                           *rows.values())
 
 
 def core_price_sources(subject_id):

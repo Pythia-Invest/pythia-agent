@@ -29,6 +29,7 @@ Each is asked once per question key, like the build's (`build_questions.import_b
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from typing import Iterable
 
@@ -39,6 +40,8 @@ from .model import evidence_id
 from .resolution import QueueItem
 from .schemes import SCHEME_LEVEL, SINGLE_VALUED, subject_id, subject_kind, subject_level
 from .vocabulary import IdentifierRole
+
+logger = logging.getLogger(__name__)
 
 
 def raised(ref: sqlite3.Connection, store, subject_ids: Iterable[str], plugins: Iterable = ()) -> list[QueueItem]:
@@ -51,7 +54,9 @@ def raised(ref: sqlite3.Connection, store, subject_ids: Iterable[str], plugins: 
             touched = device.current_id(ref, store, touched)
             subject = build_questions.load_subject(ref, touched, None, store, plugins) \
                 or build_questions.load_device(ref, store, touched, plugins)
-        except ValueError:  # a malformed subject ID asks nothing
+        except ValueError as error:  # an unreadable subject asks nothing, and is said so (never what it holds)
+            logger.warning("no conflict questions for subject %.80r: it could not be read (%s)", touched,
+                           type(error).__name__)
             continue
         items += [*about(subject), *restated(ref, store, subject)] if subject else []
     return items

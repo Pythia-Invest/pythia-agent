@@ -94,6 +94,20 @@ OPEN_KIND: dict[Scheme, Kind] = {Scheme.SUI_PACKAGE: Kind.PROTOCOL, Scheme.SUI_O
 # time contradict each other. A ticker is an attribute (reused, renamed) and never does.
 SINGLE_VALUED = frozenset(Scheme) - {Scheme.TICKER_MIC}
 
+# What a person calls each scheme: Repairs titles and questions use these words, and Desk shows them as they are.
+SCHEME_LABEL: dict[Scheme, str] = {
+    Scheme.LEI: "LEI", Scheme.CIK: "CIK", Scheme.ISIN: "ISIN", Scheme.SHARE_CLASS_FIGI: "Share-class FIGI",
+    Scheme.COMPOSITE_FIGI: "Composite FIGI", Scheme.FIGI: "FIGI", Scheme.TICKER_MIC: "Ticker", Scheme.CAIP19: "CAIP-19",
+    Scheme.SUI_PACKAGE: "Sui package", Scheme.SUI_OBJECT: "Sui object",
+}
+
+
+def scheme_label(scheme: str | None) -> str:
+    """A scheme's name for a person. A scheme core does not know (a store a later version wrote) shows as its own
+    name with the underscores spelled out."""
+    name = scheme or ""
+    return SCHEME_LABEL.get(name) or name.replace("_", " ")
+
 # <kind>:<key scheme>:<key>, derived from open identifiers (see subject_id below). The format is open: kinds and
 # key schemes grow without changing it.
 SUBJECT_ID = re.compile(r"^[a-z][a-z0-9_]{0,31}:[a-z][a-z0-9_]{0,31}:[A-Za-z0-9._:/%-]{1,300}\Z")

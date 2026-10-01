@@ -72,25 +72,25 @@
       "0x50997b5f1f6401674d3d881a61e09a71776ee19cd8b83114a0a21b3a82f130b5": {
         "book": {
           "bids": {
-            "length": "1165"
+            "length": "120"
           },
           "asks": {
-            "length": "617"
+            "length": "80"
           }
         },
         "state": {
           "governance": {
-            "epoch": "1266",
+            "epoch": "1000",
             "whitelisted": false,
             "trade_params": {
-              "taker_fee": "200000",
+              "taker_fee": "250000",
               "maker_fee": "0",
-              "stake_required": "100000000000"
+              "stake_required": "50000000000"
             },
             "next_trade_params": {
-              "taker_fee": "200000",
+              "taker_fee": "250000",
               "maker_fee": "0",
-              "stake_required": "100000000000"
+              "stake_required": "50000000000"
             }
           }
         }
@@ -98,25 +98,25 @@
       "0xf2a26402a4a2efcc5eaaf751905df7dc6324421c504da59eca4a15a76cd98574": {
         "book": {
           "bids": {
-            "length": "4"
+            "length": "5"
           },
           "asks": {
-            "length": "3"
+            "length": "2"
           }
         },
         "state": {
           "governance": {
-            "epoch": "1186",
+            "epoch": "950",
             "whitelisted": false,
             "trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             },
             "next_trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             }
           }
         }
@@ -132,17 +132,17 @@
         },
         "state": {
           "governance": {
-            "epoch": "1143",
+            "epoch": "900",
             "whitelisted": false,
             "trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             },
             "next_trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             }
           }
         }
@@ -150,25 +150,25 @@
       "0x6e9afba91d82fbbf303c791d6cd1cc57065a6606213d672eb4d54c01ee1fd076": {
         "book": {
           "bids": {
-            "length": "422"
+            "length": "60"
           },
           "asks": {
-            "length": "158"
+            "length": "40"
           }
         },
         "state": {
           "governance": {
-            "epoch": "1265",
+            "epoch": "980",
             "whitelisted": false,
             "trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             },
             "next_trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             }
           }
         }
@@ -176,25 +176,25 @@
       "0xb2e6d01a40195b42cb45952941526a118ac21f812a6409e5f8bf32a436058182": {
         "book": {
           "bids": {
-            "length": "5"
+            "length": "6"
           },
           "asks": {
-            "length": "3"
+            "length": "2"
           }
         },
         "state": {
           "governance": {
-            "epoch": "1235",
+            "epoch": "960",
             "whitelisted": false,
             "trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             },
             "next_trade_params": {
-              "taker_fee": "1000000",
-              "maker_fee": "500000",
-              "stake_required": "100000000"
+              "taker_fee": "900000",
+              "maker_fee": "450000",
+              "stake_required": "80000000"
             }
           }
         }
@@ -202,15 +202,15 @@
       "0x0671fe438ef3a2291aa3a5d469a956a3579d54ed16f08d9402a75cb481ebcc89": {
         "book": {
           "bids": {
-            "length": "562"
+            "length": "90"
           },
           "asks": {
-            "length": "306"
+            "length": "70"
           }
         },
         "state": {
           "governance": {
-            "epoch": "1266",
+            "epoch": "990",
             "whitelisted": true,
             "trade_params": {
               "taker_fee": "0",
@@ -234,7 +234,7 @@
       "json": {
         "markets": {
           "id": "0x2326d387ba8bb7d24aa4cfa31f9a1e58bf9234b097574afb06c5dfb267df4c2e",
-          "size": "36"
+          "size": "5"
         }
       }
     },
@@ -262,7 +262,7 @@
           "coin_type": "0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
           "config": {
             "active": true,
-            "safe_collateral_ratio": 85,
+            "safe_collateral_ratio": 75,
             "borrow_limit": "0"
           }
         }
@@ -276,7 +276,7 @@
           "coin_type": "deeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP",
           "config": {
             "active": true,
-            "safe_collateral_ratio": 80,
+            "safe_collateral_ratio": 70,
             "borrow_limit": "0"
           }
         }
@@ -304,7 +304,7 @@
           "coin_type": "dba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
           "config": {
             "active": true,
-            "safe_collateral_ratio": 85,
+            "safe_collateral_ratio": 75,
             "borrow_limit": "0"
           }
         }
@@ -410,67 +410,67 @@
   },
   "families": {
     "0xd899cf7d2b5db716bd2cf55599fb0d5ee38a3061e7b6bb6eebf73fa5bc4c81ca": {
-      "latest": "0x512f28261c1a293f49416d8885b8d5d32bde6dd68a99a0be36fe42b248e6833a",
-      "version": 26,
+      "latest": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "version": 12,
       "anchor": "pool"
     },
     "0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf": {
-      "latest": "0x59672975e15c58ffc9450f5236b6aa9fa2407d94b8081e634778aa01957d8c6f",
-      "version": 25,
+      "latest": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "version": 11,
       "anchor": "lending_market"
     },
     "0xefe8b36d5b2e43728cc323298626b83177803521d195cfb11e15b910e892fddf": {
-      "latest": "0xde5c09ad171544aa3724dc67216668c80e754860f419136a68d78504eb2e2805",
-      "version": 19,
+      "latest": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "version": 9,
       "anchor": "market"
     },
     "0x1eabed72c53feb3805120a081dc15963c204dc8d091542592abaf7a35689b2fb": {
-      "latest": "0x260693ec785a6e6c9d81d58c7d2ff72f1288ae0fa6a9725abe05a6478b11f084",
-      "version": 15,
+      "latest": "0xa4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+      "version": 7,
       "anchor": "pool"
     },
     "0x5664f9d3fd82c84023870cfbda8ea84e14c8dd56ce557ad2116e0668581a682b": {
-      "latest": "0x6b989f9b05bd11a00f1c7779443d66802c5e71631f59e87be5d2a616991f151e",
-      "version": 10,
+      "latest": "0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "version": 5,
       "anchor": "dlmm_math"
     },
     "0x2c8d603bc51326b8c13cef9dd07031a408a48dddb541963357661df5d3204809": {
-      "latest": "0x0e735f8c93a95722efd73521aca7a7652c0bb71ed1daf41b26dfd7d1ff71f748",
-      "version": 8,
+      "latest": "0xa6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "version": 4,
       "anchor": "pool"
     },
     "0x3492c874c1e3b3e2984e8c41b589e642d4d0a5d6459e5a9cfc2d52fd7c89c267": {
-      "latest": "0xd075338d105482f1527cbfd363d6413558f184dec36d9138a70261e87f486e9c",
-      "version": 17,
+      "latest": "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "version": 8,
       "anchor": "pool"
     },
     "0xe74481697f432ddee8dd6f9bd13b9d0297a5b63d55f3db25c4d3b5d34dad85b7": {
-      "latest": "0x11d01c93c0461f8f505c993e48734b364a95fa7b32c7956e3bd58d93d27d0892",
-      "version": 21,
+      "latest": "0xa8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8",
+      "version": 10,
       "anchor": "bank"
     },
     "0x91bfbc386a41afcfd9b2533058d7e915a1d3829089cc268ff4333d54d6339ca1": {
-      "latest": "0xa5a0c25c79e428eba04fb98b3fb2a34db45ab26d4c8faf0d7e39d66a63891e64",
-      "version": 22,
+      "latest": "0xa9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9",
+      "version": 11,
       "anchor": "pool"
     },
     "0x70285592c97965e811e0c6f98dccc3a9c2b4ad854b3594faab9597ada267b860": {
-      "latest": "0xcf60a40f45d46fc1e828871a647c1e25a0915dec860d2662eb10fdb382c3c1d1",
-      "version": 5,
+      "latest": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": 3,
       "anchor": "pool"
     },
     "0xd631cd66138909636fc3f73ed75820d0c5b76332d1644608ed1c85ea2b8219b4": {
-      "latest": "0xe48b33ef41d56e04fc42bf558e4d54d7cae8a363da9054a6c24bafc2c53a4f33",
-      "version": 15,
+      "latest": "0xabababababababababababababababababababababababababababababababab",
+      "version": 8,
       "anchor": "alpha_lending"
     },
     "0x9f835c21d21f8ce519fec17d679cd38243ef2643ad879e7048ba77374be4036e": {
-      "latest": "0xc1dd29778f3fccd19a4ac79d1c35a14bf9d65a0b48f1c5bba98a949cacc53e26",
-      "version": 4,
+      "latest": "0xacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac",
+      "version": 2,
       "anchor": "vault"
     },
     "0xe14726c336e81b32328e92afc37345d159f5b550b09fa92bd43640cfdd0a0cfd": {
-      "latest": "0x524a37ec411ba112f284508d9cd98265b796bea85db9450c84a42c8b5268885d",
+      "latest": "0xadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad",
       "version": 2,
       "anchor": "usdb"
     }
@@ -486,19 +486,19 @@
       "name": "USDC",
       "symbol": "USDC",
       "decimals": 6,
-      "supply": "302093029706550"
+      "supply": "250000000500000"
     },
     "0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP": {
       "name": "DeepBook Token",
       "symbol": "DEEP",
       "decimals": 6,
-      "supply": "9964992322866108"
+      "supply": "9000000123456789"
     },
     "0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL": {
       "name": "WAL Token",
       "symbol": "WAL",
       "decimals": 9,
-      "supply": "4999894352694655066"
+      "supply": "4000000000000000000"
     },
     "0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS": {
       "name": "Cetus Token",
@@ -510,13 +510,13 @@
       "name": "Tether",
       "symbol": "USDT",
       "decimals": 6,
-      "supply": "7668590922230"
+      "supply": "5500000000000"
     },
     "0xaafb102dd0902f5055cadecd687fb5b71ca82ef0e0285d90afde828ec58ca96b::btc::BTC": {
       "name": "Wrapped Bitcoin",
       "symbol": "wBTC",
       "decimals": 8,
-      "supply": "9975794478"
+      "supply": "8500000000"
     },
     "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN": {
       "name": "USD Coin",
@@ -546,7 +546,7 @@
       "name": "Bucket USD",
       "symbol": "USDB",
       "decimals": 6,
-      "supply": "11658130208305"
+      "supply": "9000000000000"
     }
   },
   "bridge": {
@@ -568,7 +568,7 @@
                 "value": {
                   "id": 2,
                   "decimal_multiplier": "100000000",
-                  "notional_value": "330000000000",
+                  "notional_value": "250000000000",
                   "native_token": false
                 }
               },
@@ -586,7 +586,7 @@
                 "value": {
                   "id": 1,
                   "decimal_multiplier": "100000000",
-                  "notional_value": "10100000000000",
+                  "notional_value": "6000000000000",
                   "native_token": false
                 }
               },
@@ -595,7 +595,7 @@
                 "value": {
                   "id": 6,
                   "decimal_multiplier": "100000000",
-                  "notional_value": "9000000000000",
+                  "notional_value": "6000000000000",
                   "native_token": false
                 }
               }

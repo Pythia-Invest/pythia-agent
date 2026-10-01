@@ -309,9 +309,22 @@ platform_toolsets:
     const commands: string[][] = [];
     const core = MANAGED_PLUGINS.find((plugin) => plugin.name === "pythia");
     if (!core) throw new Error("Missing core payload fixture");
+    // Sui, NAVI, DeFiLlama, NSM and Hyperliquid ship installed and off: turning
+    // one on is the investor's choice, a product default in their payload
+    // entries, not a trust level.
+    for (const name of [
+      "pythia-sui",
+      "pythia-navi",
+      "pythia-defillama",
+      "pythia-nsm",
+      "pythia-hyperliquid",
+    ])
+      expect(
+        MANAGED_PLUGINS.find((plugin) => plugin.name === name)
+          ?.enabledByDefault,
+        name,
+      ).toBe(false);
     const payloads = [
-      // Hyperliquid, DeFiLlama and NSM are installed but off by default: a
-      // product default in their payload entries, not a trust level.
       ...MANAGED_PLUGINS,
       {
         ...core,

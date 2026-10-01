@@ -1,4 +1,4 @@
-"""Sui experiment, slice E1: the open keys `sui_package` (protocol) and `sui_object` (market), the `market_asset` role
+"""Sui experiment (ADR 0048): the open keys `sui_package` (protocol) and `sui_object` (market), the `market_asset` role
 and fundamentals on protocol and market subjects. Sources here are fixtures core never names."""
 import unittest
 

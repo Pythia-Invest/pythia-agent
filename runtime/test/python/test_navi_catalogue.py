@@ -1,8 +1,10 @@
-"""NAVI's catalogue as core receives it: `/api/navi/pools` records cut from NAVI's own responses (2026-09-30).
+"""NAVI's catalogue as core receives it: `/api/navi/pools` records shaped like NAVI's answer (docs/sources/navi.md).
 
-`fixtures/navi-pools.json` keeps 13 of the 62 reserves, trimmed to the fields the plugin reads: SUI, native USDC
-(in three markets), vSUI, Sui Bridge suiUSDT and wBTC, a Wormhole and a LayerZero wBTC, a deprecated Wormhole WBTC and
-a deprecating YBTC.B. The rest of each test's input is invented and says so.
+`fixtures/navi-pools.json` holds 13 invented reserves with the fields the plugin reads: SUI, native USDC (in three
+markets), vSUI, Sui Bridge suiUSDT and wBTC, a Wormhole and a LayerZero wBTC, a deprecated Wormhole WBTC and a deprecating
+YBTC.B. The names, flags, coin types and Pool object ids are the ones the chain and the plugin's tests join on; every
+price and amount is made up, with the edge cases the tests use (a reserve nobody borrows from, a deprecated one priced
+apart from the live ones). The rest of each test's input is invented and says so.
 """
 from contextlib import closing
 from copy import deepcopy

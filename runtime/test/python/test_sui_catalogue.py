@@ -1,6 +1,7 @@
 """The Sui plugin's catalogue as core receives it, answered by `sui_chain_fixture.Sui`, a fake of Sui's GraphQL endpoint
-over objects cut from the live chain (2026-09-30): protocols by original package, tokens with bridge provenance, the
-DeepBook, AlphaLend and Bucket markets with their roles, the drift alarms, and a sync through core's ingest."""
+over invented objects shaped like the chain's (see `sui_chain_fixture`): protocols by original package, tokens with
+bridge provenance, the DeepBook, AlphaLend and Bucket markets with their roles, the drift alarms, and a sync through
+core's ingest."""
 import json
 import unittest
 from unittest.mock import patch
@@ -90,8 +91,8 @@ class Tokens(unittest.TestCase):
 
     def test_supply_is_stated_only_where_the_chain_reads_one_and_in_whole_coins(self):
         rank = {coin: self.found[listing(coin)]['attributes'].get('rank') for coin in (USDC, DEEP, SSUI, WSOL)}
-        self.assertEqual(rank[USDC], {'supply': 302093029.70655})  # 302093029706550 at 6 decimals
-        self.assertEqual(rank[DEEP], {'supply': 9964992322.866108})
+        self.assertEqual(rank[USDC], {'supply': 250000000.5})  # 250000000500000 at 6 decimals
+        self.assertEqual(rank[DEEP], {'supply': 9000000123.456789})
         self.assertEqual((rank[SSUI], rank[WSOL]), (None, None))  # a wrapped TreasuryCap reads null: not zero
 
     def test_a_coin_the_sui_bridge_supports_says_so_and_points_at_the_bridge_table(self):
