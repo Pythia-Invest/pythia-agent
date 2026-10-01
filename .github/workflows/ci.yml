@@ -3,9 +3,9 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, identity-backbone]
+    branches: [main]
 
-# Superseded pull-request runs are cancelled; every main and identity-backbone commit keeps its verdict.
+# Superseded pull-request runs are cancelled; every main commit keeps its verdict.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

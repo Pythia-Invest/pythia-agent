@@ -55,9 +55,7 @@ block merges. The nightly workflow (`nightly.yml`) runs on every push to
 including development tools, and runs broad qualification. The qualification
 test files and the assembled run are separate steps, so one red file cannot
 hide the other. Superseded pull-request runs are cancelled; `main` runs are
-not. The long-lived `identity-backbone` integration branch also runs `CI` on
-every push, so its merge commits keep a verdict of their own. That adds no
-second required check.
+not.
 
 `tooling/check-workflows.mjs` enforces what can be enforced mechanically:
 - actions pinned to full commits with a version comment;
