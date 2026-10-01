@@ -59,8 +59,8 @@ wire = _Module(_wire, 'CRITERIA', 'WireError', 'parameter_schema', 'require', 'v
 process = _Module(_process, 'WorkerError', 'run_worker')  # the default worker transport for WorkerReads
 # Core's identifier forms, so a plugin states an identifier exactly as core joins on it (a Sui coin type as CAIP-19, a Sui
 # package or object ID in 64-digit lowercase form): `normalize_identifier(scheme, value)` returns the canonical value or
-# raises `IdentifierError`.
-identifiers = _Module(_schemes, 'IdentifierError', 'normalize_identifier')
+# raises `IdentifierError`, and `sui_caip19(coin_type)` is a Sui coin type's CAIP-19 key, or None where core gives none.
+identifiers = _Module(_schemes, 'IdentifierError', 'normalize_identifier', 'sui_caip19')
 
 
 def require(version):

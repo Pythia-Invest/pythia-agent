@@ -94,9 +94,10 @@ data, not identity, and wait for stage 1.
   `invalid_response` and is not cached.
 - [x] Pages continue from the last Pool object id emitted, so an answer
   refreshed mid-sync never skips a reserve both snapshots hold.
-- [x] Network-free tests use fixtures cut from NAVI's own responses
+- [x] Network-free tests use invented values shaped like NAVI's answer
   (`runtime/test/python/test_navi_catalogue.py`,
-  `fixtures/navi-pools.json`: 13 of the 62 reserves, trimmed to the fields read).
+  `fixtures/navi-pools.json`: 13 reserves with the fields read; no price or
+  amount is NAVI's).
 
 | Fingerprint check | Baseline | Alarm |
 | --- | --- | --- |

@@ -36,7 +36,7 @@ MEMBERS = {
     'wire': ['CRITERIA', 'WireError', 'parameter_schema', 'require', 'validate', 'validate_parameters',
              'validate_read_result'],
     'process': ['WorkerError', 'run_worker'],
-    'identifiers': ['IdentifierError', 'normalize_identifier'],
+    'identifiers': ['IdentifierError', 'normalize_identifier', 'sui_caip19'],
 }
 
 

@@ -60,16 +60,6 @@ def unknown_chains(protocols, pools, wanted):
     return sorted(wanted - known)
 
 
-def sui_caip19(coin_type):
-    """A Sui coin type as CAIP-19 in the form core joins on (`pythia_platform.identifiers`, ADR 0037), or None when it
-    has no key: a generic type, or one past CAIP-19's 128 characters."""
-    from pythia_platform import identifiers  # published by core, which registers before this plugin
-    try:
-        return identifiers.normalize_identifier('caip19', f'sui:mainnet/coin:{coin_type}')
-    except identifiers.IdentifierError:
-        return None
-
-
 def _text(value, maximum=512):
     return (isinstance(value, str) and 0 < len(value) <= maximum and value == value.strip()
             and not any(ord(char) < 32 or ord(char) == 127 for char in value))
@@ -163,10 +153,11 @@ def page(scope, protocols, pools, wanted, cursor, observed_at):
 
 
 def _held(row):
-    """The CAIP-19 keys of the Sui coin types a pool holds, in the source's order, without repeats."""
+    """The CAIP-19 keys of the Sui coin types a pool holds (as core keys them), in the source's order, without repeats."""
+    from pythia_platform import identifiers  # published by core, which registers before this plugin
     if row['chain'].casefold() != SUI:
         return []
-    return list(dict.fromkeys(key for key in map(sui_caip19, row['tokens']) if key))
+    return list(dict.fromkeys(key for key in map(identifiers.sui_caip19, row['tokens']) if key))
 
 
 def _labels(pools):

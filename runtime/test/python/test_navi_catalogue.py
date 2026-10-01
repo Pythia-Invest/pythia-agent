@@ -1,8 +1,10 @@
-"""NAVI's catalogue as core receives it: `/api/navi/pools` records cut from NAVI's own responses (2026-09-30).
+"""NAVI's catalogue as core receives it: `/api/navi/pools` records shaped like NAVI's answer (docs/sources/navi.md).
 
-`fixtures/navi-pools.json` keeps 13 of the 62 reserves, trimmed to the fields the plugin reads: SUI, native USDC
-(in three markets), vSUI, Sui Bridge suiUSDT and wBTC, a Wormhole and a LayerZero wBTC, a deprecated Wormhole WBTC and
-a deprecating YBTC.B. The rest of each test's input is invented and says so.
+`fixtures/navi-pools.json` holds 13 invented reserves with the fields the plugin reads: SUI, native USDC (in three
+markets), vSUI, Sui Bridge suiUSDT and wBTC, a Wormhole and a LayerZero wBTC, a deprecated Wormhole WBTC and a deprecating
+YBTC.B. The names, flags, coin types and Pool object ids are the ones the chain and the plugin's tests join on; every
+price and amount is made up, with the edge cases the tests use (a reserve nobody borrows from, a deprecated one priced
+apart from the live ones). The rest of each test's input is invented and says so.
 """
 from contextlib import closing
 from copy import deepcopy
@@ -15,7 +17,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from market_data_fixture import connector, wire
+from market_data_fixture import connector, platform_module, wire
 from test_identity_contracts import PROVENANCE, load_reference
 from test_identity_ingest import IngestTest
 import test_identity_search_device as search_tests
@@ -30,6 +32,7 @@ sys.modules[spec.name] = plugin
 spec.loader.exec_module(plugin)
 catalogue = importlib.import_module('navi_fixture.catalogue')
 STAMP = '2026-09-30T10:00:00+00:00'
+sui_caip19 = platform_module.identifiers.sui_caip19  # core's key for a Sui coin type, as the plugin states it
 FIXTURE = json.loads((Path(__file__).parent / 'fixtures' / 'navi-pools.json').read_text())
 
 SUI_COIN = '0x2::sui::SUI'
@@ -140,8 +143,8 @@ class Catalogue(unittest.TestCase):
         self.assertEqual(names[reserve('main-19')['contract']['pool']], 'NAVI Lending suiUSDT (Sui Bridge, Main Market)')
         tokens = named(found, 'listing')
         self.assertEqual(tokens['sui:mainnet/slip44:784'], 'SUI')
-        self.assertEqual(tokens[catalogue.sui_caip19(SUI_BRIDGE_USDT)], 'suiUSDT (Sui Bridge)')
-        self.assertEqual(tokens[catalogue.sui_caip19(VSUI)], 'vSUI')
+        self.assertEqual(tokens[sui_caip19(SUI_BRIDGE_USDT)], 'suiUSDT (Sui Bridge)')
+        self.assertEqual(tokens[sui_caip19(VSUI)], 'vSUI')
         # NAVI calls three different coins wBTC/WBTC; the bridge tells them apart.
         self.assertEqual({name for name in tokens.values() if 'BTC' in name},
                          {'wBTC (Sui Bridge)', 'WBTC (LayerZero)', 'WBTC (Wormhole)', 'YBTC.B'})
@@ -174,11 +177,11 @@ class Catalogue(unittest.TestCase):
         relations = [claim for claim in found if isinstance(claim, identity.RelationClaim)]
         self.assertEqual({claim.to_key.native_id for claim in relations if claim.type == 'part_of'}, {'navi-lending'})
         held = {claim.from_key.native_id: claim.to_key.value for claim in relations if claim.type == 'market_asset'}
-        self.assertEqual(held[POOL_USDC], catalogue.sui_caip19(NATIVE_USDC))
+        self.assertEqual(held[POOL_USDC], sui_caip19(NATIVE_USDC))
         self.assertEqual(held[reserve('main-0')['contract']['pool']], 'sui:mainnet/slip44:784')
         self.assertEqual(len(held), 13)
         # Three reserves hold native USDC; it is one token record.
-        self.assertEqual(sum(claim.identifiers[0].value == catalogue.sui_caip19(NATIVE_USDC)
+        self.assertEqual(sum(claim.identifiers[0].value == sui_caip19(NATIVE_USDC)
                              for claim in records(found) if claim.level == 'listing'), 1)
 
     def test_two_wbtc_coins_stay_two_listings_whatever_their_symbols(self):
@@ -187,12 +190,6 @@ class Catalogue(unittest.TestCase):
         layer_zero, wormhole = (held[reserve(unique)['contract']['pool']] for unique in ('main-32', 'main-8'))
         self.assertNotEqual(layer_zero, wormhole)
         self.assertEqual(held[reserve('wbtc-usdc-0')['contract']['pool']], layer_zero)  # the same coin in another market
-
-    def test_the_sui_key_is_the_one_core_applies(self):
-        for coin in (SUI_COIN, '0x' + '2'.rjust(64, '0') + '::sui::SUI', NATIVE_USDC, SUI_BRIDGE_USDT, VSUI):
-            self.assertEqual(catalogue.sui_caip19(coin), identity.normalize_identifier('caip19', 'sui:mainnet/coin:' + coin))
-        for coin in (GENERIC_LP, '0x' + 'ef' * 32 + '::' + 'm' * 40 + '::' + 'T' * 40, 'dba34672::usdc::USDC', None):
-            self.assertIsNone(catalogue.sui_caip19(coin))  # NAVI's `coinType` (no 0x) is never used; `suiCoinType` is
 
     def test_one_sync_reads_the_directory_once_with_every_market(self):
         read, transport = reader()
@@ -454,7 +451,7 @@ class Search(search_tests.DeviceSearch):
                          {self.reserve_group('ember-0'), self.reserve_group('sui-usdc-1')})
 
     def test_navis_own_labels_find_its_tokens_its_protocol_and_its_bridges(self):
-        token = lambda coin: search_tests.identity.subject_id('listing', {'caip19': catalogue.sui_caip19(coin)})
+        token = lambda coin: search_tests.identity.subject_id('listing', {'caip19': sui_caip19(coin)})
         found = lambda query: [group['id'] for group in self.search(query)['data']['groups']]
         self.assertEqual(found('vsui')[0], token(VSUI))
         self.assertEqual(found('suiusdt')[:2], [token(SUI_BRIDGE_USDT), self.reserve_group('main-19')])

@@ -66,11 +66,14 @@ reach core.
   - `wire`: `WireError`, `require`, `validate`, `validate_parameters`,
     `validate_read_result`, `parameter_schema`, `CRITERIA`;
   - `process`: `run_worker`, `WorkerError`;
-  - `identifiers`: `normalize_identifier`, `IdentifierError`. A plugin states an
-    identifier in the form core joins on (a Sui coin type as CAIP-19, a Sui
-    package or object ID in 64-digit lowercase form) for the forms core
-    joins on, rather than copying core's profile; no Sui-specific helper is exported (the profile is core's,
-    ADR 0037).
+  - `identifiers`: `normalize_identifier`, `IdentifierError` and `sui_caip19`. A
+    plugin states an identifier in the form core joins on (a Sui coin type as
+    CAIP-19, a Sui package or object ID in 64-digit lowercase form), rather than
+    copying core's profile (ADR 0037). `sui_caip19(coin_type)` is a Sui coin
+    type's key, or None where core gives none (a generic type, or one past
+    CAIP-19's 128 characters). It is the one name beyond the general ones: the
+    three plugins that key Sui coins each held the same seven lines, and the
+    profile is core's.
 - **Versioning is one integer.** Names and members are only added within a
   version. Removing either or changing its meaning makes version 2. A plugin
   that needs a later addition checks for it with `hasattr`. `__all__` and the

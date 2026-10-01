@@ -53,16 +53,6 @@ def url(wanted):
     return URL + ','.join(wanted)
 
 
-def sui_caip19(coin_type):
-    """A Sui coin type as CAIP-19 in the form core joins on (`pythia_platform.identifiers`, ADR 0037), or None when it
-    has no key: a generic type, or one past CAIP-19's 128 characters."""
-    from pythia_platform import identifiers  # published by core, which registers before this plugin
-    try:
-        return identifiers.normalize_identifier('caip19', f'sui:mainnet/coin:{coin_type}')
-    except identifiers.IdentifierError:
-        return None
-
-
 def _text(value, maximum=120):
     return (isinstance(value, str) and 0 < len(value) <= maximum and value == value.strip()
             and not any(ord(char) < 32 or ord(char) == 127 for char in value))
@@ -77,6 +67,7 @@ def _amount(value):
 
 
 def _reserve(item):
+    from pythia_platform import identifiers  # published by core, which registers before this plugin
     token, contract = item.get('token'), item.get('contract')
     if not (isinstance(token, dict) and isinstance(contract, dict) and isinstance(contract.get('pool'), str)
             and POOL_ID.match(contract['pool']) and _text(item.get('market'), 40) and _text(token.get('symbol'))
@@ -90,7 +81,7 @@ def _reserve(item):
     price = _amount(oracle.get('price')) if isinstance(oracle, dict) else None
     tag = next((name for flag, name in BRIDGES if item.get(flag)), None)
     return {'pool': contract['pool'], 'market': item['market'], 'symbol': token['symbol'], 'tag': tag,
-            'coin': item['suiCoinType'], 'key': sui_caip19(item['suiCoinType']), 'inactive': item['isDeprecated'],
+            'coin': item['suiCoinType'], 'key': identifiers.sui_caip19(item['suiCoinType']), 'inactive': item['isDeprecated'],
             'tvl': max(supply - borrowed, 0) * price / 1e9 if None not in (supply, borrowed, price) else None}
 
 

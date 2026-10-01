@@ -1,12 +1,15 @@
 """A fake of Sui's public GraphQL endpoint and the loaded `pythia-sui` plugin, for its tests (`test_sui_catalogue.py`).
 
-`fixtures/sui-chain.json` holds objects cut from the live chain on 2026-09-30 and trimmed to the fields the plugin reads:
-six of DeepBook V3's 89 pools (SUI/USDC, DEEP/SUI, WAL/SUI, COIN_GY/USDC with exactly 8 resting orders, CETUS/SUI with 7,
-PUMPKIN/USDC with none), five of AlphaLend's 36 markets (SUI, USDC, DEEP twice, and the generic DEEPBOOK_STAKED<USDC>),
-Bucket's `Config` with three of its vaults, the Sui Bridge's supported tokens, two Wormhole wrapped assets, the on-chain
-metadata of twelve coins, and the latest package and version of each protocol family. The fake answers by the name each
-request is sent under and refuses what the real endpoint refuses: a request over 5,000 bytes, and more than four
-`coinMetadata` lookups in one request (the real limit is a budget of about 21 backing-store lookups).
+`fixtures/sui-chain.json` holds invented objects shaped like the ones the plugin's queries read from Sui's public GraphQL
+endpoint (docs/sources/sui.md): the Move types and field names are the chain's, and so are the public identifiers the plugin
+joins on (package ids, coin types and the pool, market and vault object ids). Every measured value is made up: order counts,
+governance epochs and parameters, collateral ratios, supplies, the bridge's notional prices, and each family's latest package
+and version. It holds six DeepBook V3 pools (SUI/USDC, DEEP/SUI, WAL/SUI, COIN_GY/USDC with exactly 8 resting orders,
+CETUS/SUI with 7, PUMPKIN/USDC with none), five AlphaLend markets (SUI, USDC, DEEP twice, and the generic
+DEEPBOOK_STAKED<USDC>), Bucket's `Config` with three of its vaults, the Sui Bridge's supported tokens, two Wormhole wrapped
+assets, the metadata of twelve coins, and the thirteen protocol families. The fake answers by the name each request is sent
+under and refuses what the real endpoint refuses: a request over 5,000 bytes, and more than four `coinMetadata` lookups in one
+request (the real limit is a budget of about 21 backing-store lookups).
 """
 from copy import deepcopy
 import importlib
@@ -15,7 +18,7 @@ import json
 from pathlib import Path
 import sys
 
-from market_data_fixture import connector, wire
+from market_data_fixture import connector, platform_module, wire
 from test_plugin_contracts import PLUGINS, checked_batch
 
 ROOT = PLUGINS / 'sui'
@@ -196,4 +199,4 @@ def issues(results):
 
 
 def listing(coin):
-    return chain.caip19(coin)
+    return platform_module.identifiers.sui_caip19(coin)

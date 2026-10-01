@@ -14,7 +14,7 @@ assert SPEC and SPEC.loader
 identity = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = identity
 SPEC.loader.exec_module(identity)
-from pythia_identity_fixture import model  # noqa: E402
+from pythia_identity_fixture import model, schemes  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/identity"
 PROVENANCE = {"plugin": "eodhd", "source": "eodhd", "adapter_version": "1", "retrieved_at": "2026-09-25T10:00:00Z"}
@@ -179,6 +179,17 @@ class StoreSchemaTest(unittest.TestCase):
                         f"sui:mainnet/erc20:{address}"):
             with self.subTest(refused=refused), self.assertRaises(identity.IdentifierError):
                 normalize(refused)
+
+    def test_the_sui_helper_keys_a_coin_type_as_that_profile_does_and_gives_none_where_it_refuses(self):
+        # What the plugins that state Sui coins share (`pythia_platform.identifiers.sui_caip19`).
+        address = "0x" + "dba3" * 16
+        self.assertEqual(schemes.sui_caip19(f"{address}::usdc::USDC"), f"sui:mainnet/coin:{address}%3A%3Ausdc%3A%3AUSDC")
+        self.assertEqual(schemes.sui_caip19("0x2::sui::SUI"), "sui:mainnet/slip44:784")
+        for refused in (f"{address}::lp::LP<0x2::sui::SUI,{address}::usdc::USDC>",  # a generic type
+                        f"{address}::m::{'A' * 60}",  # a key past CAIP-19's 128 characters
+                        "dba3::usdc::USDC", "usdc", ""):  # no address, or none at all
+            with self.subTest(coin=refused):
+                self.assertIsNone(schemes.sui_caip19(refused))
 
 
 class FixtureTest(unittest.TestCase):

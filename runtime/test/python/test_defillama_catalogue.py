@@ -14,7 +14,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from market_data_fixture import connector, wire
+from market_data_fixture import connector, platform_module, wire
 from test_plugin_contracts import PLUGINS, checked_batch, identity
 
 ROOT = PLUGINS / 'defillama'
@@ -166,12 +166,9 @@ class Catalogue(unittest.TestCase):
                    and isinstance(claim.to_key, identity.IdentifierValue)}
         self.assertFalse([value for value in values if 'LP' in value or 'mmmm' in value])
         self.assertIn('market:provisional:defillama:pool:' + uuid(4), [key(claim) for claim in records(found)])
-        for coin in (GENERIC_LP, LONG_TYPE):
-            self.assertIsNone(catalogue.sui_caip19(coin))
+        for coin in (GENERIC_LP, LONG_TYPE):  # core gives neither a key
             with self.assertRaises(identity.IdentifierError):
                 identity.normalize_identifier('caip19', 'sui:mainnet/coin:' + coin)
-        for coin in (SUI_SHORT, SUI_LONG, NATIVE_USDC, BRIDGED_USDC):  # the plugin keys a type as core does
-            self.assertEqual(catalogue.sui_caip19(coin), identity.normalize_identifier('caip19', 'sui:mainnet/coin:' + coin))
 
     def test_pools_are_part_of_their_protocol_by_its_id(self):
         found = claims('pools')
@@ -239,7 +236,8 @@ class Catalogue(unittest.TestCase):
                 pool(14, 'example-lend', 'WUSDC', [wrapped]), pool(15, 'example-swap', 'WUSDC', [wrapped])]
         found = claims('pools', pools={'status': 'success', 'data': rows})
         labels = {claim.identifiers[0].value: claim.attributes.name for claim in records(found) if claim.level == 'listing'}
-        self.assertEqual(labels, {catalogue.sui_caip19(tether): 'USDT', catalogue.sui_caip19(wrapped): 'WUSDC'})
+        sui_caip19 = platform_module.identifiers.sui_caip19
+        self.assertEqual(labels, {sui_caip19(tether): 'USDT', sui_caip19(wrapped): 'WUSDC'})
 
     def test_a_cetus_fee_tier_written_a_hundred_times_too_large_is_corrected_and_the_original_kept(self):
         protocols = [*PROTOCOLS, {'id': '9010', 'name': 'Cetus CLMM', 'slug': 'cetus-clmm', 'chains': ['Sui']},

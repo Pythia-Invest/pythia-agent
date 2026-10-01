@@ -5,9 +5,10 @@
 Native `pythia-sui` adds Sui DeFi to Pythia as subjects, read straight from the
 chain: protocols, tokens and the markets of protocols that have no API. It needs
 no key and has no worker process. It depends on Pythia core alone and reads
-through core's connector toolkit. It is slice E2 of the Sui experiment (structure X: one plugin reads the chain for every protocol); the
-experiment's design is in `docs/architecture/identity-data.md`. The Cetus, DeepBook and Suilend API plugins of
-the same experiment (structure Y) are not in this tree; they stay on branch `exp-sui`.
+through core's connector toolkit. One plugin reads the chain for every protocol;
+the experiment's design, what it found and what is in this tree are in
+[ADR 0048](../../../../docs/decisions/0048-sui-defi-experiment.md). The Cetus,
+DeepBook and Suilend API plugins the experiment also built are not in this tree.
 
 ## Opt-in
 
@@ -82,6 +83,11 @@ retried: a batch is halved, a single read is asked three times.
   a pool needs at least 8 resting orders (`deepbook.MIN_ORDERS`): the smallest of
   the 26 pools the Mysten indexer lists rests 8. Of 89 pools, 41 pass. AlphaLend
   and Bucket have no floor: 36 markets and 20 vaults, as their own registries list.
+  **The floor leaves pools out of the catalogue, which departs from Pythia's rule
+  that a plugin never drops a record its source states.** The rule is to keep
+  every pool with a status and to filter at display. That change is to be made
+  before this plugin leaves the experiment; until then the code still drops the
+  pools below the floor and counts them in a warning.
 - **AlphaLend's key** is the dynamic-field object of the table entry, which anyone
   can read and which is derived from the table and the market number. The research
   used `Market.id`, the wrapped UID, which no API reads.
