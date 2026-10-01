@@ -120,7 +120,6 @@ describe("using an alternative source once", () => {
       sources: [
         {
           source: "filings.xbrl.org",
-          provider: "xbrl-filings",
           plugin: "pythia-xbrl-filings",
           authorities: ["fca"],
         },
@@ -139,9 +138,9 @@ describe("using an alternative source once", () => {
       sources: [
         {
           source: "UK FCA NSM",
-          provider: "nsm",
           plugin: "pythia-nsm",
           authorities: ["fca"],
+          url: null,
         },
       ],
     });
@@ -157,7 +156,6 @@ describe("using an alternative source once", () => {
   it("names every source a combined list still shows after a pick", () => {
     const source = (name: string, authorities: string[]) => ({
       source: name,
-      provider: name,
       plugin: `pythia-${name}`,
       authorities,
     });

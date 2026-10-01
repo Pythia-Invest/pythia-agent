@@ -31,12 +31,10 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
+/** A source by name and plugin, as a combined list carries it. */
+const namedSource = z.object({ source: text, plugin: text });
 /** A source as core names it on sections and in agent results. */
-const sourceSchema = z.object({
-  source: text,
-  provider: text,
-  plugin: text,
-});
+const sourceSchema = namedSource.extend({ provider: text });
 
 /** Another source that could serve the section now: one click reads it
  * instead, for this view only. */
@@ -88,7 +86,7 @@ export const subjectSectionSchema = z.object({
   skipped: z.array(sectionSkipSchema).default([]),
   /** Filings: the sources combined, one per filing authority. */
   sources: z
-    .array(sourceSchema.extend({ authorities: z.array(text).default([]) }))
+    .array(namedSource.extend({ authorities: z.array(text).default([]) }))
     .nullish(),
   /** Set only when a source ranked ahead of the chosen one could have served
    * and did not (named by the investor, contradicted, not found): amber. */
@@ -253,8 +251,7 @@ export const filingsSchema = z.object({
   /** Combined reads: the sources that supplied the rows, and those that failed. */
   sources: z
     .array(
-      sourceSchema.extend({
-        provider: optionalText,
+      namedSource.extend({
         authorities: z.array(text).default([]),
         url: z.string().nullish(),
       }),

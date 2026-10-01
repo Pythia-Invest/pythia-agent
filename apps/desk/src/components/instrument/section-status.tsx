@@ -201,16 +201,7 @@ export function SourcesLine({
 }) {
   const sources = section.sources?.length
     ? section.sources
-    : [
-        {
-          source: section.label,
-          plugin: section.plugin,
-          provider:
-            section.binding?.provider ??
-            // Connector marks are keyed by provider, plugin ids by package.
-            section.plugin.replace(/^pythia-/u, "").replace(/-discovery$/u, ""),
-        },
-      ];
+    : [{ source: section.label, plugin: section.plugin }];
   const notice = chosen ? null : section.notice;
   return (
     <div
@@ -224,7 +215,7 @@ export function SourcesLine({
         {sources.map((item, index) => (
           <span key={item.plugin} className="inline-flex items-center gap-1">
             {index ? <span aria-hidden="true">+</span> : null}
-            <ConnectorMark plugin={item.provider} />
+            <ConnectorMark />
             <span className="text-foreground">{item.source}</span>
           </span>
         ))}

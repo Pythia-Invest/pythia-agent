@@ -22,4 +22,4 @@ export {
   type SearchOption,
   type TypeFilter,
 } from "./search-model";
-export { ConnectorMark, connectorName } from "./search-row";
+export { ConnectorMark } from "./search-row";
