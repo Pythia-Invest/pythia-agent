@@ -9,7 +9,7 @@ import { ListRow } from "./primitives";
  * own because each issue needs room for its context. */
 export function RepairsPage() {
   const repairs = useRepairs();
-  const open = repairs.open.length;
+  const open = repairs.openCount;
   return (
     <div data-slot="repairs-settings">
       <p className="m-0 mb-2 text-body text-foreground-secondary leading-ui">

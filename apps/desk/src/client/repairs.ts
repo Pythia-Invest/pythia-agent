@@ -1,6 +1,10 @@
 "use client";
 import { type Correction, useCorrections } from "./corrections";
-import { type IdentityQuestion, useIdentityQuestions } from "./identity-queue";
+import {
+  type IdentityQuestion,
+  LIST_LIMIT,
+  useIdentityQuestions,
+} from "./identity-queue";
 
 /*
  * Repairs (modelled on Home Assistant's): issues Pythia could not settle on
@@ -160,7 +164,21 @@ export function correctionRepair(item: Correction): CorrectionRepair {
   };
 }
 
-/** Every issue the sources report, open or settled; the page filters them. */
+/** A list core cut at its limit: how many issues of it the page has, and how
+ * many core holds when it says. The kind and statuses are those of the issues
+ * the list feeds, so the page can tell when none of them are on show. */
+export interface CutList {
+  name: string;
+  kind: Repair["kind"];
+  shown: number;
+  total: number | null;
+  statuses: readonly RepairStatus[];
+}
+
+/** Every issue the sources report, open or settled; the page filters them.
+ * `cut` names each list the sources stopped short, so the page never passes
+ * a partial list off as the whole. Core counts only the open questions; a
+ * settled or corrections list that came back full may hold more. */
 export function useRepairs() {
   const identity = useIdentityQuestions();
   const corrections = useCorrections();
@@ -169,9 +187,40 @@ export function useRepairs() {
     ...[...(data?.items ?? []), ...(data?.settled ?? [])].map(identityRepair),
     ...(corrections.data ?? []).map(correctionRepair),
   ];
+  const listed = data?.items.length ?? 0;
+  const unlisted = Math.max(0, (data?.total ?? listed) - listed);
+  const cut: CutList[] = [];
+  if (unlisted)
+    cut.push({
+      name: "open questions",
+      kind: "identity",
+      shown: listed,
+      total: listed + unlisted,
+      statuses: ["open"],
+    });
+  if (data && data.settled.length >= LIST_LIMIT)
+    cut.push({
+      name: "settled questions",
+      kind: "identity",
+      shown: data.settled.length,
+      total: null,
+      statuses: ["resolved", "dismissed"],
+    });
+  if (corrections.data && corrections.data.length >= LIST_LIMIT)
+    cut.push({
+      name: "corrections",
+      kind: "correction",
+      shown: corrections.data.length,
+      total: null,
+      statuses: ["open", "resolved", "dismissed"],
+    });
+  const open = all.filter((repair) => repair.status === "open");
   return {
     all,
-    open: all.filter((repair) => repair.status === "open"),
+    open,
+    /** Open issues, those core holds beyond the list included. */
+    openCount: open.length + unlisted,
+    cut,
     notice: data?.notice ?? null,
     isPending: identity.isPending || corrections.isPending,
     isFetching: identity.isFetching || corrections.isFetching,

@@ -81,8 +81,14 @@ export const identityQuestionSchema = z.object({
 });
 export type IdentityQuestion = z.infer<typeof identityQuestionSchema>;
 
+/** Core answers at most this many of any list it reads: open questions,
+ * settled ones and corrections, newest first. */
+export const LIST_LIMIT = 50;
+
 const listSchema = z.object({
   items: z.array(identityQuestionSchema).default([]),
+  /** How many open questions core holds; `items` carries at most LIST_LIMIT. */
+  total: z.number().int().nonnegative().nullish(),
   settled: z.array(identityQuestionSchema).default([]),
   /** Once per runtime: an older identity store was kept aside. */
   notice: z.string().nullish(),
@@ -98,8 +104,8 @@ export type IdentityVerdict = z.infer<typeof verdictSchema>;
 const questionsKey = ["plugin", SUBJECT_PLUGIN, "identity-queue"] as const;
 
 /** The device's identity questions: open ones and, apart from them, those
- * rules or the user settled. The queue op caps each list at 50. A queue core could not read throws with its
- * reason, never reads as empty. */
+ * rules or the user settled. Each list stops at LIST_LIMIT. A queue core could
+ * not read throws with its reason, never reads as empty. */
 export function useIdentityQuestions() {
   const api = useDeskApi();
   return useQuery({
@@ -109,7 +115,7 @@ export function useIdentityQuestions() {
         await api.pluginRead({
           plugin: SUBJECT_PLUGIN,
           operation: "identity-queue",
-          arguments: { settled: true, limit: 50 },
+          arguments: { settled: true, limit: LIST_LIMIT },
         }),
         listSchema,
       ),

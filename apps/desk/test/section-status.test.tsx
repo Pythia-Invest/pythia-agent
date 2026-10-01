@@ -455,9 +455,7 @@ describe("the investor's corrections on an instrument page", () => {
   it("offers Always use beside Back for a source picked once, and Undo for a pin", () => {
     const picked = section({
       alternatives: [],
-      sources: [
-        { source: "Yahoo Finance", plugin: "pythia-yahoo", provider: "yahoo" },
-      ],
+      sources: [{ source: "Yahoo Finance", plugin: "pythia-yahoo" }],
     });
     const using = renderToStaticMarkup(
       <SourcesLine

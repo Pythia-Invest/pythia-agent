@@ -359,7 +359,7 @@ describe("the default 1D view", () => {
   });
 });
 
-describe("the tile's 1D view (ADR 0027)", () => {
+describe("the tile's 1D view", () => {
   const extended = declared("m2x", { kind: "minute", count: 2 }, 7, "extended");
   const today = {
     date: "2026-09-25",

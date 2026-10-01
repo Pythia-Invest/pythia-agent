@@ -13,6 +13,7 @@ import { contributorSchema } from "./contributors";
 import { correctionViewSchema } from "./corrections";
 import { INSTRUMENT_KINDS } from "./search";
 import { providerRefSchema } from "./widgets/contract";
+import { webUrl } from "./web-url";
 import { withheldFactSchema } from "./withheld";
 
 /** Core plugin id; feature query keys start with the serving plugin (ADR 0036). */
@@ -31,12 +32,10 @@ const pluginRequestSchema = z.object({
   arguments: z.record(z.string(), z.unknown()),
 });
 
+/** A source by name and plugin, as a combined list carries it. */
+const namedSource = z.object({ source: text, plugin: text });
 /** A source as core names it on sections and in agent results. */
-const sourceSchema = z.object({
-  source: text,
-  provider: text,
-  plugin: text,
-});
+const sourceSchema = namedSource.extend({ provider: text });
 
 /** Another source that could serve the section now: one click reads it
  * instead, for this view only. */
@@ -88,7 +87,7 @@ export const subjectSectionSchema = z.object({
   skipped: z.array(sectionSkipSchema).default([]),
   /** Filings: the sources combined, one per filing authority. */
   sources: z
-    .array(sourceSchema.extend({ authorities: z.array(text).default([]) }))
+    .array(namedSource.extend({ authorities: z.array(text).default([]) }))
     .nullish(),
   /** Set only when a source ranked ahead of the chosen one could have served
    * and did not (named by the investor, contradicted, not found): amber. */
@@ -209,7 +208,7 @@ export const profileSchema = z.object({
   names: z
     .array(z.object({ name: text, kind: optionalText, type: optionalText }))
     .catch([]),
-  source: z.object({ label: text, url: z.string().nullish() }).nullish(),
+  source: z.object({ label: text, url: webUrl }).nullish(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 
@@ -237,7 +236,7 @@ export const filingsSchema = z.object({
         /** Shared by parallel reports: issuer, kind and period end. */
         report_period: optionalText,
         basis: optionalText, // us_gaap or ifrs, where the source states it
-        url: z.string().nullish(),
+        url: webUrl,
         language: optionalText,
         source: optionalText,
         authority: optionalText,
@@ -249,14 +248,13 @@ export const filingsSchema = z.object({
       }),
     )
     .default([]),
-  source: z.object({ label: text, url: z.string().nullish() }).nullish(),
+  source: z.object({ label: text, url: webUrl }).nullish(),
   /** Combined reads: the sources that supplied the rows, and those that failed. */
   sources: z
     .array(
-      sourceSchema.extend({
-        provider: optionalText,
+      namedSource.extend({
         authorities: z.array(text).default([]),
-        url: z.string().nullish(),
+        url: webUrl,
       }),
     )
     .default([]),
@@ -274,7 +272,7 @@ const citationSchema = z.object({
   section_title: optionalText,
   offsets: z.array(z.number()).default([]),
   /** The document's URL, at the section's anchor where it has one. */
-  url: z.string().nullish(),
+  url: webUrl,
 });
 /** Core's document read (`filings-read`): an outline, one bounded part of a
  * section, or search passages, each part cited. */
@@ -283,7 +281,7 @@ export const filingDocumentSchema = z.object({
     id: text,
     form: optionalText,
     title: optionalText,
-    url: z.string().nullish(),
+    url: webUrl,
   }),
   sections: z.array(documentPart).optional(),
   section: documentPart.optional(),

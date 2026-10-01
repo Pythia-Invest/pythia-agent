@@ -1,32 +1,11 @@
 import { ComboboxItem } from "@pythia/widget-sdk";
 import { ChevronDown, ChevronUp, LoaderCircle, Plug } from "lucide-react";
-import { connectors } from "./connector-icons";
 import { KIND_LABELS, ROW_LABELS, type SearchOption } from "./search-model";
 
-export function connectorName(plugin: string): string {
-  return connectors[plugin]?.name ?? plugin;
-}
-
-/** A tiny connector logo; a plugin without a bundled icon gets a neutral mark. */
-export function ConnectorMark({
-  plugin,
-  title,
-}: {
-  plugin: string;
-  title?: string;
-}) {
-  const known = connectors[plugin];
-  return known ? (
-    <img
-      src={known.icon}
-      alt=""
-      title={title ?? known.name}
-      width={12}
-      height={12}
-      className="size-3 flex-none object-contain"
-    />
-  ) : (
-    <span title={title ?? plugin} className="flex-none">
+/** A neutral mark beside a source's name; sources are named, not branded. */
+export function ConnectorMark() {
+  return (
+    <span className="flex-none">
       <Plug aria-hidden="true" className="size-3 text-foreground-secondary" />
     </span>
   );
