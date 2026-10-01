@@ -165,9 +165,11 @@ export function correctionRepair(item: Correction): CorrectionRepair {
 }
 
 /** A list core cut at its limit: how many issues of it the page has, and how
- * many core holds when it says. The statuses are the ones the list feeds. */
+ * many core holds when it says. The kind and statuses are those of the issues
+ * the list feeds, so the page can tell when none of them are on show. */
 export interface CutList {
   name: string;
+  kind: Repair["kind"];
   shown: number;
   total: number | null;
   statuses: readonly RepairStatus[];
@@ -191,6 +193,7 @@ export function useRepairs() {
   if (unlisted)
     cut.push({
       name: "open questions",
+      kind: "identity",
       shown: listed,
       total: listed + unlisted,
       statuses: ["open"],
@@ -198,6 +201,7 @@ export function useRepairs() {
   if (data && data.settled.length >= LIST_LIMIT)
     cut.push({
       name: "settled questions",
+      kind: "identity",
       shown: data.settled.length,
       total: null,
       statuses: ["resolved", "dismissed"],
@@ -205,6 +209,7 @@ export function useRepairs() {
   if (corrections.data && corrections.data.length >= LIST_LIMIT)
     cut.push({
       name: "corrections",
+      kind: "correction",
       shown: corrections.data.length,
       total: null,
       statuses: ["open", "resolved", "dismissed"],

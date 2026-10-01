@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DeskApi } from "../src/client/api";
 import { RepairsView } from "../src/components/repairs/repairs-view";
+import { RepairsPage } from "../src/components/settings/repairs";
 
 const api = { pluginRead: vi.fn(), pluginInvoke: vi.fn() };
 vi.mock("../src/client/providers", () => ({
@@ -60,7 +61,7 @@ function core(answers: {
   );
 }
 
-async function show(question?: string) {
+async function render(element: ReactNode) {
   (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -74,17 +75,44 @@ async function show(question?: string) {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <RepairsView question={question} />
+        {element}
       </QueryClientProvider>,
     ),
   );
+  return { host, unmount: () => act(async () => root.unmount()) };
+}
+
+async function show(question?: string) {
+  const { host, unmount } = await render(<RepairsView question={question} />);
   await vi.waitFor(() =>
     expect(host.textContent).not.toContain("Loading repairs"),
   );
   return {
     cut: () =>
       host.querySelector('[data-slot="repairs-cut"]')?.textContent ?? null,
-    unmount: () => act(async () => root.unmount()),
+    /** Ticks one option of a filter chip, as the investor does. */
+    async choose(filter: string, option: string) {
+      const chip = [
+        ...host.querySelectorAll<HTMLElement>('button[aria-haspopup="menu"]'),
+      ].find((item) => item.textContent?.startsWith(filter));
+      await act(async () => {
+        chip?.dispatchEvent(
+          new MouseEvent("mousedown", { bubbles: true, button: 0 }),
+        );
+        chip?.click();
+      });
+      const item = await vi.waitFor(() => {
+        const found = [
+          ...document.querySelectorAll<HTMLElement>(
+            '[role="menuitemcheckbox"]',
+          ),
+        ].find((entry) => entry.textContent === option);
+        expect(found).toBeDefined();
+        return found;
+      });
+      await act(async () => item?.click());
+    },
+    unmount,
   };
 }
 
@@ -120,5 +148,30 @@ describe("repairs when core cut a list at its limit", () => {
     expect(everything.cut()).toMatch(/50 settled questions/u);
     expect(everything.cut()).toMatch(/50 corrections/u);
     await everything.unmount();
+  });
+
+  it("speaks only of the lists whose issues the Type filter leaves on show", async () => {
+    core({ open: 50, total: 63, corrections: 50 });
+    const page = await show();
+    expect(page.cut()).toMatch(/50 of 63 open questions/u);
+    expect(page.cut()).toMatch(/50 corrections/u);
+    await page.choose("Type", "Correction");
+    expect(page.cut()).toMatch(/50 corrections/u);
+    expect(page.cut()).not.toMatch(/open questions/u);
+    await page.unmount();
+    const questions = await show();
+    await questions.choose("Type", "Identity question");
+    expect(questions.cut()).toMatch(/50 of 63 open questions/u);
+    expect(questions.cut()).not.toMatch(/corrections/u);
+    await questions.unmount();
+  });
+});
+
+describe("the Settings count of open issues", () => {
+  it("counts the open questions core holds beyond the ones it listed", async () => {
+    core({ open: 50, total: 63 });
+    const { host, unmount } = await render(<RepairsPage />);
+    await vi.waitFor(() => expect(host.textContent).toMatch(/63 open issues/u));
+    await unmount();
   });
 });

@@ -59,11 +59,13 @@ export function RepairsView({ question }: { question?: string | undefined }) {
       (!types.length || types.includes(repair.kind)) &&
       (!needle || repair.search.includes(needle)),
   );
-  // What the lists left out, for the statuses on show.
+  // What the lists left out, for the statuses and types on show. Search is not
+  // applied: the issues left out could be the ones it looks for.
   const cut = repairs.cut.filter(
     (list) =>
-      !statuses.length ||
-      list.statuses.some((status) => statuses.includes(status)),
+      (!statuses.length ||
+        list.statuses.some((status) => statuses.includes(status))) &&
+      (!types.length || types.includes(list.kind)),
   );
   // A link can outlive its question: answered, superseded by a new release, or
   // past the queue read's cap.
