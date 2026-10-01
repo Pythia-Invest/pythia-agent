@@ -173,7 +173,7 @@ line counts), plus these choices, which are the founder's rulings where marked:
   operating MIC it stays the main. Elsewhere the main is the code whose segment
   MIC is the operating MIC, then the one with the most lines, with one choice
   the lines do not settle: BS is B3's main (BN has as many lines).
-- *US codes* (manager ruling on the pull request): the US exchange codes are
+- *US codes* (decided in review): the US exchange codes are
   not mapped. OpenFIGI gives a line for every US exchange a security trades on
   under unlisted trading privileges, so mapping UN, UA, UP, UF, UW and the rest
   would show a Nasdaq stock as listed on NYSE, Arca and Cboe. US listings come

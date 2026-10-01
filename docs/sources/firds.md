@@ -68,7 +68,7 @@ ESMA12-2121844265-384, dated 23 June 2025.
 
 ## 1. Field semantics
 
-"Read today" describes the builder on `identity-backbone` on 2026-09-28.
+"Read today" describes the builder as of 2026-09-28.
 
 | Field (RTS 23, XML) | Official definition | Pythia meaning | Measured behaviour | Read today |
 | --- | --- | --- | --- | --- |

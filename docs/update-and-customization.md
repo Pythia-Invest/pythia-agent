@@ -214,7 +214,8 @@ concept and provider tools, loaded or behind Tool Search as the investor chooses
 ([agent tools](architecture/agent-tools.md)). These are initial values only;
 later native user edits are preserved. The update migration
 `0002-agent-tool-surface` applies the same toolset and skill-writing choices to
-an existing profile with native commands.
+an existing profile with native commands. It does not enable plugins an update
+adds: see [Updating a stack that predates the identity backbone](development.md#updating-a-stack-that-predates-the-identity-backbone).
 
 Standalone managed skills declare native `metadata.hermes.requires_toolsets` when they
 need a tool. Where Hermes has toolset information, it uses that metadata to

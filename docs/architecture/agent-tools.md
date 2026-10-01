@@ -189,7 +189,8 @@ when that changes.
   disable <plugin> --platform cli` (and `cron`); there they refuse, since those
   sessions have no trusted caller.
 - **Development profiles**, including the demo stack, take the same commands by
-  hand.
+  hand: [Updating a stack that predates the identity backbone](../development.md#updating-a-stack-that-predates-the-identity-backbone)
+  lists them.
 - **Agent-initiated skill writing is off for now** (founder decision). Hermes
   would otherwise write and rewrite its own skills, and in the agent eval two
   such skills steered the agent to the web. Three native keys do it:

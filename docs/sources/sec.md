@@ -63,7 +63,7 @@ and 13G (`SC 13G` to `SCHEDULE 13G`) in late 2024, which the plugin reads.
 
 ## 1. Field semantics
 
-"Read today" describes `identity-backbone` on 2026-09-28.
+"Read today" describes the builder and the plugin as of 2026-09-28.
 
 ### Ticker files
 

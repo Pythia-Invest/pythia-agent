@@ -21,8 +21,8 @@ mandate, and eventually help develop new strategies. The first users are
 technically comfortable investors who self-host. A hosted offering for
 investment teams, and sharing proven strategies, follow later.
 
-An architecture review of the umbrella branch against that goal found the
-following:
+An architecture review of the identity backbone work against that goal found
+the following:
 
 - **The engine has no home.** Nothing represents a mandate, a decision record,
   forecasts, a paper portfolio, portfolio state, order approval, or work that
@@ -607,7 +607,7 @@ Australia's composite and the ASX line is AT. The US exchange codes (UN, UW, UF
 and the rest) are not mapped: OpenFIGI gives a US security a line on every US
 venue under unlisted trading privileges, so mapping them would show a Nasdaq
 stock as listed on NYSE and Cboe. Their kind, `us_unlisted_trading`, keeps the
-MIC in the vocabulary; US listings come from SEC (manager ruling). PQ stays
+MIC in the vocabulary; US listings come from SEC (decided in review). PQ stays
 mapped to OTCM. Request-for-quote MTFs (B2, B4, T2, WT) are not order books
 either: kind `rfq`, parked.
 
@@ -1070,8 +1070,8 @@ This amendment's rulings are numbered J1 to J5.
    repair. Nothing in this amendment makes a resolver a precondition for
    using Pythia.
 
-Three details are the manager's proposals, carried from earlier rulings
-rather than stated by the founder in this decision: that only facts, never
+Three details are proposals carried from earlier rulings, not stated by the
+founder in this decision: that only facts, never
 conventions, are judged (from A5); that the chat agent's own answers stay
 suggestions (from A2); and that J3's reports are per report and go to a
 third-party plugin's own maintainer.

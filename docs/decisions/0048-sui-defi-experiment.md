@@ -81,6 +81,21 @@ for each. Rules 5 and 6 are proposals (candidate 2 below), not adopted.
    ten protocols with original packages live in the plugin. DeFiLlama's fee labels,
    written 100 times too large for Cetus, are a labelled source correction in its
    plugin, never a core rule.
+
+   The chain plugin still leaves some chain records out, which sits awkwardly
+   with the rule that a plugin keeps every source record and learns the source's
+   vocabulary (OpenFIGI keeps a line it cannot place, parked, with a `venue_note`
+   saying why, and filters come at display:
+   [exchange codes](../sources/openfigi.md#exchange-codes)). It leaves out a pool
+   below the dust floor, without a warning; the markets of a protocol the chain
+   did not confirm (`unverified_protocol`); and a pool, market or vault it cannot
+   read as the protocol's own (`invalid_reference`, `unexpected_root`), each with
+   a warning. The three package alarms (`package_unknown`, `package_not_original`,
+   `package_family_changed`) are different: they check the plugin's own list of
+   original packages against the chain. Whether the rule applies to each of
+   these drops, and whether any becomes a status on a kept record, filtered at
+   display, is not decided; the experiment has not tried it, and it stays open
+   for when Sui work resumes.
 8. **Fees and other changing state are reads with an as-of, never claims.** The
    chain plugin's `metrics` read returns a DeepBook pool's taker and maker fee as
    they stand now. It is a plain plugin read, not core's checked metric row, which
@@ -191,9 +206,9 @@ fundamentals tool and tool budget** (candidate 4).
 
 ## Since the experiment
 
-The order dependence above (candidate 6) was fixed on the identity-backbone
-umbrella by the amendment "ingest results do not depend on which plugin syncs
-first" ([ADR 0037](0037-identity-backbone.md)): a relation with an end no subject
+The order dependence above (candidate 6) was fixed in core by the amendment
+"ingest results do not depend on which plugin syncs first"
+([ADR 0037](0037-identity-backbone.md)): a relation with an end no subject
 names yet waits in `pending_relations` and is placed when that subject arrives,
 and a subject's display name follows the investor's `source_order`. That work
 applies to the open keys too: a `sui_object` market reached through a waiting
