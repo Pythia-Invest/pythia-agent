@@ -80,7 +80,15 @@ for each. Rules 5 and 6 are proposals (candidate 2 below), not adopted.
    pool needs 8 resting orders, because the chain has no price) and its list of
    ten protocols with original packages live in the plugin. DeFiLlama's fee labels,
    written 100 times too large for Cetus, are a labelled source correction in its
-   plugin, never a core rule.
+   plugin, never a core rule. The dust floor is a known deviation in the
+   experiment: it leaves a pool out of the plugin's records, where a plugin keeps
+   every source record and learns the source's vocabulary (OpenFIGI keeps a line
+   it cannot place, parked, with a `venue_note` saying why, and filters come at
+   display: [exchange codes](../sources/openfigi.md#exchange-codes)). Before the
+   Sui plugin leaves the experiment, the floor becomes a status on a kept pool,
+   filtered at display. The package-identity alarms stay as they are: they check
+   the plugin's own catalogue of original packages against the chain, and are not
+   dropped source records.
 8. **Fees and other changing state are reads with an as-of, never claims.** The
    chain plugin's `metrics` read returns a DeepBook pool's taker and maker fee as
    they stand now. It is a plain plugin read, not core's checked metric row, which
@@ -191,9 +199,9 @@ fundamentals tool and tool budget** (candidate 4).
 
 ## Since the experiment
 
-The order dependence above (candidate 6) was fixed on the identity-backbone
-umbrella by the amendment "ingest results do not depend on which plugin syncs
-first" ([ADR 0037](0037-identity-backbone.md)): a relation with an end no subject
+The order dependence above (candidate 6) was fixed in core by the amendment
+"ingest results do not depend on which plugin syncs first"
+([ADR 0037](0037-identity-backbone.md)): a relation with an end no subject
 names yet waits in `pending_relations` and is placed when that subject arrives,
 and a subject's display name follows the investor's `source_order`. That work
 applies to the open keys too: a `sui_object` market reached through a waiting

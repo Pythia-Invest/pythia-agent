@@ -553,6 +553,15 @@ lists every truth entry's subject ID that changed since the previous baseline
 and writes nothing unless `--accept-id-changes` is given; the accepted changes
 are kept in the baseline under `accepted_id_changes`.
 
+`truth/baseline.json` also holds `expected_failures`: a map from a check id
+(`<entry>:<check>:<detail>`) to the reason the check is accepted as failing until
+a named follow-up lands (a receipt whose field 26 names a superseded ISIN, or a
+primary the rules deliberately leave unknown, ADR 0044 A5). Such a check never
+passed, so failing is not a regression; the report lists the count and any that
+now pass. `--write-baseline` keeps an entry while its check still fails and drops
+it once the check passes. It cannot write a reason, so add the entry by hand with
+one.
+
 The same command then checks 19 whole-build invariants (`invariants.py`): rules
 every row must satisfy, so a systematic error shows up as a count rather than as one
 truth entry. Fifteen are errors: a line on a German exchange or Vienna not in euros,
@@ -632,4 +641,8 @@ The snapshot's `release.sources` entry records each source's URL, version, retri
 time and licence label. Only MIC codes that listings reference are included,
 never the full ISO list. The snapshot stays on the device that built it;
 redistributing OpenFIGI tickers and names, and ISIN-to-FIGI pairs, is
-unconfirmed.
+unconfirmed. That concerns a published snapshot: the committed
+`truth/instruments.json` is a small hand-curated test oracle of expected
+identifiers, each pair checked against the primary sources, not a copy of the
+mapping, and FIGIs are public domain under the OpenFIGI terms of service (§1,
+[ADR 0039](../../docs/decisions/0039-local-first-reference-data-and-rights.md)).

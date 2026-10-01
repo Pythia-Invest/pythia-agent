@@ -313,7 +313,8 @@ responses and model output, and
 
 ## Writing judgement questions
 
-Follow the [prompting guidance](../prompting.md). For Jev in particular:
+Follow the [prompting guidance](../prompting.md). For the questions the device
+agent answers in particular:
 
 - **Pin the model version.** A new model version, wording or evidence rendering
   is a new question version and needs a new calibration.

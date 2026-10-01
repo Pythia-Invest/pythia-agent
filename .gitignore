@@ -119,7 +119,3 @@ ds-bundle/
 
 # Generated PDF.js character maps from the pinned dependency
 /apps/desk/public/_pdfjs/
-
-# A leftover of the retired plugin-digest trust (ADR 0044, amendment of 2026-09-30): older checkouts still hold a
-# generated one, and nothing reads or writes it now.
-/runtime/managed/core/identity/trust.json
